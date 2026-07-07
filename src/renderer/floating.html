@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Floating Lyrics</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body class="floating-body">
+    <section class="floating-card">
+      <div class="floating-lines">
+        <p id="previousLine" class="floating-context">Auto Lyrics Player</p>
+        <h1 id="currentLine">No lyric line</h1>
+        <p id="nextLine" class="floating-context">Open a track and start playback.</p>
+      </div>
+      <div class="floating-controls">
+        <button id="floatingPrev" type="button" title="Previous Track">|◀</button>
+        <button id="floatingPlayPause" type="button" title="Play/Pause">▶</button>
+        <button id="floatingNext" type="button" title="Next Track">▶|</button>
+        <button id="floatingLock" type="button" title="Toggle Window Lock">Lock</button>
+        <button id="floatingHide" type="button" title="Hide Floating Lyrics">Hide</button>
+      </div>
+    </section>
+
+    <script src="./floating.js"></script>
+  </body>
+</html>

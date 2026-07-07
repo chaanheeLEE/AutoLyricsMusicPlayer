@@ -1,0 +1,36 @@
+{
+  "name": "auto-lyrics-player",
+  "version": "0.1.0",
+  "description": "Desktop music player prototype with synchronized and floating lyrics.",
+  "main": "src/main/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check src/main/main.js && node --check src/main/preload.js && node --check src/shared/lyrics-core.js && node --check src/renderer/app.js && node --check src/renderer/floating.js",
+    "test": "node --test",
+    "build": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^31.7.7",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.autolyricsplayer.app",
+    "productName": "AutoLyricsPlayer",
+    "win": {
+      "target": "portable",
+      "icon": "src/assets/icon.png"
+    },
+    "asar": true,
+    "asarUnpack": [
+      "src/main/transcribe.py"
+    ],
+    "files": [
+      "src/**/*",
+      "package.json"
+    ]
+  },
+  "dependencies": {
+    "@google/genai": "^2.10.0"
+  }
+}

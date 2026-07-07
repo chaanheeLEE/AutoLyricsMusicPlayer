@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Auto Lyrics Player</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <!-- Windows native overlay drag zone -->
+    <div class="window-titlebar-drag"></div>
+    <main class="app-shell">
+      <section class="player-pane">
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">Local Whisper-ready player</p>
+            <h1>Auto Lyrics Player</h1>
+          </div>
+          <div class="topbar-actions">
+            <button id="settingsButton" class="icon-button" type="button" aria-label="Settings">⚙</button>
+            <button id="openTrackButton" class="primary-button" type="button">+ Add Audio</button>
+          </div>
+        </div>
+
+        <div class="now-playing">
+          <div class="disc" aria-hidden="true">
+            <img id="albumArt" src="" alt="Album Art" style="display: none;" />
+            <div id="albumArtPlaceholder" class="disc-core">🎵</div>
+          </div>
+          <div class="track-copy">
+            <p class="label">Now Playing</p>
+            <h2 id="trackTitle"><span>No track selected</span></h2>
+            <p id="trackStatus">Add track(s) to start playback.</p>
+          </div>
+        </div>
+
+        <audio id="audio"></audio>
+
+        <div class="transport">
+          <div class="transport-nav">
+            <button id="prevButton" type="button" disabled title="Previous Track">|◀</button>
+            <button id="playButton" class="icon-button" type="button" disabled title="Play/Pause">▶</button>
+            <button id="nextButton" type="button" disabled title="Next Track">▶|</button>
+            <button id="shuffleButton" type="button" disabled title="Toggle Shuffle">Shuffle: OFF</button>
+          </div>
+          <label class="volume-control">
+            <span>Volume</span>
+            <input id="volumeBar" type="range" min="0" max="1" step="0.01" value="0.85" />
+          </label>
+        </div>
+
+        <div class="timeline-group">
+          <input id="seekBar" type="range" min="0" max="1000" value="0" disabled />
+          <div class="time-row">
+            <span id="currentTime">0:00</span>
+            <span id="duration">0:00</span>
+          </div>
+        </div>
+
+        <div class="sync-group">
+          <span class="sync-label">Sync Control</span>
+          <div class="sync-buttons">
+            <button id="syncBackButton" type="button" disabled>-0.5s</button>
+            <button id="syncFineBackButton" type="button" disabled>-0.1s</button>
+            <button id="resetSyncButton" type="button" disabled>Reset</button>
+            <button id="syncFineForwardButton" type="button" disabled>+0.1s</button>
+            <button id="syncForwardButton" type="button" disabled>+0.5s</button>
+          </div>
+        </div>
+
+        <div class="action-grid">
+          <div class="analyze-group">
+            <button id="analyzeButton" type="button" disabled>Analyze</button>
+            <button id="cancelButton" type="button" disabled style="display:none">Cancel</button>
+            <button id="alignButton" type="button" disabled>AI Align</button>
+          </div>
+          <button id="floatingButton" type="button" disabled>Show Floating Lyrics</button>
+          <button id="exportLrcButton" type="button" disabled>Export LRC</button>
+          <button id="exportVttButton" type="button" disabled>Export VTT</button>
+        </div>
+
+        <div id="transcriptionProgress" class="transcription-progress" style="display:none">
+          <div class="progress-bar-wrap">
+            <div id="progressBar" class="progress-bar" style="width:0%"></div>
+          </div>
+          <p id="progressLabel" class="progress-label">Preparing…</p>
+        </div>
+
+      </section>
+
+      <section class="lyrics-pane">
+        <div class="lyrics-header">
+          <div>
+            <p class="eyebrow">Synchronized Lyrics</p>
+            <h2>Lyrics Timeline</h2>
+          </div>
+          <div class="lyrics-header-actions">
+            <button id="editModeButton" type="button" style="padding: 6px 14px;">Edit</button>
+            <span id="syncOffsetBadge">Offset 0.0s</span>
+          </div>
+        </div>
+
+
+
+        <div id="lyricsList" class="lyrics-list empty">
+          <div class="empty-state">
+            <h3>No lyrics yet</h3>
+            <p>Open a track and press Analyze to generate synchronized lyrics.</p>
+          </div>
+        </div>
+
+        <div id="playlistResizer" class="playlist-resizer" title="Drag to resize playlist height"></div>
+
+        <div class="playlist-section">
+          <div class="playlist-header-row">
+            <h3>Playlist <span id="playlistCount" style="font-size: 0.74rem; color: var(--muted); font-weight: 500; text-transform: none; margin-left: 6px;"></span></h3>
+            <div class="playlist-sort-actions">
+              <select id="playlistSortSelect" class="sort-select-box" title="플레이리스트 정렬">
+                <option value="" disabled selected hidden>Sort</option>
+                <option value="az">Sort A-Z</option>
+                <option value="reset">Original Order</option>
+              </select>
+              <button id="playlistSearchButton" class="sort-action-btn" type="button" title="재생 목록 검색">🔍</button>
+              <button id="playlistClearButton" class="sort-action-btn danger-action-btn" type="button" title="재생 목록 비우기">Clear</button>
+            </div>
+          </div>
+          <input id="playlistSearchInput" class="playlist-search-input" type="text" placeholder="Search track title..." style="display:none;" aria-label="Search track title" />
+          <div id="playlistList" class="playlist-list">
+            <!-- Playlist items will be dynamic -->
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Settings dialog (native <dialog>) -->
+    <dialog id="settingsDialog" class="settings-dialog">
+      <form method="dialog" class="settings-form">
+        <h2>Settings</h2>
+
+        <div class="settings-tabs">
+          <button id="tabGeneralBtn" class="settings-tab-button active" type="button">General</button>
+          <button id="tabFloatingBtn" class="settings-tab-button" type="button">Floating Lyrics</button>
+        </div>
+
+        <!-- 1. General Settings Tab Content -->
+        <div id="tabGeneralContent" class="tab-content active">
+          <div class="settings-group">
+            <label for="settingModel">Whisper Model</label>
+            <select id="settingModel" name="model">
+              <option value="tiny">tiny — fastest, lowest accuracy</option>
+              <option value="base" selected>base — good balance (default)</option>
+              <option value="small">small — better accuracy</option>
+              <option value="medium">medium — high accuracy</option>
+              <option value="large-v3">large-v3 — best accuracy, slowest</option>
+            </select>
+          </div>
+
+          <div class="settings-group">
+            <label for="settingLanguage">Language</label>
+            <select id="settingLanguage" name="language">
+              <option value="">Auto-detect</option>
+              <option value="ko">Korean (한국어)</option>
+              <option value="en">English</option>
+              <option value="ja">Japanese (日本語)</option>
+              <option value="zh">Chinese (中文)</option>
+            </select>
+          </div>
+
+          <div class="settings-group">
+            <label for="settingGeminiKey">Gemini API Key</label>
+            <input type="password" id="settingGeminiKey" placeholder="AI 보정을 위한 API 키를 입력하세요" />
+          </div>
+
+          <div class="settings-group">
+            <label for="settingAutoAnalyzeMode">자동 분석 모드</label>
+            <select id="settingAutoAnalyzeMode" name="autoAnalyzeMode">
+              <option value="off">사용 안 함 (수동 분석)</option>
+              <option value="analyze">가사 자동 분석만 수행 (Whisper)</option>
+              <option value="align">가사 자동 분석 + AI 정렬 동시 수행 (Whisper + Gemini)</option>
+            </select>
+          </div>
+
+          <div class="settings-group">
+            <label>Cache</label>
+            <div class="settings-row">
+              <p id="cachePathLabel" class="settings-note">—</p>
+              <button id="clearCacheButton" type="button">Clear Cache</button>
+            </div>
+          </div>
+          
+          <p class="settings-privacy">
+            🔒 All audio processing is local. No files or lyrics are uploaded to any server.
+          </p>
+        </div>
+
+        <!-- 2. Floating Lyrics Settings Tab Content -->
+        <div id="tabFloatingContent" class="tab-content">
+          <div class="settings-group">
+            <label for="settingFloatingFontSize">Font Size (<span id="valFloatingFontSize">18</span>px)</label>
+            <input type="range" id="settingFloatingFontSize" min="12" max="32" step="1" value="18" />
+          </div>
+
+          <div class="settings-group">
+            <label for="settingFloatingOpacity">Background Opacity (<span id="valFloatingOpacity">0.85</span>)</label>
+            <input type="range" id="settingFloatingOpacity" min="0.0" max="1.0" step="0.05" value="0.85" />
+          </div>
+
+          <div class="settings-group">
+            <label for="settingFloatingBgColor">Background Color</label>
+            <input type="color" id="settingFloatingBgColor" value="#0b0d11" class="color-picker-input" />
+          </div>
+
+          <div class="settings-group">
+            <label for="settingFloatingFontColor">Font Color</label>
+            <input type="color" id="settingFloatingFontColor" value="#ffffff" class="color-picker-input" />
+          </div>
+
+          <div class="settings-group">
+            <label for="settingFloatingAlign">Text Alignment</label>
+            <select id="settingFloatingAlign" name="floatingAlign">
+              <option value="left">Left</option>
+              <option value="center" selected>Center</option>
+              <option value="right">Right</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="settings-footer">
+          <button value="cancel" type="submit">Close</button>
+          <button id="saveSettingsButton" type="button" class="primary-button">Save</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="../shared/lyrics-core.js"></script>
+    <script src="./modules/player-controller.js"></script>
+    <script src="./modules/playlist-manager.js"></script>
+    <script src="./modules/lyrics-viewer.js"></script>
+    <script src="./modules/settings-view.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
