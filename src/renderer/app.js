@@ -411,7 +411,14 @@ alignButton.addEventListener("click", async () => {
     if (result?.ok && result.lyrics?.length > 0) {
       state.lyrics = result.lyrics;
       lyricsViewer.setOffset(0);
-      trackStatus.textContent = `AI Alignment complete. ${result.lyrics.length} official lines mapped.`;
+      
+      if (result.warning === "fallback_to_whisper") {
+        console.error("[Aligner] Fallback to whisper active. AI Align Error detail:\n", result.errorDetail);
+        trackStatus.textContent = `AI Alignment Failed: ${result.errorDetail.split('\n')[0]}`;
+      } else {
+        trackStatus.textContent = `AI Alignment complete. ${result.lyrics.length} official lines mapped.`;
+      }
+
       lyricsViewer.render();
       lyricsViewer.updateActive(player.getCurrentTime(), player.isPlaying());
       persistLyricsSoon();

@@ -13,6 +13,12 @@ if (TRANSCRIBE_SCRIPT.includes("app.asar")) {
 
 /** Resolve ffmpeg binary — PATH first, then winget fallback on Windows. */
 function resolveFfmpeg() {
+  const { existsSync } = require("node:fs");
+  const packedFfmpeg = path.join(process.resourcesPath, "bin", "ffmpeg.exe");
+  if (existsSync(packedFfmpeg)) {
+    return packedFfmpeg;
+  }
+
   try {
     execFileSync("ffmpeg", ["-version"], { stdio: "ignore" });
     return "ffmpeg";
@@ -175,10 +181,20 @@ function startTranscription(track, options, onProgress) {
     const lines = [];
 
     await new Promise((resolve, reject) => {
-      const args = [TRANSCRIBE_SCRIPT, tmpWav, "--model", model];
+      const { existsSync } = require("node:fs");
+      const packedTranscribe = path.join(process.resourcesPath, "bin", "transcribe.exe");
+      
+      let cmd, args;
+      if (existsSync(packedTranscribe)) {
+        cmd = packedTranscribe;
+        args = [tmpWav, "--model", model];
+      } else {
+        cmd = resolvePython();
+        args = [TRANSCRIBE_SCRIPT, tmpWav, "--model", model];
+      }
       if (language) args.push("--language", language);
 
-      const proc = spawn(resolvePython(), args, { stdio: ["ignore", "pipe", "pipe"] });
+      const proc = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
       activeProc = proc;
 
       let stderrBuf = "";

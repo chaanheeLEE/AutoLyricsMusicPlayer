@@ -161,7 +161,7 @@ async function alignAndInterpolateLyrics(payload) {
       end: lyric.end,
       text: lyric.text
     }));
-    return { ok: true, lyrics: fallbackLyrics, source: "whisper", warning: "fallback_to_whisper" };
+    return { ok: true, lyrics: fallbackLyrics, source: "whisper", warning: "fallback_to_whisper", errorDetail: err.message + "\n" + err.stack };
   }
 }
 
