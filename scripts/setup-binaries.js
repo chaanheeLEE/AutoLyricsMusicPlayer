@@ -135,8 +135,26 @@ if (!fs.existsSync(ffmpegDest) || !fs.existsSync(ffprobeDest)) {
 }
 
 // 3. Compile transcribe.py into transcribe.exe using PyInstaller
+const transcribeSource = path.join(__dirname, "..", "src", "main", "services", "transcribe.py");
 const transcribeDest = path.join(binDir, "transcribe.exe");
-if (!fs.existsSync(transcribeDest)) {
+
+let shouldBuild = !fs.existsSync(transcribeDest);
+
+if (fs.existsSync(transcribeDest) && fs.existsSync(transcribeSource)) {
+  const sourceStat = fs.statSync(transcribeSource);
+  const destStat = fs.statSync(transcribeDest);
+  if (sourceStat.mtime > destStat.mtime) {
+    console.log("transcribe.py is newer than transcribe.exe. Rebuilding...");
+    shouldBuild = true;
+    try {
+      fs.unlinkSync(transcribeDest);
+    } catch (err) {
+      console.error("Failed to delete outdated transcribe.exe:", err);
+    }
+  }
+}
+
+if (shouldBuild) {
   console.log("Building transcribe.py into transcribe.exe using PyInstaller...");
   try {
     const buildCmd = `conda run -n lyrics_player pyinstaller --onefile --clean --collect-all faster_whisper --collect-all ctranslate2 --distpath "${binDir}" "src/main/services/transcribe.py"`;
@@ -155,7 +173,7 @@ if (!fs.existsSync(transcribeDest)) {
     process.exit(1);
   }
 } else {
-  console.log("transcribe.exe already exists in bin/win32.");
+  console.log("transcribe.exe already exists in bin/win32 and is up to date.");
 }
 
 console.log("Dependency binaries preparation complete!");
