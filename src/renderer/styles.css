@@ -1186,3 +1186,136 @@ input[type="range"] {
   50% { opacity: 0.7; }
   100% { opacity: 1; }
 }
+
+/* Lyrics Editor Timestamps styling */
+.lyrics-list.edit-mode .lyric-timestamp {
+  display: none; /* 기존 읽기전용 타임스탬프 숨김 */
+}
+
+/* 편집 모드 전용 시간 컨트롤 컨테이너 */
+.lyric-time-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 8px;
+}
+
+/* 캡처 버튼 (아이콘 ➔ sync 텍스트 전환) */
+.lyric-sync-btn {
+  position: relative;
+  width: 54px;
+  height: 26px;
+  background-color: var(--bg-dark, #2b303c);
+  border: 1px solid var(--line, #454d5e);
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  outline: none;
+  overflow: hidden;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.lyric-sync-btn:hover {
+  background-color: var(--bg-light, #3b4252);
+  border-color: var(--accent, #88c0d0);
+}
+
+.lyric-sync-btn .btn-icon,
+.lyric-sync-btn .btn-text {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+/* 기본 상태: 아이콘만 보이고 글자는 숨김 */
+.lyric-sync-btn .btn-icon {
+  opacity: 0.8;
+  color: var(--text);
+  transform: scale(1);
+}
+
+.lyric-sync-btn .btn-text {
+  opacity: 0;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transform: scale(0.9);
+}
+
+/* 호버 시: 아이콘 숨기고 글자 표시 */
+.lyric-sync-btn:hover .btn-icon {
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+.lyric-sync-btn:hover .btn-text {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* 미세 조정 버튼 (원형) */
+.lyric-time-adjust-btn {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--bg-dark, #2b303c);
+  border: 1px solid var(--line, #454d5e);
+  color: var(--text, #ffffff);
+  font-size: 0.8rem;
+  font-weight: bold;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 0.15s, border-color 0.15s;
+  outline: none;
+}
+
+.lyric-time-adjust-btn:hover {
+  background: var(--bg-hover, #3b4252);
+  border-color: var(--accent, #88c0d0);
+  color: var(--accent, #88c0d0);
+}
+
+/* 시간 텍스트 및 인풋 */
+.lyric-timestamp-text {
+  font-family: monospace;
+  font-size: 0.82rem;
+  color: var(--accent);
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+  min-width: 52px;
+  text-align: center;
+}
+
+.lyric-timestamp-text:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.lyric-timestamp-input {
+  width: 52px;
+  font-family: monospace;
+  font-size: 0.82rem;
+  color: var(--text);
+  background: var(--bg-dark, #1e222b);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 1px 3px;
+  text-align: center;
+  outline: none;
+}

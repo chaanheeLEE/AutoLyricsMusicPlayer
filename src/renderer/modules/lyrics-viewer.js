@@ -35,6 +35,156 @@ class LyricsViewer {
       
       this.callbacks.onLyricTextChange();
     });
+
+    // 편집 모드에서의 시간 조절 클릭 이벤트 핸들러
+    this.lyricsList.addEventListener("click", (event) => {
+      if (!this.state.editMode) return;
+
+      // (1) 현재 재생 시간 동기화 (Sync 🎯)
+      const syncBtn = event.target.closest(".lyric-sync-btn");
+      if (syncBtn) {
+        const lineId = syncBtn.dataset.lineId;
+        const line = this.state.lyrics.find(l => l.id === lineId);
+        if (line && this.callbacks.onGetCurrentTime) {
+          const currentAudioTime = this.callbacks.onGetCurrentTime();
+          if (Number.isFinite(currentAudioTime)) {
+            // 오프셋을 차감한 순수 시작 시간 적용
+            line.start = Number(Math.max(0, currentAudioTime - this.state.syncOffset).toFixed(3));
+            
+            const parentRow = syncBtn.closest(".lyric-time-controls");
+            if (parentRow) {
+              const txtSpan = parentRow.querySelector(".lyric-timestamp-text");
+              if (txtSpan) {
+                txtSpan.textContent = window.lyricsCore.formatClock(line.start);
+              }
+            }
+            
+            this.state.lyrics.sort((a, b) => a.start - b.start);
+            this.callbacks.onLyricTextChange();
+          }
+        }
+        return;
+      }
+
+      // (2) 0.1초 줄이기 (-)
+      const decBtn = event.target.closest(".lyric-time-adjust-btn.dec");
+      if (decBtn) {
+        const lineId = decBtn.dataset.lineId;
+        const line = this.state.lyrics.find(l => l.id === lineId);
+        if (line) {
+          line.start = Number(Math.max(0, line.start - 0.1).toFixed(3));
+          const parentRow = decBtn.closest(".lyric-time-controls");
+          if (parentRow) {
+            const txtSpan = parentRow.querySelector(".lyric-timestamp-text");
+            if (txtSpan) {
+              txtSpan.textContent = window.lyricsCore.formatClock(line.start);
+            }
+          }
+          this.state.lyrics.sort((a, b) => a.start - b.start);
+          this.callbacks.onLyricTextChange();
+        }
+        return;
+      }
+
+      // (3) 0.1초 늘리기 (+)
+      const incBtn = event.target.closest(".lyric-time-adjust-btn.inc");
+      if (incBtn) {
+        const lineId = incBtn.dataset.lineId;
+        const line = this.state.lyrics.find(l => l.id === lineId);
+        if (line) {
+          line.start = Number((line.start + 0.1).toFixed(3));
+          const parentRow = incBtn.closest(".lyric-time-controls");
+          if (parentRow) {
+            const txtSpan = parentRow.querySelector(".lyric-timestamp-text");
+            if (txtSpan) {
+              txtSpan.textContent = window.lyricsCore.formatClock(line.start);
+            }
+          }
+          this.state.lyrics.sort((a, b) => a.start - b.start);
+          this.callbacks.onLyricTextChange();
+        }
+        return;
+      }
+    });
+
+    // 시간 텍스트 더블클릭 시 타이핑 가능한 입력창으로 직접 전환
+    this.lyricsList.addEventListener("dblclick", (event) => {
+      if (!this.state.editMode) return;
+
+      const timeSpan = event.target.closest(".lyric-timestamp-text");
+      if (!timeSpan) return;
+
+      const lineId = timeSpan.dataset.lineId;
+      const line = this.state.lyrics.find(l => l.id === lineId);
+      if (!line) return;
+
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "lyric-timestamp-input";
+      input.value = window.lyricsCore.formatClock(line.start);
+      
+      timeSpan.replaceWith(input);
+      input.focus();
+      input.select();
+
+      const parseTime = (val) => {
+        const trimmed = val.trim();
+        if (!trimmed) return NaN;
+
+        if (/^\d+(\.\d+)?$/.test(trimmed)) {
+          return Number(trimmed);
+        }
+
+        const parts = trimmed.split(":");
+        if (parts.length >= 2) {
+          let seconds = 0;
+          let multiplier = 1;
+          for (let i = parts.length - 1; i >= 0; i--) {
+            const num = Number(parts[i]);
+            if (isNaN(num)) return NaN;
+            seconds += num * multiplier;
+            multiplier *= 60;
+          }
+          return seconds;
+        }
+
+        return NaN;
+      };
+
+      const finishEdit = () => {
+        let nextVal = parseTime(input.value);
+        if (!isNaN(nextVal)) {
+          line.start = Number(nextVal.toFixed(3));
+        }
+        
+        const newSpan = document.createElement("span");
+        newSpan.className = "lyric-timestamp-text";
+        newSpan.dataset.lineId = lineId;
+        newSpan.title = "더블 클릭하여 직접 시간 입력";
+        newSpan.textContent = window.lyricsCore.formatClock(line.start);
+        input.replaceWith(newSpan);
+
+        this.state.lyrics.sort((a, b) => a.start - b.start);
+        this.callbacks.onLyricTextChange();
+      };
+
+      input.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          finishEdit();
+        } else if (e.key === "Escape") {
+          const newSpan = document.createElement("span");
+          newSpan.className = "lyric-timestamp-text";
+          newSpan.dataset.lineId = lineId;
+          newSpan.title = "더블 클릭하여 직접 시간 입력";
+          newSpan.textContent = window.lyricsCore.formatClock(line.start);
+          input.replaceWith(newSpan);
+        }
+      });
+
+      input.addEventListener("blur", () => {
+        finishEdit();
+      });
+    });
   }
 
   escapeHtml(str) {
@@ -71,17 +221,33 @@ class LyricsViewer {
     this.lyricsList.className = "lyrics-list" + (this.state.editMode ? " edit-mode" : "");
     this.lyricsList.innerHTML = this.state.lyrics
       .map(
-        (line) => `
-          <div class="lyric-line" data-line-id="${line.id}">
-            <div class="lyric-seek-wrap">
-              <span class="lyric-timestamp">${window.lyricsCore.formatClock(line.start)}</span>
-              <button class="lyric-seek" type="button" data-start="${line.start}">
-                <strong>${this.escapeHtml(line.text)}</strong>
+        (line) => {
+          const timeStr = window.lyricsCore.formatClock(line.start);
+          const timeControls = this.state.editMode ? `
+            <div class="lyric-time-controls" data-line-id="${line.id}">
+              <button class="lyric-sync-btn" type="button" data-line-id="${line.id}" title="현재 재생 시간으로 동기화 (sync)">
+                <span class="btn-icon">🎯</span>
+                <span class="btn-text">sync</span>
               </button>
-              <input class="lyric-edit" data-line-id="${line.id}" type="text" value="${this.escapeHtml(line.text)}" aria-label="Edit lyric" />
+              <button class="lyric-time-adjust-btn dec" type="button" data-line-id="${line.id}" title="0.1초 앞당기기">-</button>
+              <span class="lyric-timestamp-text" data-line-id="${line.id}" title="더블 클릭하여 직접 시간 입력">${timeStr}</span>
+              <button class="lyric-time-adjust-btn inc" type="button" data-line-id="${line.id}" title="0.1초 늦추기">+</button>
             </div>
-          </div>
-        `
+          ` : "";
+
+          return `
+            <div class="lyric-line" data-line-id="${line.id}">
+              <div class="lyric-seek-wrap">
+                <span class="lyric-timestamp">${timeStr}</span>
+                ${timeControls}
+                <button class="lyric-seek" type="button" data-start="${line.start}">
+                  <strong>${this.escapeHtml(line.text)}</strong>
+                </button>
+                <input class="lyric-edit" data-line-id="${line.id}" type="text" value="${this.escapeHtml(line.text)}" aria-label="Edit lyric" />
+              </div>
+            </div>
+          `;
+        }
       )
       .join("");
   }

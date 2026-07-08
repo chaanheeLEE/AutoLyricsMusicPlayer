@@ -136,6 +136,9 @@ const lyricsViewer = new LyricsViewer(state, {
   onLyricTextChange: () => {
     persistLyricsSoon();
     lyricsViewer.updateActive(player.getCurrentTime(), player.isPlaying());
+  },
+  onGetCurrentTime: () => {
+    return player.getCurrentTime();
   }
 });
 
