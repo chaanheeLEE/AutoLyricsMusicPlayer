@@ -1125,6 +1125,9 @@ input[type="range"] {
 
 .tab-content {
   display: none;
+  height: 360px;
+  box-sizing: border-box;
+  overflow-y: auto;
 }
 
 .tab-content.active {
@@ -1145,4 +1148,41 @@ input[type="range"] {
   padding: 4px;
   cursor: pointer;
   box-sizing: border-box;
+}
+
+.shortcut-capture-btn {
+  background-color: var(--bg-dark);
+  color: var(--text);
+  border: 1px solid var(--line);
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: monospace;
+  font-size: 0.82rem;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  outline: none;
+}
+
+.shortcut-capture-btn:hover {
+  background-color: var(--bg-light);
+  border-color: var(--accent);
+}
+
+.shortcut-capture-btn:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.15);
+}
+
+.shortcut-capture-btn.capturing {
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: #000000;
+  font-weight: 700;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.7; }
+  100% { opacity: 1; }
 }

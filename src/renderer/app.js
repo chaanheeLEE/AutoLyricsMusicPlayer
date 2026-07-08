@@ -450,7 +450,21 @@ analyzeButton.addEventListener("click", async () => {
   trackStatus.textContent = "Analyzing…";
 
   const originalTrackKey = state.track.cacheKey;
-  const result = await window.lyricsPlayer.startTranscription(state.track, state.settings);
+
+  // Whisper 설정 및 힌트 프롬프트 구성
+  const options = { ...(state.settings || {}) };
+  if (state.embeddedLyricsLines && state.embeddedLyricsLines.length > 0) {
+    // 내장 가사가 있을 경우 상위 5줄을 힌트로 사용
+    options.initialPrompt = state.embeddedLyricsLines.slice(0, 5).join(" ");
+  } else if (state.track.title) {
+    // 내장 가사가 없을 경우 파일명을 힌트로 사용 (확장자 제거)
+    options.initialPrompt = state.track.title.replace(/\.[^/.]+$/, "");
+  }
+  if (options.beamSize === undefined) {
+    options.beamSize = 5;
+  }
+
+  const result = await window.lyricsPlayer.startTranscription(state.track, options);
 
   if (!state.track || state.track.cacheKey !== originalTrackKey) {
     state.isAutoAnalyzing = false;
@@ -751,6 +765,86 @@ function initMediaSession() {
       document.body.style.removeProperty("cursor");
       document.body.style.removeProperty("user-select");
       localStorage.setItem("playlist_height", playlistSection.style.height);
+    }
+  });
+
+  // -------------------------------------------------------------
+  // 단축키 제어 (Keyboard Shortcuts)
+  // -------------------------------------------------------------
+  const DEFAULT_SHORTCUTS = {
+    togglePlay: "Space",
+    seekBackward: "ArrowLeft",
+    seekForward: "ArrowRight",
+    volumeUp: "ArrowUp",
+    volumeDown: "ArrowDown",
+    prevTrack: "KeyP",
+    nextTrack: "KeyN",
+    toggleMute: "KeyM",
+    toggleFloating: "KeyF",
+  };
+
+  document.addEventListener("keydown", (e) => {
+    // 입력창에 포커스가 있는 경우 단축키 동작 무시
+    const activeEl = document.activeElement;
+    if (activeEl && (
+      (activeEl.tagName === "INPUT" && (activeEl.type === "text" || activeEl.type === "password" || activeEl.type === "number")) ||
+      activeEl.tagName === "TEXTAREA" ||
+      activeEl.isContentEditable
+    )) {
+      return;
+    }
+
+    const shortcuts = state.settings?.shortcuts || DEFAULT_SHORTCUTS;
+
+    switch (e.code) {
+      case shortcuts.togglePlay:
+        e.preventDefault(); // 스페이스바 브라우저 스크롤 방지
+        player.togglePlay();
+        break;
+      case shortcuts.seekBackward:
+        e.preventDefault();
+        const curTimeLeft = player.getCurrentTime();
+        if (Number.isFinite(curTimeLeft)) {
+          player.setCurrentTime(Math.max(0, curTimeLeft - 5));
+        }
+        break;
+      case shortcuts.seekForward:
+        e.preventDefault();
+        const curTimeRight = player.getCurrentTime();
+        const duration = player.getDuration();
+        if (Number.isFinite(curTimeRight) && Number.isFinite(duration)) {
+          player.setCurrentTime(Math.min(duration, curTimeRight + 5));
+        }
+        break;
+      case shortcuts.volumeUp:
+        e.preventDefault();
+        const curVolUp = player.audio.volume;
+        player.setVolume(Math.min(1.0, Number((curVolUp + 0.05).toFixed(2))));
+        break;
+      case shortcuts.volumeDown:
+        e.preventDefault();
+        const curVolDown = player.audio.volume;
+        player.setVolume(Math.max(0.0, Number((curVolDown - 0.05).toFixed(2))));
+        break;
+      case shortcuts.nextTrack:
+        player.next();
+        break;
+      case shortcuts.prevTrack:
+        player.prev();
+        break;
+      case shortcuts.toggleMute:
+        if (player.audio.volume > 0) {
+          state.savedVolume = player.audio.volume;
+          player.setVolume(0);
+        } else {
+          player.setVolume(state.savedVolume || 0.85);
+        }
+        break;
+      case shortcuts.toggleFloating:
+        if (!floatingButton.disabled) {
+          floatingButton.click();
+        }
+        break;
     }
   });
 })();

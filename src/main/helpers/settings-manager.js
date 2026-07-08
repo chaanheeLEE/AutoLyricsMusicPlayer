@@ -12,6 +12,17 @@ const DEFAULT_SETTINGS = {
   floatingBgColor: "#0b0d11",
   floatingFontColor: "#ffffff",
   floatingAlign: "center",
+  shortcuts: {
+    togglePlay: "Space",
+    seekBackward: "ArrowLeft",
+    seekForward: "ArrowRight",
+    volumeUp: "ArrowUp",
+    volumeDown: "ArrowDown",
+    prevTrack: "KeyP",
+    nextTrack: "KeyN",
+    toggleMute: "KeyM",
+    toggleFloating: "KeyF",
+  },
 };
 
 function getFloatingBoundsPath() {
@@ -65,6 +76,7 @@ async function saveSettings(settings) {
     floatingBgColor: settings.floatingBgColor || DEFAULT_SETTINGS.floatingBgColor,
     floatingFontColor: settings.floatingFontColor || DEFAULT_SETTINGS.floatingFontColor,
     floatingAlign: settings.floatingAlign || DEFAULT_SETTINGS.floatingAlign,
+    shortcuts: settings.shortcuts || DEFAULT_SETTINGS.shortcuts,
   };
   await fs.writeFile(getSettingsPath(), JSON.stringify(safe, null, 2), "utf8");
   return safe;

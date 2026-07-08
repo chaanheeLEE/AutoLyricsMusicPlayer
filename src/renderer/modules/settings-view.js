@@ -9,8 +9,10 @@ class SettingsView {
     
     this.tabGeneralBtn = document.querySelector("#tabGeneralBtn");
     this.tabFloatingBtn = document.querySelector("#tabFloatingBtn");
+    this.tabShortcutsBtn = document.querySelector("#tabShortcutsBtn");
     this.tabGeneralContent = document.querySelector("#tabGeneralContent");
     this.tabFloatingContent = document.querySelector("#tabFloatingContent");
+    this.tabShortcutsContent = document.querySelector("#tabShortcutsContent");
     
     this.settingModel = document.querySelector("#settingModel");
     this.settingLanguage = document.querySelector("#settingLanguage");
@@ -29,6 +31,10 @@ class SettingsView {
     this.clearCacheButton = document.querySelector("#clearCacheButton");
     this.cachePathLabel = document.querySelector("#cachePathLabel");
 
+    this.tempShortcuts = {};
+    this.capturingAction = null;
+    this.shortcutBtns = document.querySelectorAll(".shortcut-capture-btn");
+
     this._initEvents();
   }
 
@@ -38,15 +44,28 @@ class SettingsView {
     this.tabGeneralBtn.addEventListener("click", () => {
       this.tabGeneralBtn.classList.add("active");
       this.tabFloatingBtn.classList.remove("active");
+      this.tabShortcutsBtn.classList.remove("active");
       this.tabGeneralContent.classList.add("active");
       this.tabFloatingContent.classList.remove("active");
+      this.tabShortcutsContent.classList.remove("active");
     });
     
     this.tabFloatingBtn.addEventListener("click", () => {
       this.tabFloatingBtn.classList.add("active");
       this.tabGeneralBtn.classList.remove("active");
+      this.tabShortcutsBtn.classList.remove("active");
       this.tabFloatingContent.classList.add("active");
       this.tabGeneralContent.classList.remove("active");
+      this.tabShortcutsContent.classList.remove("active");
+    });
+
+    this.tabShortcutsBtn.addEventListener("click", () => {
+      this.tabShortcutsBtn.classList.add("active");
+      this.tabGeneralBtn.classList.remove("active");
+      this.tabFloatingBtn.classList.remove("active");
+      this.tabShortcutsContent.classList.add("active");
+      this.tabGeneralContent.classList.remove("active");
+      this.tabFloatingContent.classList.remove("active");
     });
 
     this.settingFloatingFontSize.addEventListener("input", () => {
@@ -62,11 +81,57 @@ class SettingsView {
     this.saveSettingsButton.addEventListener("click", () => this.save());
     
     this.clearCacheButton.addEventListener("click", () => this.clearCache());
+
+    // 단축키 캡처 버튼 이벤트 바인딩
+    this.shortcutBtns.forEach(btn => {
+      btn.addEventListener("click", () => {
+        if (this.capturingAction) {
+          const prevBtn = document.querySelector(`.shortcut-capture-btn.capturing`);
+          if (prevBtn) {
+            prevBtn.classList.remove("capturing");
+            prevBtn.textContent = this.tempShortcuts[this.capturingAction] || "None";
+          }
+        }
+        const action = btn.dataset.action;
+        this.capturingAction = action;
+        btn.classList.add("capturing");
+        btn.textContent = "Press any key...";
+      });
+    });
+
+    // 전역 keydown 감지 (단축키 캡처 시 가로채기)
+    document.addEventListener("keydown", (e) => {
+      if (!this.capturingAction) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const btn = document.querySelector(`.shortcut-capture-btn[data-action="${this.capturingAction}"]`);
+
+      if (e.code === "Escape") {
+        if (btn) {
+          btn.classList.remove("capturing");
+          btn.textContent = this.tempShortcuts[this.capturingAction] || "None";
+        }
+        this.capturingAction = null;
+        return;
+      }
+
+      const keyName = e.code;
+      this.tempShortcuts[this.capturingAction] = keyName;
+
+      if (btn) {
+        btn.classList.remove("capturing");
+        btn.textContent = keyName;
+      }
+      this.capturingAction = null;
+    }, true);
   }
 
   open() {
     this.tabGeneralBtn.click();
     this.updateAutoAnalyzeDropdownState();
+    this.capturingAction = null;
     this.settingsDialog.showModal();
   }
 
@@ -96,6 +161,7 @@ class SettingsView {
       floatingBgColor: this.settingFloatingBgColor.value,
       floatingFontColor: this.settingFloatingFontColor.value,
       floatingAlign: this.settingFloatingAlign.value,
+      shortcuts: this.tempShortcuts,
     };
     const saved = await window.lyricsPlayer.saveSettings(next);
     this.state.settings = saved;
@@ -126,6 +192,14 @@ class SettingsView {
     this.settingFloatingBgColor.value = settings.floatingBgColor || "#0b0d11";
     this.settingFloatingFontColor.value = settings.floatingFontColor || "#ffffff";
     this.settingFloatingAlign.value = settings.floatingAlign || "center";
+
+    // 단축키 UI 값 맵핑
+    this.tempShortcuts = { ...(settings.shortcuts || {}) };
+    this.shortcutBtns.forEach(btn => {
+      const action = btn.dataset.action;
+      btn.textContent = this.tempShortcuts[action] || "None";
+      btn.classList.remove("capturing");
+    });
 
     this.cachePathLabel.textContent = dataPath;
   }
