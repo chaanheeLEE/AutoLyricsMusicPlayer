@@ -28,6 +28,8 @@ def main():
     parser.add_argument("audio_path")
     parser.add_argument("--model", default="base")
     parser.add_argument("--language", default=None)
+    parser.add_argument("--initial_prompt", default=None)
+    parser.add_argument("--beam_size", type=int, default=5)
     args = parser.parse_args()
 
     # Windows 환경에서 pip 설치된 nvidia 패키지 DLL 경로 동적 추가
@@ -63,10 +65,11 @@ def main():
             iter_segments, info_obj = target_model.transcribe(
                 args.audio_path,
                 language=args.language,
-                beam_size=1,
+                beam_size=args.beam_size,
                 vad_filter=False,
                 condition_on_previous_text=False,
                 temperature=0.0,
+                initial_prompt=args.initial_prompt,
             )
             
             output_lines = []
