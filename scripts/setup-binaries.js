@@ -157,7 +157,7 @@ if (fs.existsSync(transcribeDest) && fs.existsSync(transcribeSource)) {
 if (shouldBuild) {
   console.log("Building transcribe.py into transcribe.exe using PyInstaller...");
   try {
-    const buildCmd = `conda run -n lyrics_player pyinstaller --onefile --clean --collect-all faster_whisper --collect-all ctranslate2 --distpath "${binDir}" "src/main/services/transcribe.py"`;
+    const buildCmd = `conda run -n lyrics_player pyinstaller --onefile --clean --collect-all faster_whisper --collect-all ctranslate2 --collect-all nvidia-cublas-cu12 --collect-all nvidia-cudnn-cu12 --distpath "${binDir}" "src/main/services/transcribe.py"`;
     console.log(`Running: ${buildCmd}`);
     execSync(buildCmd, { stdio: "inherit" });
     console.log("transcribe.exe built successfully!");
