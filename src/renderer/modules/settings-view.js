@@ -16,10 +16,12 @@ class SettingsView {
     
     this.settingEngine = document.querySelector("#settingEngine");
     this.settingModel = document.querySelector("#settingModel");
+    this.settingGeminiModel = document.querySelector("#settingGeminiModel");
     this.settingLanguage = document.querySelector("#settingLanguage");
     this.settingGeminiKey = document.querySelector("#settingGeminiKey");
     this.settingAutoAnalyzeMode = document.querySelector("#settingAutoAnalyzeMode");
     this.settingModelGroup = document.querySelector("#settingModelGroup");
+    this.settingGeminiModelGroup = document.querySelector("#settingGeminiModelGroup");
     
     this.settingFloatingFontSize = document.querySelector("#settingFloatingFontSize");
     this.settingFloatingOpacity = document.querySelector("#settingFloatingOpacity");
@@ -146,8 +148,10 @@ class SettingsView {
     const engine = this.settingEngine.value;
     if (engine === "gemini") {
       this.settingModelGroup.style.display = "none";
+      this.settingGeminiModelGroup.style.display = "";
     } else {
       this.settingModelGroup.style.display = "";
+      this.settingGeminiModelGroup.style.display = "none";
     }
     this.updateAutoAnalyzeDropdownState();
   }
@@ -174,6 +178,7 @@ class SettingsView {
     const next = {
       sttEngine: this.settingEngine.value,
       model: this.settingModel.value,
+      geminiModel: this.settingGeminiModel.value,
       language: this.settingLanguage.value || null,
       geminiApiKey: this.settingGeminiKey.value || "",
       autoAnalyzeMode: this.settingAutoAnalyzeMode.value,
@@ -201,6 +206,7 @@ class SettingsView {
   bindConfigValues(settings, dataPath) {
     this.settingEngine.value = settings.sttEngine || "whisper";
     this.settingModel.value = settings.model;
+    this.settingGeminiModel.value = settings.geminiModel || "gemini-3.1-flash-lite";
     this.settingLanguage.value = settings.language || "";
     this.settingGeminiKey.value = settings.geminiApiKey || "";
     this.settingAutoAnalyzeMode.value = settings.autoAnalyzeMode || "off";

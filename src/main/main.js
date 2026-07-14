@@ -300,7 +300,7 @@ ipcMain.handle("transcription:start", async (event, payload) => {
 
       if (cancelled) throw new Error("cancelled");
 
-      const lines = await transcribeAudioWithGemini(apiKey, track.path, track.duration);
+      const lines = await transcribeAudioWithGemini(apiKey, track.path, track.duration, options.geminiModel || "gemini-3.5-flash");
 
       if (cancelled) throw new Error("cancelled");
 

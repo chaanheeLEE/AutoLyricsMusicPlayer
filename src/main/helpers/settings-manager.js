@@ -7,7 +7,7 @@ const DEFAULT_SETTINGS = {
   model: "base",
   language: null,
   geminiApiKey: "",
-  geminiModel: "gemini-3.5-flash",
+  geminiModel: "gemini-3.1-flash-lite",
   autoAnalyzeMode: "off",
   floatingFontSize: 18,
   floatingOpacity: 0.85,

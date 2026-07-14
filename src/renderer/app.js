@@ -144,7 +144,7 @@ const lyricsViewer = new LyricsViewer(state, {
 
 const settingsView = new SettingsView(state, {
   onSave: (savedSettings) => {
-    const engineText = savedSettings.sttEngine === "gemini" ? "Gemini API (gemini-3.5-flash)" : `Local Whisper (${savedSettings.model})`;
+    const engineText = savedSettings.sttEngine === "gemini" ? `Gemini API (${savedSettings.geminiModel || "gemini-3.5-flash"})` : `Local Whisper (${savedSettings.model})`;
     trackStatus.textContent = `Settings saved. Engine: ${engineText}, Language: ${savedSettings.language || "auto"}.`;
     updateAlignButtonState();
 
