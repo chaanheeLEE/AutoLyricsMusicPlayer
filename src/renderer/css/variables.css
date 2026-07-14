@@ -1,0 +1,81 @@
+:root {
+  color-scheme: dark;
+  --bg: #0b0d10;
+  --panel: #14171d;
+  --panel-soft: #1c202a;
+  --text: #f4f2eb;
+  --muted: #8d96a6;
+  --line: #2a303c;
+  --accent: #42d392;
+  --accent-strong: #31b9d9;
+  --warning: #f0b35a;
+  --panel-active: rgba(66, 211, 146, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+  letter-spacing: -0.01em;
+  overflow: hidden;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 140ms ease, transform 100ms ease, background 140ms ease;
+}
+
+button.active {
+  background: var(--panel-active);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+/* Custom Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}

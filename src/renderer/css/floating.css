@@ -1,0 +1,114 @@
+@import "./variables.css";
+
+/* Floating card design values */
+.floating-body {
+  min-height: 100vh;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.005);
+  user-select: none;
+  -webkit-app-region: no-drag;
+}
+
+.floating-card {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  box-sizing: border-box;
+  padding-bottom: 12px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.floating-lines {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  gap: 6px;
+  min-width: 0;
+  padding: 7px 14px;
+  text-align: var(--floating-text-align, center);
+  background: rgba(from var(--floating-bg-color, #0b0d11) r g b / var(--floating-bg-opacity, 0.85));
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px 16px 16px 0;
+  box-shadow: none;
+  -webkit-app-region: drag;
+  font-size: var(--floating-font-size, 18px);
+  color: var(--floating-font-color, #ffffff);
+}
+
+.floating-lines h1 {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 1.15em;
+  font-weight: 500;
+  line-height: 1.15;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6);
+}
+
+.floating-context {
+  width: 100%;
+  min-height: 14px;
+  margin: 0;
+  color: var(--floating-font-color, #ffffff);
+  opacity: 0.6;
+  font-size: 0.78em;
+  overflow-wrap: anywhere;
+}
+
+.floating-controls {
+  display: flex;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 3px 12px 6px 12px;
+  margin-top: -1px;
+  margin-left: 0;
+  width: fit-content;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-top: none;
+  border-radius: 0 0 16px 16px;
+  background: rgba(11, 13, 17, 0.85);
+  backdrop-filter: blur(12px);
+  box-shadow: none;
+  opacity: 0.8;
+  transition: opacity 160ms ease, background-color 160ms ease;
+  -webkit-app-region: no-drag;
+}
+
+.floating-card.mouse-over .floating-controls {
+  opacity: 1;
+  background: rgba(11, 13, 17, 0.95);
+}
+
+.floating-controls button {
+  min-height: 23px;
+  padding: 3px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
+  background: rgba(28, 32, 42, 0.9);
+  color: #fff;
+  font-size: 0.66rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.floating-card.mouse-over .floating-controls button {
+  opacity: 1;
+}
+
+#floatingPlayPause {
+  min-width: 29px;
+  text-align: center;
+}
+
+#floatingLock {
+  min-width: 56px;
+  text-align: center;
+}
