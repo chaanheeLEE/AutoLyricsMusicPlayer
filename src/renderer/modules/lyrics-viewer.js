@@ -187,15 +187,7 @@ class LyricsViewer {
     });
   }
 
-  escapeHtml(str) {
-    if (!str) return "";
-    return str
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  }
+  // escapeHtml은 window.lyricsCore.escapeHtml로 일원화되었습니다.
 
   render() {
     if (this.state.lyrics.length === 0) {
@@ -217,6 +209,8 @@ class LyricsViewer {
       }
       return;
     }
+
+    this.state.activeLineId = null;
 
     this.lyricsList.className = "lyrics-list" + (this.state.editMode ? " edit-mode" : "");
     this.lyricsList.innerHTML = this.state.lyrics
@@ -241,9 +235,9 @@ class LyricsViewer {
                 <span class="lyric-timestamp">${timeStr}</span>
                 ${timeControls}
                 <button class="lyric-seek" type="button" data-start="${line.start}">
-                  <strong>${this.escapeHtml(line.text)}</strong>
+                  <strong>${window.lyricsCore.escapeHtml(line.text)}</strong>
                 </button>
-                <input class="lyric-edit" data-line-id="${line.id}" type="text" value="${this.escapeHtml(line.text)}" aria-label="Edit lyric" />
+                <input class="lyric-edit" data-line-id="${line.id}" type="text" value="${window.lyricsCore.escapeHtml(line.text)}" aria-label="Edit lyric" />
               </div>
             </div>
           `;
