@@ -456,12 +456,15 @@ analyzeButton.addEventListener("click", async () => {
 
   // Whisper 설정 및 힌트 프롬프트 구성
   const options = { ...(state.settings || {}) };
+  const trackTitle = state.track.title ? state.track.title.replace(/\.[^/.]+$/, "") : "";
+  const artist = state.track.artist || "";
+  const metadataIntro = artist ? `${trackTitle} - ${artist} 가사: ` : `${trackTitle} 가사: `;
+
   if (state.embeddedLyricsLines && state.embeddedLyricsLines.length > 0) {
-    // 내장 가사가 있을 경우 상위 5줄을 힌트로 사용
-    options.initialPrompt = state.embeddedLyricsLines.slice(0, 5).join(" ");
-  } else if (state.track.title) {
-    // 내장 가사가 없을 경우 파일명을 힌트로 사용 (확장자 제거)
-    options.initialPrompt = state.track.title.replace(/\.[^/.]+$/, "");
+    // 내장 가사 전체를 평문으로 합쳐서 제공하되, 싱크 쏠림을 방지하기 위한 인트로 패딩을 앞에 둡니다.
+    options.initialPrompt = metadataIntro + state.embeddedLyricsLines.join(" ");
+  } else if (trackTitle) {
+    options.initialPrompt = metadataIntro;
   }
   if (options.beamSize === undefined) {
     options.beamSize = 5;

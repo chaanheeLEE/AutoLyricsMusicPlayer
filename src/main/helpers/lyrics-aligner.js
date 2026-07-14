@@ -32,10 +32,40 @@ async function alignAndInterpolateLyrics(payload) {
     // 2. Gemini API 호출 (gemini-service 모듈 위임)
     const alignment = await alignLyricsWithGemini(apiKey, officialLines, whisperLyrics);
 
-    // 3. 중복 매핑 검출 및 지능형 시간 분할 처리 (중복 제거 안전망 개선)
     const whisperMap = new Map();
     whisperLyrics.forEach(item => whisperMap.set(item.id, item));
 
+    // 시간 역행(Chronological inversion) 검출 및 무효화 처리
+    if (alignment && alignment.length > 0) {
+      // official_index 순으로 정렬하여 순차적인 흐름 분석
+      const sortedAlignment = [...alignment].sort((a, b) => a.official_index - b.official_index);
+      let lastValidStart = -1;
+
+      sortedAlignment.forEach(item => {
+        if (item.whisper_id) {
+          const wLine = whisperMap.get(item.whisper_id);
+          if (wLine) {
+            if (wLine.start < lastValidStart) {
+              console.warn(`[Aligner] Time reversal detected at official_index ${item.official_index} (whisper_id: ${item.whisper_id}, start: ${wLine.start}s < last: ${lastValidStart}s). Invalidating match.`);
+              // 원본 alignment 객체의 값을 null로 변경하여 무효화
+              const target = alignment.find(a => a.official_index === item.official_index);
+              if (target) {
+                target.whisper_id = null;
+              }
+            } else {
+              lastValidStart = wLine.start;
+            }
+          } else {
+            const target = alignment.find(a => a.official_index === item.official_index);
+            if (target) {
+              target.whisper_id = null;
+            }
+          }
+        }
+      });
+    }
+
+    // 3. 중복 매핑 검출 및 지능형 시간 분할 처리 (중복 제거 안전망 개선)
     const whisperToOfficialMap = new Map(); // whisper_id -> Array of official_indices
     (alignment || []).forEach(item => {
       if (item.whisper_id) {
