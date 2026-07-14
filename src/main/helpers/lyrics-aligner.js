@@ -4,6 +4,7 @@ const { scrapeLyrics } = require("../services/lyrics-scraper");
 async function alignAndInterpolateLyrics(payload) {
   const { track, whisperLyrics, settings, customQuery, embeddedLyricsLines } = payload;
   const apiKey = settings?.geminiApiKey;
+  const maxDuration = (track?.duration && !isNaN(track.duration) && track.duration > 0) ? Number(track.duration) : null;
 
   if (!apiKey) {
     return { ok: false, error: "missing_api_key" };
@@ -30,7 +31,8 @@ async function alignAndInterpolateLyrics(payload) {
     }
 
     // 2. Gemini API 호출 (gemini-service 모듈 위임)
-    const alignment = await alignLyricsWithGemini(apiKey, officialLines, whisperLyrics);
+    const geminiModel = settings?.geminiModel || "gemini-3.5-flash";
+    const alignment = await alignLyricsWithGemini(apiKey, officialLines, whisperLyrics, geminiModel, maxDuration);
 
     const whisperMap = new Map();
     whisperLyrics.forEach(item => whisperMap.set(item.id, item));
@@ -141,7 +143,7 @@ async function alignAndInterpolateLyrics(payload) {
         const prevEnd = prevIdx >= 0 ? finalLyrics[prevIdx].end : 0.5;
         
         const nextIdx = endNullIdx;
-        const nextStart = nextIdx < finalLyrics.length ? finalLyrics[nextIdx].start : (prevEnd + (endNullIdx - startNullIdx) * 2.0);
+        const nextStart = nextIdx < finalLyrics.length ? finalLyrics[nextIdx].start : (maxDuration !== null ? maxDuration : (prevEnd + (endNullIdx - startNullIdx) * 2.0));
 
         const totalGap = nextStart - prevEnd;
         
@@ -168,10 +170,28 @@ async function alignAndInterpolateLyrics(payload) {
       }
     }
 
-    // 가사 싱크 최소 듀레이션(Duration) 보정 (최소 0.8초 보장)
+    // 가사 싱크 최소 듀레이션(Duration) 보정 (최소 0.8초 보장) 및 최대 트랙 길이 가드
     for (const lyric of finalLyrics) {
+      if (maxDuration !== null) {
+        if (lyric.start > maxDuration) {
+          lyric.start = Number((maxDuration - 0.8).toFixed(3));
+        }
+        if (lyric.end > maxDuration) {
+          lyric.end = maxDuration;
+        }
+        // 시간 왜곡 방지
+        if (lyric.start >= lyric.end) {
+          lyric.start = Number(Math.max(0, lyric.end - 0.8).toFixed(3));
+        }
+      }
+
       if (lyric.end <= lyric.start || lyric.end - lyric.start < 0.2) {
         lyric.end = Number((lyric.start + 0.8).toFixed(3));
+        // 가드 보정 후 재검증
+        if (maxDuration !== null && lyric.end > maxDuration) {
+          lyric.end = maxDuration;
+          lyric.start = Number(Math.max(0, maxDuration - 0.8).toFixed(3));
+        }
       }
     }
 
