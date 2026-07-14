@@ -17,7 +17,7 @@ const exportVttButton = document.querySelector("#exportVttButton");
 const syncOffsetBadge = document.querySelector("#syncOffsetBadge");
 const playlistList = document.querySelector("#playlistList");
 
-const { formatClock } = window.lyricsCore;
+const { formatClock, escapeHtml } = window.lyricsCore;
 
 // Global State
 const state = {
@@ -40,15 +40,7 @@ const state = {
 
 let saveTimer = null;
 
-function escapeHtml(str) {
-  if (!str) return "";
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
+// escapeHtml은 window.lyricsCore.escapeHtml로 일원화되었습니다.
 
 function persistLyricsSoon() {
   if (!state.track || state.lyrics.length === 0) {
@@ -144,15 +136,20 @@ const lyricsViewer = new LyricsViewer(state, {
 
 const settingsView = new SettingsView(state, {
   onSave: (savedSettings) => {
-    const engineText = savedSettings.sttEngine === "gemini" ? `Gemini API (${savedSettings.geminiModel || "gemini-3.5-flash"})` : `Local Whisper (${savedSettings.model})`;
+    const engineText = savedSettings.sttEngine === "gemini" ? `Gemini API (${savedSettings.geminiModel || "gemini-3.1-flash-lite"})` : `Local Whisper (${savedSettings.model})`;
     trackStatus.textContent = `Settings saved. Engine: ${engineText}, Language: ${savedSettings.language || "auto"}.`;
     updateAlignButtonState();
 
     if (state.settings.autoAnalyzeMode !== "off" && state.track && state.lyrics.length === 0 && !state.isTranscribing) {
       state.isAutoAnalyzing = true;
-      analyzeButton.click();
+      lyricsJobManager.handleAnalyzeClick();
     }
   }
+});
+
+const lyricsJobManager = new LyricsJobManager(state, player, lyricsViewer, settingsView, {
+  persistLyricsSoon: () => persistLyricsSoon(),
+  updateAlignButtonState: () => updateAlignButtonState()
 });
 
 // -------------------------------------------------------------
@@ -222,12 +219,7 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
   state.activeLineId = null;
 
   if (state.isTranscribing) {
-    window.lyricsPlayer.cancelTranscription().catch(() => {});
-    state.isTranscribing = false;
-    analyzeButton.style.display = "";
-    cancelButton.style.display = "none";
-    hideProgress();
-    trackStatus.textContent = "Analysis cancelled.";
+    lyricsJobManager.handleCancelClick().catch(() => {});
   }
 
   // 히스토리 기록
@@ -288,7 +280,7 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
     ) {
       state.isAutoAnalyzing = true;
       setTimeout(() => {
-        analyzeButton.click();
+        lyricsJobManager.handleAnalyzeClick();
       }, 100);
     }
   } else if (cached?.lyrics) {
@@ -307,7 +299,7 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
     if (state.settings.autoAnalyzeMode !== "off" && !state.isTranscribing) {
       state.isAutoAnalyzing = true;
       setTimeout(() => {
-        analyzeButton.click();
+        lyricsJobManager.handleAnalyzeClick();
       }, 100);
     }
   }
@@ -363,181 +355,7 @@ function setControlsEnabled(enabled) {
   updateAlignButtonState();
 }
 
-function showProgress(label, percent) {
-  const transcriptionProgress = document.querySelector("#transcriptionProgress");
-  const progressLabel = document.querySelector("#progressLabel");
-  const progressBar = document.querySelector("#progressBar");
-  
-  transcriptionProgress.style.display = "block";
-  progressLabel.textContent = label;
-  progressBar.style.width = `${Math.min(Math.max(percent * 100, 0), 100)}%`;
-}
-
-function hideProgress() {
-  const transcriptionProgress = document.querySelector("#transcriptionProgress");
-  const progressBar = document.querySelector("#progressBar");
-  
-  transcriptionProgress.style.display = "none";
-  progressBar.style.width = "0%";
-}
-
-// -------------------------------------------------------------
-// 이벤트 바인딩 및 오케스트레이터 액션
-// -------------------------------------------------------------
-
-alignButton.addEventListener("click", async () => {
-  if (!state.track || state.lyrics.length === 0) {
-    trackStatus.textContent = "No lyrics to align. Run Analyze first.";
-    return;
-  }
-
-  const apiKey = state.settings.geminiApiKey || "";
-  if (!apiKey.trim()) {
-    trackStatus.textContent = "Gemini API Key is required for AI Alignment. Please configure it in settings.";
-    settingsView.open();
-    return;
-  }
-
-  state.isTranscribing = true;
-  alignButton.style.display = "none";
-  analyzeButton.style.display = "none";
-  showProgress("Searching & alignment in progress…", 0.5);
-  trackStatus.textContent = "AI Alignment in progress…";
-
-  try {
-    const result = await window.lyricsPlayer.alignLyrics({
-      track: state.track,
-      whisperLyrics: state.lyrics,
-      settings: state.settings,
-      embeddedLyricsLines: state.embeddedLyricsLines || null
-    });
-
-    if (result?.ok && result.lyrics?.length > 0) {
-      state.lyrics = result.lyrics;
-      lyricsViewer.setOffset(0);
-      
-      if (result.warning === "fallback_to_whisper") {
-        console.error("[Aligner] Fallback to whisper active. AI Align Error detail:\n", result.errorDetail);
-        trackStatus.textContent = `AI Alignment Failed: ${result.errorDetail.split('\n')[0]}`;
-      } else {
-        trackStatus.textContent = `AI Alignment complete. ${result.lyrics.length} official lines mapped.`;
-      }
-
-      lyricsViewer.render();
-      lyricsViewer.updateActive(player.getCurrentTime(), player.isPlaying());
-      persistLyricsSoon();
-      updateAlignButtonState();
-    } else {
-      trackStatus.textContent = `AI Alignment failed: ${result?.error || "unknown error"}`;
-    }
-  } catch (error) {
-    trackStatus.textContent = `AI Alignment failed: ${error.message}`;
-  } finally {
-    state.isTranscribing = false;
-    alignButton.style.display = "";
-    analyzeButton.style.display = "";
-    hideProgress();
-  }
-});
-
-analyzeButton.addEventListener("click", async () => {
-  if (!state.track) {
-    state.isAutoAnalyzing = false;
-    return;
-  }
-
-  // Gemini API Engine 사용 시 API Key 필수 검증
-  if (state.settings.sttEngine === "gemini" && (!state.settings.geminiApiKey || !state.settings.geminiApiKey.trim())) {
-    alert("Gemini API Engine을 사용하려면 설정에서 Gemini API Key를 입력해야 합니다.");
-    state.isAutoAnalyzing = false;
-    settingsView.open();
-    return;
-  }
-
-  state.isTranscribing = true;
-  analyzeButton.style.display = "none";
-  cancelButton.style.display = "";
-  cancelButton.disabled = false;
-
-  const originalTrackKey = state.track.cacheKey;
-
-  // Whisper 설정 및 힌트 프롬프트 구성
-  const options = { ...(state.settings || {}) };
-  
-  if (options.sttEngine === "gemini") {
-    showProgress("Uploading audio to Gemini…", 0.1);
-    trackStatus.textContent = "Uploading & Analyzing…";
-  } else {
-    showProgress("Converting audio…", 0);
-    trackStatus.textContent = "Analyzing…";
-  }
-  const trackTitle = state.track.title ? state.track.title.replace(/\.[^/.]+$/, "") : "";
-  const artist = state.track.artist || "";
-  const metadataIntro = artist ? `${trackTitle} - ${artist} 가사: ` : `${trackTitle} 가사: `;
-
-  if (state.embeddedLyricsLines && state.embeddedLyricsLines.length > 0) {
-    // 내장 가사 전체를 평문으로 합쳐서 제공하되, 싱크 쏠림을 방지하기 위한 인트로 패딩을 앞에 둡니다.
-    options.initialPrompt = metadataIntro + state.embeddedLyricsLines.join(" ");
-  } else if (trackTitle) {
-    options.initialPrompt = metadataIntro;
-  }
-  if (options.beamSize === undefined) {
-    options.beamSize = 5;
-  }
-
-  // 음악의 실제 총 길이를 백엔드에 제공하기 위해 duration 속성 주입
-  const trackPayload = {
-    ...(state.track || {}),
-    duration: player.getDuration()
-  };
-
-  const result = await window.lyricsPlayer.startTranscription(trackPayload, options);
-
-  if (!state.track || state.track.cacheKey !== originalTrackKey) {
-    state.isAutoAnalyzing = false;
-    return;
-  }
-
-  state.isTranscribing = false;
-  cancelButton.style.display = "none";
-  analyzeButton.style.display = "";
-  hideProgress();
-
-  if (result?.ok && result.lyrics?.length > 0) {
-    state.lyrics = result.lyrics;
-    lyricsViewer.setOffset(0);
-    trackStatus.textContent = `Transcription complete. ${result.lyrics.length} lines found.`;
-    analyzeButton.textContent = "Reanalyze";
-    lyricsViewer.render();
-    lyricsViewer.updateActive(player.getCurrentTime(), player.isPlaying());
-    persistLyricsSoon();
-    updateAlignButtonState();
-
-    if (state.isAutoAnalyzing && state.settings.autoAnalyzeMode === "align" && (state.settings.geminiApiKey || "").trim().length > 0) {
-      setTimeout(() => {
-        alignButton.click();
-      }, 500);
-    }
-  } else if (result?.ok && result.lyrics?.length === 0) {
-    trackStatus.textContent = "No speech detected. Check settings or audio file.";
-    updateAlignButtonState();
-  } else {
-    trackStatus.textContent = `Analysis failed: ${result?.error || "unknown error"}`;
-    updateAlignButtonState();
-  }
-
-  state.isAutoAnalyzing = false;
-});
-
-cancelButton.addEventListener("click", async () => {
-  cancelButton.disabled = true;
-  await window.lyricsPlayer.cancelTranscription();
-  state.isTranscribing = false;
-  analyzeButton.style.display = "";
-  cancelButton.style.display = "none";
-  hideProgress();
-  trackStatus.textContent = "Analysis cancelled.";
-});
+// showProgress, hideProgress, align, analyze, cancel 관련 로직은 LyricsJobManager가 관리하므로 제거합니다.
 
 floatingButton.addEventListener("click", async () => {
   state.floatingVisible = !state.floatingVisible;

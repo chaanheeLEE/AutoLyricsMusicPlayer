@@ -81,6 +81,16 @@
     return `WEBVTT\n\n${cues.join("\n\n")}\n`;
   }
 
+  function escapeHtml(str) {
+    if (!str) return "";
+    return str
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
   const api = {
     clampTime,
     formatClock,
@@ -88,7 +98,8 @@
     formatVttTimestamp,
     getActiveLineIndex,
     serializeLrc,
-    serializeVtt
+    serializeVtt,
+    escapeHtml
   };
 
   if (typeof module !== "undefined" && module.exports) {

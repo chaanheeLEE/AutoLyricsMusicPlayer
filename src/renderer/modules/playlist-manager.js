@@ -132,15 +132,7 @@ class PlaylistManager {
     });
   }
 
-  escapeHtml(str) {
-    if (!str) return "";
-    return str
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
-  }
+  // escapeHtml은 window.lyricsCore.escapeHtml로 일원화되었습니다.
 
   render() {
     if (this.state.playlist.length === 0) {
@@ -161,7 +153,7 @@ class PlaylistManager {
       const activeClass = index === this.state.currentIndex ? "active" : "";
       html += `
         <div class="playlist-item ${activeClass}" data-index="${index}" draggable="true">
-          <span class="playlist-item-title">${index + 1}. ${this.escapeHtml(item.title)}</span>
+          <span class="playlist-item-title">${index + 1}. ${window.lyricsCore.escapeHtml(item.title)}</span>
           <button class="playlist-item-remove" data-index="${index}" type="button" title="Remove track">✕</button>
         </div>
       `;
