@@ -44,8 +44,8 @@ def main():
                         try:
                             if hasattr(os, "add_dll_directory"):
                                 os.add_dll_directory(root)
-                            else:
-                                os.environ["PATH"] = root + os.pathsep + os.environ["PATH"]
+                            # Also append to PATH since some C++ binaries only look up PATH for DLLs on Windows
+                            os.environ["PATH"] = root + os.pathsep + os.environ["PATH"]
                         except Exception:
                             pass
 
@@ -95,12 +95,19 @@ def main():
                 model = WhisperModel(args.model, device="cuda", compute_type="float16")
                 lines, info = run_transcription(model)
                 gpu_activated = True
-            except RuntimeError:
-                # Fail silently and let CPU fallback trigger
+                emit({"type": "info", "message": "Using CUDA (GPU) for transcription."})
+            except Exception as e:
+                # Print CUDA initialization error details to let user debug
+                import traceback
+                emit({
+                    "type": "info",
+                    "message": f"CUDA initialization failed, falling back to CPU. Error: {str(e)}\n{traceback.format_exc()}"
+                })
                 model = None
 
         if not gpu_activated:
             # CPU Fallback
+            emit({"type": "info", "message": "Using CPU for transcription."})
             model = WhisperModel(args.model, device="cpu", compute_type="int8")
             lines, info = run_transcription(model)
 
