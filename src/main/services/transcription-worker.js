@@ -213,6 +213,10 @@ function startTranscription(track, options, onProgress) {
           let msg;
           try { msg = JSON.parse(trimmed); } catch { continue; }
 
+          if (msg.type === "info") {
+            console.log(`[Transcription Worker] ${msg.message}`);
+          }
+
           if (msg.type === "error") {
             lastPythonError = msg.message;
           }
