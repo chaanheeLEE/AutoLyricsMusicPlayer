@@ -264,6 +264,71 @@ ipcMain.handle("transcription:start", async (event, payload) => {
     return { ok: false, error: "missing_track_path" };
   }
 
+  if (options.sttEngine === "gemini") {
+    const apiKey = options.geminiApiKey;
+    if (!apiKey || !apiKey.trim()) {
+      return { ok: false, error: "missing_api_key" };
+    }
+
+    let cancelled = false;
+    activeJob = {
+      cancel() {
+        cancelled = true;
+      }
+    };
+
+    try {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("transcription:progress", {
+          type: "progress",
+          stage: "gemini_uploading",
+          percent: 0.2
+        });
+      }
+
+      if (cancelled) throw new Error("cancelled");
+
+      const { transcribeAudioWithGemini } = require("./services/gemini-service");
+
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("transcription:progress", {
+          type: "progress",
+          stage: "gemini_transcribing",
+          percent: 0.5
+        });
+      }
+
+      if (cancelled) throw new Error("cancelled");
+
+      const lines = await transcribeAudioWithGemini(apiKey, track.path, track.duration);
+
+      if (cancelled) throw new Error("cancelled");
+
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("transcription:progress", {
+          type: "progress",
+          stage: "saving",
+          percent: 1.0
+        });
+      }
+
+      activeJob = null;
+      return { ok: true, lyrics: lines };
+    } catch (err) {
+      activeJob = null;
+      if (err.message === "cancelled") {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("transcription:progress", {
+            type: "progress",
+            stage: "cancelled"
+          });
+        }
+        return { ok: false, error: "cancelled" };
+      }
+      return { ok: false, error: err.message };
+    }
+  }
+
   return new Promise((resolve) => {
     const job = startTranscription(track, options, (msg) => {
       if (mainWindow && !mainWindow.isDestroyed()) {

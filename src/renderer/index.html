@@ -146,6 +146,14 @@
         <!-- 1. General Settings Tab Content -->
         <div id="tabGeneralContent" class="tab-content active">
           <div class="settings-group">
+            <label for="settingEngine">STT Engine</label>
+            <select id="settingEngine" name="sttEngine">
+              <option value="whisper" selected>Local Whisper (Offline)</option>
+              <option value="gemini">Gemini API (Cloud)</option>
+            </select>
+          </div>
+
+          <div class="settings-group" id="settingModelGroup">
             <label for="settingModel">Whisper Model</label>
             <select id="settingModel" name="model">
               <option value="tiny">tiny — fastest, lowest accuracy</option>
@@ -155,6 +163,8 @@
               <option value="large-v3">large-v3 — best accuracy, slowest</option>
             </select>
           </div>
+
+
 
           <div class="settings-group">
             <label for="settingLanguage">Language</label>
@@ -190,7 +200,7 @@
           </div>
           
           <p class="settings-privacy">
-            🔒 All audio processing is local. No files or lyrics are uploaded to any server.
+            🔒 All audio processing is local by default. If using Gemini API, audio files will be securely sent to Google Gemini servers.
           </p>
         </div>
 

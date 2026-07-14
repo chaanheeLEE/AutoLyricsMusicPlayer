@@ -14,10 +14,12 @@ class SettingsView {
     this.tabFloatingContent = document.querySelector("#tabFloatingContent");
     this.tabShortcutsContent = document.querySelector("#tabShortcutsContent");
     
+    this.settingEngine = document.querySelector("#settingEngine");
     this.settingModel = document.querySelector("#settingModel");
     this.settingLanguage = document.querySelector("#settingLanguage");
     this.settingGeminiKey = document.querySelector("#settingGeminiKey");
     this.settingAutoAnalyzeMode = document.querySelector("#settingAutoAnalyzeMode");
+    this.settingModelGroup = document.querySelector("#settingModelGroup");
     
     this.settingFloatingFontSize = document.querySelector("#settingFloatingFontSize");
     this.settingFloatingOpacity = document.querySelector("#settingFloatingOpacity");
@@ -77,6 +79,7 @@ class SettingsView {
     });
 
     this.settingGeminiKey.addEventListener("input", () => this.updateAutoAnalyzeDropdownState());
+    this.settingEngine.addEventListener("change", () => this.updateSTTEngineUI());
     
     this.saveSettingsButton.addEventListener("click", () => this.save());
     
@@ -130,13 +133,23 @@ class SettingsView {
 
   open() {
     this.tabGeneralBtn.click();
-    this.updateAutoAnalyzeDropdownState();
+    this.updateSTTEngineUI();
     this.capturingAction = null;
     this.settingsDialog.showModal();
   }
 
   close() {
     this.settingsDialog.close();
+  }
+
+  updateSTTEngineUI() {
+    const engine = this.settingEngine.value;
+    if (engine === "gemini") {
+      this.settingModelGroup.style.display = "none";
+    } else {
+      this.settingModelGroup.style.display = "";
+    }
+    this.updateAutoAnalyzeDropdownState();
   }
 
   updateAutoAnalyzeDropdownState() {
@@ -151,7 +164,15 @@ class SettingsView {
   }
 
   async save() {
+    // STT Engine이 Gemini인데 API Key가 없는 경우 경고 및 가드
+    if (this.settingEngine.value === "gemini" && !this.settingGeminiKey.value.trim()) {
+      alert("Gemini API Engine을 사용하려면 Gemini API Key를 입력해야 합니다.");
+      this.settingGeminiKey.focus();
+      return;
+    }
+
     const next = {
+      sttEngine: this.settingEngine.value,
       model: this.settingModel.value,
       language: this.settingLanguage.value || null,
       geminiApiKey: this.settingGeminiKey.value || "",
@@ -178,10 +199,12 @@ class SettingsView {
   }
 
   bindConfigValues(settings, dataPath) {
+    this.settingEngine.value = settings.sttEngine || "whisper";
     this.settingModel.value = settings.model;
     this.settingLanguage.value = settings.language || "";
     this.settingGeminiKey.value = settings.geminiApiKey || "";
     this.settingAutoAnalyzeMode.value = settings.autoAnalyzeMode || "off";
+    this.updateSTTEngineUI();
 
     this.settingFloatingFontSize.value = settings.floatingFontSize || 18;
     this.valFloatingFontSize.textContent = this.settingFloatingFontSize.value;

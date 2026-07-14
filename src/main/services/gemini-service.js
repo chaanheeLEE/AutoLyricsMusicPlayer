@@ -1,4 +1,8 @@
 const { GoogleGenAI } = require("@google/genai");
+const path = require("node:path");
+const fs = require("node:fs/promises");
+const os = require("node:os");
+const crypto = require("node:crypto");
 
 /**
  * Gemini 3.1 Flash-Lite 모델을 호출하여 공식 가사와 Whisper STT 결과를 정밀 정렬합니다.
@@ -10,7 +14,7 @@ async function callGeminiApiWithRetry(apiKey, contents, systemInstruction, respo
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const response = await ai.models.generateContent({
-        model: "gemini-3.1-flash-lite",
+        model: "gemini-3.5-flash",
         contents: contents,
         config: {
           systemInstruction: systemInstruction,
@@ -95,6 +99,170 @@ async function alignLyricsWithGemini(apiKey, officialLines, whisperLyrics) {
   return await callGeminiApiWithRetry(apiKey, contents, systemInstruction, responseSchema);
 }
 
+/**
+ * Gemini File API와 GenerateContent를 활용하여 로컬 오디오 파일을 텍스트(STT)로 변환합니다.
+ * 타임스탬프 정보를 정확하게 JSON 형식으로 반환받습니다.
+ */
+async function transcribeAudioWithGemini(apiKey, filePath, duration = null) {
+  const ai = new GoogleGenAI({ apiKey: apiKey });
+
+  const ext = path.extname(filePath).toLowerCase();
+  let mimeType = "audio/mpeg";
+  if (ext === ".wav") mimeType = "audio/wav";
+  else if (ext === ".m4a") mimeType = "audio/m4a";
+  else if (ext === ".ogg") mimeType = "audio/ogg";
+  else if (ext === ".flac") mimeType = "audio/flac";
+  else if (ext === ".aac") mimeType = "audio/aac";
+
+  // 한글 경로/파일명 우회를 위한 임시 영문 파일 복사본 생성
+  const tmpId = crypto.randomBytes(6).toString("hex");
+  const tempFilePath = path.join(os.tmpdir(), `alp_gemini_stt_${tmpId}${ext}`);
+
+  let uploadResult;
+  try {
+    console.log(`[Gemini STT] Copying file to temp path to bypass non-ASCII path issues: ${tempFilePath}`);
+    await fs.copyFile(filePath, tempFilePath);
+
+    console.log(`[Gemini STT] Uploading file to Gemini File API: ${tempFilePath} (${mimeType})`);
+    
+    uploadResult = await ai.files.upload({
+      file: tempFilePath,
+      mimeType: mimeType
+    });
+    
+    console.log(`[Gemini STT] Upload complete. File URI: ${uploadResult.uri}`);
+
+    // File API 업로드 후 ACTIVE 상태 대기
+    let fileState = uploadResult.state;
+    let fileInfo = uploadResult;
+    let attempts = 0;
+    while (fileState === "PROCESSING" && attempts < 15) {
+      console.log(`[Gemini STT] File is processing, waiting 2s...`);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      fileInfo = await ai.files.get({ name: uploadResult.name });
+      fileState = fileInfo.state;
+      attempts++;
+    }
+
+    if (fileState !== "ACTIVE") {
+      throw new Error(`File upload failed to reach ACTIVE state (current: ${fileState})`);
+    }
+
+    const systemInstruction = `너는 오디오 파일의 음성 인식을 수행하고, 노래 가사 및 텍스트의 정밀한 자막 타임라인을 생성하는 음성 인식 및 자막 전문가(STT & Subtitle Expert)이다.
+
+오디오 파일을 듣고 가사를 텍스트로 인식한 뒤, 각 소절(segment)에 해당하는 시작 시간(start)과 종료 시간(end)을 초(second) 단위로 매우 정확하게 추출해야 한다.
+
+다음 규칙들을 엄격히 준수하여 응답하라:
+
+1. [텍스트 및 타임라인 추출 강건성]
+- 한국어, 영어, 또는 기타 언어로 된 노래 가사를 발음대로 정확하게 전사한다.
+- 음악 소리가 없는 전반부 간주나 후반부 아웃트로, 혹은 간주 구간에는 가사를 생성하거나 타임스탬프를 잡지 않아야 한다. 즉, 실제 보컬(목소리)이 들리는 구간만 정확히 텍스트와 시간대로 추출하라.
+
+2. [적절한 세그먼트 크기 분할]
+- 가사의 한 줄(소절)에 맞추어 적절한 길이로 세그먼트를 나누어라.
+- 하나의 세그먼트는 보통 2초에서 7초 사이가 적당하며, 문장이나 소절 단위가 끊어지지 않도록 흐름을 보장하라.
+
+3. [시간적 단조 증가 보장]
+- 자막 세그먼트의 시간 정보는 절대로 역행하거나 겹치지 않아야 한다. 즉, 이전 세그먼트의 종료 시간(end)보다 다음 세그먼트의 시작 시간(start)이 시간상 뒤에 위치해야 한다.
+- 모든 시간 정보는 오름차순으로 단조 증가해야 한다.
+
+4. [구조화된 출력 규칙]
+- 제시된 JSON 스키마를 철저히 준수하여 결과를 반환하라.
+- 마크다운 백틱(\`\`\`)이나 설명적 텍스트를 절대 포함하지 마라. 오직 스키마에 정의된 순수 JSON 배열만 반환해야 한다.`;
+
+    let durationGuide = "";
+    if (duration && !isNaN(duration) && duration > 0) {
+      durationGuide = `\n\n* [중요] 이 음악의 실제 총 길이는 정확히 **${Number(duration).toFixed(2)}초**이다. 따라서 모든 자막 세그먼트의 시작 시간(start)과 종료 시간(end)은 절대로 이 ${Number(duration).toFixed(2)}초를 초과해서는 안 된다. 마지막 세그먼트의 종료 시간 역시 이 값 이내에서 안전하게 닫혀야 한다.`;
+    }
+
+    const prompt = `오디오 데이터를 분석하여 각 소절별 자막/가사 세그먼트 배열을 타임스탬프(시작 및 종료 시간, 초 단위)와 함께 추출하라.
+각 세그먼트는 실제 노래 가사 한 줄 단위에 조응해야 하며, 정확한 보컬 싱크 타이밍을 유지해야 한다.${durationGuide}`;
+
+    const responseSchema = {
+      type: "ARRAY",
+      description: "List of transcribed audio segments with timestamps",
+      items: {
+        type: "OBJECT",
+        properties: {
+          start: {
+            type: "NUMBER",
+            description: "Start time of the segment in seconds"
+          },
+          end: {
+            type: "NUMBER",
+            description: "End time of the segment in seconds"
+          },
+          text: {
+            type: "STRING",
+            description: "Transcribed text for this segment"
+          }
+        },
+        required: ["start", "end", "text"]
+      }
+    };
+
+    console.log(`[Gemini STT] Calling generateContent with model: gemini-3.5-flash`);
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: prompt },
+            {
+              fileData: {
+                fileUri: uploadResult.uri,
+                mimeType: uploadResult.mimeType
+              }
+            }
+          ]
+        }
+      ],
+      config: {
+        systemInstruction: systemInstruction,
+        responseMimeType: "application/json",
+        responseSchema: responseSchema
+      }
+    });
+
+    const text = response.text;
+    if (!text) {
+      throw new Error("No transcription returned from Gemini");
+    }
+
+    const segments = JSON.parse(text);
+    console.log(`[Gemini STT] Successfully transcribed ${segments.length} segments`);
+
+    return segments.map((seg, idx) => ({
+      id: `line_${String(idx + 1).padStart(3, "0")}`,
+      start: Number(seg.start),
+      end: Number(seg.end),
+      text: String(seg.text).trim(),
+      confidence: 0.9
+    }));
+
+  } finally {
+    // 1. 로컬 임시 파일 제거
+    try {
+      await fs.unlink(tempFilePath);
+      console.log(`[Gemini STT] Cleaned up local temp file: ${tempFilePath}`);
+    } catch (err) {
+      // 무시
+    }
+
+    // 2. 클라우드 업로드 파일 제거
+    if (uploadResult && uploadResult.name) {
+      try {
+        console.log(`[Gemini STT] Cleaning up Gemini file: ${uploadResult.name}`);
+        await ai.files.delete({ name: uploadResult.name });
+      } catch (err) {
+        console.error(`[Gemini STT] Failed to delete Gemini file: ${err.message}`);
+      }
+    }
+  }
+}
+
 module.exports = {
-  alignLyricsWithGemini
+  alignLyricsWithGemini,
+  transcribeAudioWithGemini
 };

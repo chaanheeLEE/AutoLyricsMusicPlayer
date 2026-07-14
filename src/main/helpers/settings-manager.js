@@ -3,9 +3,11 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 
 const DEFAULT_SETTINGS = {
+  sttEngine: "whisper",
   model: "base",
   language: null,
   geminiApiKey: "",
+  geminiModel: "gemini-3.5-flash",
   autoAnalyzeMode: "off",
   floatingFontSize: 18,
   floatingOpacity: 0.85,
@@ -67,9 +69,11 @@ async function saveSettings(settings) {
   const opacityVal = Number(settings.floatingOpacity);
 
   const safe = {
+    sttEngine: settings.sttEngine || DEFAULT_SETTINGS.sttEngine,
     model: settings.model || DEFAULT_SETTINGS.model,
     language: settings.language || null,
     geminiApiKey: settings.geminiApiKey || "",
+    geminiModel: settings.geminiModel || DEFAULT_SETTINGS.geminiModel,
     autoAnalyzeMode: settings.autoAnalyzeMode || "off",
     floatingFontSize: isNaN(fontSizeVal) ? DEFAULT_SETTINGS.floatingFontSize : fontSizeVal,
     floatingOpacity: isNaN(opacityVal) ? DEFAULT_SETTINGS.floatingOpacity : opacityVal,

@@ -144,7 +144,8 @@ const lyricsViewer = new LyricsViewer(state, {
 
 const settingsView = new SettingsView(state, {
   onSave: (savedSettings) => {
-    trackStatus.textContent = `Settings saved. Model: ${savedSettings.model}, Language: ${savedSettings.language || "auto"}.`;
+    const engineText = savedSettings.sttEngine === "gemini" ? "Gemini API (gemini-3.5-flash)" : `Local Whisper (${savedSettings.model})`;
+    trackStatus.textContent = `Settings saved. Engine: ${engineText}, Language: ${savedSettings.language || "auto"}.`;
     updateAlignButtonState();
 
     if (state.settings.autoAnalyzeMode !== "off" && state.track && state.lyrics.length === 0 && !state.isTranscribing) {
@@ -445,17 +446,31 @@ analyzeButton.addEventListener("click", async () => {
     return;
   }
 
+  // Gemini API Engine 사용 시 API Key 필수 검증
+  if (state.settings.sttEngine === "gemini" && (!state.settings.geminiApiKey || !state.settings.geminiApiKey.trim())) {
+    alert("Gemini API Engine을 사용하려면 설정에서 Gemini API Key를 입력해야 합니다.");
+    state.isAutoAnalyzing = false;
+    settingsView.open();
+    return;
+  }
+
   state.isTranscribing = true;
   analyzeButton.style.display = "none";
   cancelButton.style.display = "";
   cancelButton.disabled = false;
-  showProgress("Converting audio…", 0);
-  trackStatus.textContent = "Analyzing…";
 
   const originalTrackKey = state.track.cacheKey;
 
   // Whisper 설정 및 힌트 프롬프트 구성
   const options = { ...(state.settings || {}) };
+  
+  if (options.sttEngine === "gemini") {
+    showProgress("Uploading audio to Gemini…", 0.1);
+    trackStatus.textContent = "Uploading & Analyzing…";
+  } else {
+    showProgress("Converting audio…", 0);
+    trackStatus.textContent = "Analyzing…";
+  }
   const trackTitle = state.track.title ? state.track.title.replace(/\.[^/.]+$/, "") : "";
   const artist = state.track.artist || "";
   const metadataIntro = artist ? `${trackTitle} - ${artist} 가사: ` : `${trackTitle} 가사: `;
@@ -470,7 +485,13 @@ analyzeButton.addEventListener("click", async () => {
     options.beamSize = 5;
   }
 
-  const result = await window.lyricsPlayer.startTranscription(state.track, options);
+  // 음악의 실제 총 길이를 백엔드에 제공하기 위해 duration 속성 주입
+  const trackPayload = {
+    ...(state.track || {}),
+    duration: player.getDuration()
+  };
+
+  const result = await window.lyricsPlayer.startTranscription(trackPayload, options);
 
   if (!state.track || state.track.cacheKey !== originalTrackKey) {
     state.isAutoAnalyzing = false;
@@ -602,6 +623,8 @@ const STAGE_LABELS = {
   loading_model: "Loading model…",
   converting: "Converting audio…",
   transcribing: "Transcribing…",
+  gemini_uploading: "Uploading audio to Gemini…",
+  gemini_transcribing: "Analyzing audio with Gemini…",
   saving: "Saving…",
   cancelled: "Cancelled.",
 };
@@ -610,6 +633,8 @@ const STAGE_PERCENT = {
   loading_model: 0.05,
   converting: 0.15,
   transcribing: 0.2,
+  gemini_uploading: 0.2,
+  gemini_transcribing: 0.5,
   saving: 0.95,
 };
 
