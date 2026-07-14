@@ -36,15 +36,24 @@ def main():
     import platform
     import os
     if platform.system() == "Windows":
-        for path in sys.path:
+        # PyInstaller 임시 디렉토리(_MEIPASS) 및 실행 경로를 포함하여 탐색
+        base_paths = []
+        if hasattr(sys, "_MEIPASS"):
+            base_paths.append(sys._MEIPASS)
+        base_paths.append(os.path.dirname(sys.executable))
+        base_paths.extend(sys.path)
+
+        for path in base_paths:
+            if not path:
+                continue
             nvidia_dir = os.path.join(path, "nvidia")
             if os.path.exists(nvidia_dir):
                 for root, dirs, files in os.walk(nvidia_dir):
-                    if root.endswith("bin"):
+                    if root.endswith("bin") or root.endswith("lib"):
                         try:
                             if hasattr(os, "add_dll_directory"):
                                 os.add_dll_directory(root)
-                            # Also append to PATH since some C++ binaries only look up PATH for DLLs on Windows
+                            # C++ 바이너리(ctranslate2 등) 탐색을 위해 PATH에도 추가
                             os.environ["PATH"] = root + os.pathsep + os.environ["PATH"]
                         except Exception:
                             pass

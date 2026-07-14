@@ -142,10 +142,18 @@ let shouldBuild = !fs.existsSync(transcribeDest);
 
 if (fs.existsSync(transcribeDest) && fs.existsSync(transcribeSource)) {
   const sourceStat = fs.statSync(transcribeSource);
+  const scriptStat = fs.statSync(__filename);
   const destStat = fs.statSync(transcribeDest);
+
   if (sourceStat.mtime > destStat.mtime) {
     console.log("transcribe.py is newer than transcribe.exe. Rebuilding...");
     shouldBuild = true;
+  } else if (scriptStat.mtime > destStat.mtime) {
+    console.log("setup-binaries.js is newer than transcribe.exe. Rebuilding...");
+    shouldBuild = true;
+  }
+
+  if (shouldBuild) {
     try {
       fs.unlinkSync(transcribeDest);
     } catch (err) {
@@ -157,7 +165,16 @@ if (fs.existsSync(transcribeDest) && fs.existsSync(transcribeSource)) {
 if (shouldBuild) {
   console.log("Building transcribe.py into transcribe.exe using PyInstaller...");
   try {
-    const buildCmd = `conda run -n lyrics_player pyinstaller --onefile --clean --collect-all faster_whisper --collect-all ctranslate2 --collect-all nvidia-cublas-cu12 --collect-all nvidia-cudnn-cu12 --distpath "${binDir}" "src/main/services/transcribe.py"`;
+    const tempDllsDir = path.join(__dirname, "..", "temp_nvidia_dlls");
+
+    // 1. Copy NVIDIA DLLs from conda environment
+    console.log("Collecting NVIDIA CUDA/CuDNN DLLs...");
+    const copyCmd = `conda run -n lyrics_player python scripts/copy-nvidia-dlls.py "${tempDllsDir}"`;
+    console.log(`Running: ${copyCmd}`);
+    execSync(copyCmd, { stdio: "inherit" });
+
+    // 2. Build using PyInstaller with collected DLLs
+    const buildCmd = `conda run -n lyrics_player pyinstaller --onefile --clean --collect-all faster_whisper --collect-all ctranslate2 --add-data "${tempDllsDir}/nvidia;nvidia" --distpath "${binDir}" "src/main/services/transcribe.py"`;
     console.log(`Running: ${buildCmd}`);
     execSync(buildCmd, { stdio: "inherit" });
     console.log("transcribe.exe built successfully!");
@@ -168,8 +185,13 @@ if (shouldBuild) {
     const buildPath = path.join(__dirname, "..", "build");
     if (fs.existsSync(specPath)) fs.unlinkSync(specPath);
     if (fs.existsSync(buildPath)) fs.rmSync(buildPath, { recursive: true, force: true });
+    if (fs.existsSync(tempDllsDir)) fs.rmSync(tempDllsDir, { recursive: true, force: true });
   } catch (err) {
     console.error("PyInstaller compilation failed:", err);
+    const tempDllsDir = path.join(__dirname, "..", "temp_nvidia_dlls");
+    if (fs.existsSync(tempDllsDir)) {
+      try { fs.rmSync(tempDllsDir, { recursive: true, force: true }); } catch (e) { }
+    }
     process.exit(1);
   }
 } else {
