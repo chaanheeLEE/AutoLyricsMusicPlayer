@@ -138,7 +138,7 @@
         <h2>Settings</h2>
 
         <div class="settings-tabs">
-          <button id="tabGeneralBtn" class="settings-tab-button active" type="button">General</button>
+          <button id="tabGeneralBtn" class="settings-tab-button active" type="button">STT & AI</button>
           <button id="tabFloatingBtn" class="settings-tab-button" type="button">Floating Lyrics</button>
           <button id="tabShortcutsBtn" class="settings-tab-button" type="button">Shortcuts</button>
         </div>
@@ -167,7 +167,7 @@
 
 
           <div class="settings-group">
-            <label for="settingLanguage">Language</label>
+            <label for="settingLanguage">Analysis Language (분석 언어)</label>
             <select id="settingLanguage" name="language">
               <option value="">Auto-detect</option>
               <option value="ko">Korean (한국어)</option>
@@ -186,8 +186,8 @@
             <label for="settingAutoAnalyzeMode">자동 분석 모드</label>
             <select id="settingAutoAnalyzeMode" name="autoAnalyzeMode">
               <option value="off">사용 안 함 (수동 분석)</option>
-              <option value="analyze">가사 자동 분석만 수행 (Whisper)</option>
-              <option value="align">가사 자동 분석 + AI 정렬 동시 수행 (Whisper + Gemini)</option>
+              <option value="analyze">가사 자동 분석만 수행 (선택한 STT 엔진)</option>
+              <option value="align">가사 자동 분석 + AI 정렬 동시 수행 (선택한 엔진 + Gemini)</option>
             </select>
           </div>
 
