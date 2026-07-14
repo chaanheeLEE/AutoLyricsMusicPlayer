@@ -460,11 +460,11 @@ window.lyricsPlayer.onTranscriptionProgress((msg) => {
   if (msg.type === "progress") {
     const label = STAGE_LABELS[msg.stage] || msg.stage;
     const pct = msg.percent ?? STAGE_PERCENT[msg.stage] ?? 0;
-    showProgress(label, pct);
+    lyricsJobManager.showProgress(label, pct);
   } else if (msg.type === "segment") {
-    showProgress(`Transcribing… (${msg.id})`, 0.5);
+    lyricsJobManager.showProgress(`Transcribing… (${msg.id})`, 0.5);
   } else if (msg.type === "error") {
-    hideProgress();
+    lyricsJobManager.hideProgress();
     trackStatus.textContent = `Error: ${msg.message}`;
   }
 });
