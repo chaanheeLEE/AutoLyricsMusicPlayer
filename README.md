@@ -98,13 +98,18 @@ music-player/
 │
 └── src/
     ├── main/                  # Electron 메인 프로세스 영역 (Core Shell)
-    │   ├── main.js            # 메인 프로세스 시작점 (윈도우 생명주기 및 IPC 라우팅 관리)
+    │   ├── main.js            # 메인 프로세스 시작점 (core 모듈들을 부트스트랩하여 기동)
     │   ├── preload.js         # Renderer와 Main 간 안전한 Context Bridge 연결 통로
     │   │
+    │   ├── core/              # Electron 시스템 아키텍처 및 쉘 관리 레이어
+    │   │   ├── window-manager.js     # Electron 윈도우 인스턴스 생성 및 프레임 생명주기 관리
+    │   │   └── ipc-router.js         # 메인 프로세스 측 모든 IPC 채널 이벤트 등록 및 라우팅 위임
+    │   │
     │   ├── services/          # 외부 API 및 대형 연동 서비스 엔진
-    │   │   ├── gemini-service.js     # Gemini API 호출 및 가사 대조 정합 프롬프트 가이드
+    │   │   ├── gemini-service.js     # Gemini API 호출 및 가사 정합 파이프라인
+    │   │   ├── gemini-prompts.js     # Gemini STT 및 정합 관련 시스템 프롬프트(systemInstruction) 분리 보관
     │   │   ├── lyrics-scraper.js     # DuckDuckGo HTML 검색 기반 공식 가사 스크래퍼
-    │   │   ├── lyrics-sources.js     # 로컬 파일 가사 리더 파이프라인
+    │   │   ├── lyrics-sources.js     # 로컬 파일 가사 (.lrc / 음원 태그 내장 가사) 리더 파이프라인
     │   │   ├── transcription-worker.js # Python STT 서브프로세스 제어 분석기
     │   │   └── transcribe.py         # faster-whisper 기반 로컬 음성인식 파이썬 스크립트
     │   │
@@ -117,18 +122,27 @@ music-player/
     ├── renderer/              # 사용자 화면(UI) 렌더러 프로세스 영역
     │   ├── index.html         # 메인 플레이어 UI 구조 및 리팩토링 모듈 로드
     │   ├── app.js             # 메인 조정자 (Orchestrator) 쉘 (모듈 연동 및 IPC 브릿징)
-    │   ├── styles.css         # 플레이어 전체 스타일시트 (테마, 가사 노출 효과 등)
+    │   ├── styles.css         # 수입 모듈 스타일들을 @import로 통합 호출하는 마스터 스타일시트
     │   ├── floating.html      # 플로팅 가사 전용 창 UI
     │   ├── floating.js        # 플로팅 가사창 마우스 감지 제어 및 렌더링
+    │   │
+    │   ├── css/               # 모듈화되어 분리된 영역별 스타일시트
+    │   │   ├── variables.css         # 테마 색상 변수, 폰트 및 공통 태그 리셋 스타일
+    │   │   ├── layout.css            # 메인 플레이어 레이아웃 프레임, 재생 제어반 및 분석 진행바
+    │   │   ├── playlist.css          # 플레이리스트 영역, 정렬/검색 및 크기 리사이저
+    │   │   ├── lyrics.css            # 가사 뷰어 리스트, 싱크 하이라이트 및 시간 싱크 편집 컨트롤
+    │   │   ├── settings.css          # 설정 창 모달, 내부 탭 양식 및 단축키 캡처 스타일
+    │   │   └── floating.css          # 투명 플로팅 가사창 전용 CSS
     │   │
     │   └── modules/           # app.js에서 분리된 전역 UI 컴포넌트 클래스
     │       ├── player-controller.js  # HTML5 Audio 재생, 볼륨, 탐색 및 미디어세션 바인딩
     │       ├── playlist-manager.js   # 재생 목록 관리, 정렬, 검색 및 파일 드롭 수신
     │       ├── lyrics-viewer.js      # 가사 출력, 스크롤 하이라이팅 및 인라인 텍스트 에디터
+    │       ├── lyrics-job-manager.js # 비동기 음성 인식(STT) 및 가사 정합(Align) 잡 스케줄링 및 UI 진행도 제어
     │       └── settings-view.js      # 다이얼로그 모달 제어 및 폼 옵션 저장
     │
     ├── shared/                # 공통 유틸리티 영역
-    │   └── lyrics-core.js     # 싱크 검색(이진탐색), LRC/WebVTT 포맷 변환 공통 로직
+    │   └── lyrics-core.js     # 싱크 검색, HTML 이스케이프(escapeHtml), LRC/WebVTT 포맷 변환 공통 로직
     │
     └── assets/                # 앱 아이콘 및 리소스 디렉토리
 ```
