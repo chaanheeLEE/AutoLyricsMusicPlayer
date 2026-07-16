@@ -99,25 +99,28 @@ def main():
         lines = []
         info = None
 
+        resolved_device = "cpu"
+        compute_type = "int8"
+        mode_msg = "Using CPU for transcription (fallback)."
+
         if device_choice == "cpu":
-            emit({"type": "info", "message": "Using CPU for transcription (forced)."})
-            model = WhisperModel(args.model, device="cpu", compute_type="int8")
-            lines, info = run_transcription(model)
+            resolved_device = "cpu"
+            compute_type = "int8"
+            mode_msg = "Using CPU for transcription (forced)."
         elif device_choice == "cuda":
             if ctranslate2.get_cuda_device_count() == 0:
                 raise RuntimeError("No CUDA devices found, but GPU Only (cuda) was requested.")
-            emit({"type": "info", "message": "Using CUDA (GPU) for transcription (forced)."})
-            model = WhisperModel(args.model, device="cuda", compute_type="float16")
-            lines, info = run_transcription(model)
+            resolved_device = "cuda"
+            compute_type = "float16"
+            mode_msg = "Using CUDA (GPU) for transcription (forced)."
         else: # "auto"
-            gpu_activated = False
             if ctranslate2.get_cuda_device_count() > 0:
                 try:
-                    # Attempt GPU (CUDA) execution
+                    # Attempt GPU (CUDA) model load first
                     model = WhisperModel(args.model, device="cuda", compute_type="float16")
-                    lines, info = run_transcription(model)
-                    gpu_activated = True
-                    emit({"type": "info", "message": "Using CUDA (GPU) for transcription (auto)."})
+                    resolved_device = "cuda"
+                    compute_type = "float16"
+                    mode_msg = "Using CUDA (GPU) for transcription (auto)."
                 except Exception as e:
                     import traceback
                     emit({
@@ -126,11 +129,16 @@ def main():
                     })
                     model = None
 
-            if not gpu_activated:
-                # CPU Fallback
-                emit({"type": "info", "message": "Using CPU for transcription (fallback)."})
-                model = WhisperModel(args.model, device="cpu", compute_type="int8")
-                lines, info = run_transcription(model)
+            if model is None:
+                resolved_device = "cpu"
+                compute_type = "int8"
+                mode_msg = "Using CPU for transcription (fallback)."
+
+        if model is None:
+            model = WhisperModel(args.model, device=resolved_device, compute_type=compute_type)
+
+        emit({"type": "info", "message": mode_msg})
+        lines, info = run_transcription(model)
 
         # Emit all generated segment JSONs
         for line in lines:

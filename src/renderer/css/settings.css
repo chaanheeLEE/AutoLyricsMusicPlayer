@@ -281,3 +281,48 @@
   cursor: pointer;
 }
 
+/* Shortcuts Tab layout cleanups */
+.settings-shortcut-tab {
+  overflow: hidden;
+}
+
+.settings-shortcut-card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-shortcut-header {
+  margin-bottom: 6px;
+}
+
+.settings-shortcut-desc {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 0 0 12px 0;
+  line-height: 1.4;
+}
+
+.shortcut-list-container {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shortcut-list-container .settings-item {
+  padding: 6px 0;
+}
+
+.shortcut-list-container .settings-info span {
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.shortcut-list-container .shortcut-capture-btn {
+  width: 140px;
+  text-align: center;
+}
+

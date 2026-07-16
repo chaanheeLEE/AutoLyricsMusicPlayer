@@ -146,17 +146,17 @@ class SettingsView {
     this.settingsDialog.close();
   }
 
-  updateSTTEngineUI() {
-    const engine = this.settingEngine.value;
-    if (engine === "gemini") {
-      this.settingModelGroup.style.display = "none";
-      this.settingWhisperDeviceGroup.style.display = "none";
-      this.settingGeminiModelGroup.style.display = "";
-    } else {
-      this.settingModelGroup.style.display = "";
-      this.settingWhisperDeviceGroup.style.display = "";
-      this.settingGeminiModelGroup.style.display = "none";
+  toggleVisibility(element, show) {
+    if (element) {
+      element.style.display = show ? "" : "none";
     }
+  }
+
+  updateSTTEngineUI() {
+    const isGemini = this.settingEngine.value === "gemini";
+    this.toggleVisibility(this.settingModelGroup, !isGemini);
+    this.toggleVisibility(this.settingWhisperDeviceGroup, !isGemini);
+    this.toggleVisibility(this.settingGeminiModelGroup, isGemini);
     this.updateAutoAnalyzeDropdownState();
   }
 

@@ -333,84 +333,84 @@
         </div>
 
         <!-- 3. Shortcuts Settings Tab Content -->
-        <div id="tabShortcutsContent" class="tab-content" style="overflow: hidden;">
-          <div class="settings-card" style="height: 100%; display: flex; flex-direction: column;">
-            <div class="settings-card-header" style="margin-bottom: 6px;">플레이어 단축키 설정</div>
-            <p style="font-size: 0.78rem; color: var(--muted); margin: 0 0 12px 0; line-height: 1.4;">
+        <div id="tabShortcutsContent" class="tab-content settings-shortcut-tab">
+          <div class="settings-card settings-shortcut-card">
+            <div class="settings-card-header settings-shortcut-header">플레이어 단축키 설정</div>
+            <p class="settings-shortcut-desc">
               키 지정을 하려면 해당 단축키 버튼을 마우스로 클릭하고 새로운 키를 입력하십시오. (Esc 입력 시 초기화/취소)
             </p>
 
-            <div class="shortcut-list-container" style="flex: 1; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 8px;">
-              <div class="settings-item" style="padding: 6px 0;">
+            <div class="shortcut-list-container">
+              <div class="settings-item">
                 <div class="settings-info">
-                  <span style="font-size: 0.88rem; font-weight: 500;">재생 / 일시정지</span>
+                  <span>재생 / 일시정지</span>
                 </div>
                 <div class="settings-control">
-                  <button id="btnShortcutTogglePlay" type="button" class="shortcut-capture-btn" data-action="togglePlay" style="width: 140px; text-align: center;">Space</button>
+                  <button id="btnShortcutTogglePlay" type="button" class="shortcut-capture-btn" data-action="togglePlay">Space</button>
                 </div>
               </div>
-              <div class="settings-item" style="padding: 6px 0;">
+              <div class="settings-item">
                 <div class="settings-info">
-                  <span style="font-size: 0.88rem; font-weight: 500;">5초 뒤로 이동</span>
+                  <span>5초 뒤로 이동</span>
                 </div>
                 <div class="settings-control">
-                  <button id="btnShortcutSeekBackward" type="button" class="shortcut-capture-btn" data-action="seekBackward" style="width: 140px; text-align: center;">ArrowLeft</button>
+                  <button id="btnShortcutSeekBackward" type="button" class="shortcut-capture-btn" data-action="seekBackward">ArrowLeft</button>
                 </div>
               </div>
-              <div class="settings-item" style="padding: 6px 0;">
+              <div class="settings-item">
                 <div class="settings-info">
-                  <span style="font-size: 0.88rem; font-weight: 500;">5초 앞으로 이동</span>
+                  <span>5초 앞으로 이동</span>
                 </div>
                 <div class="settings-control">
-                  <button id="btnShortcutSeekForward" type="button" class="shortcut-capture-btn" data-action="seekForward" style="width: 140px; text-align: center;">ArrowRight</button>
+                  <button id="btnShortcutSeekForward" type="button" class="shortcut-capture-btn" data-action="seekForward">ArrowRight</button>
                 </div>
               </div>
-              <div class="settings-item" style="padding: 6px 0;">
+              <div class="settings-item">
                 <div class="settings-info">
-                  <span style="font-size: 0.88rem; font-weight: 500;">볼륨 올리기</span>
+                  <span>볼륨 올리기</span>
                 </div>
                 <div class="settings-control">
-                  <button id="btnShortcutVolumeUp" type="button" class="shortcut-capture-btn" data-action="volumeUp" style="width: 140px; text-align: center;">ArrowUp</button>
+                  <button id="btnShortcutVolumeUp" type="button" class="shortcut-capture-btn" data-action="volumeUp">ArrowUp</button>
                 </div>
               </div>
-              <div class="settings-item" style="padding: 6px 0;">
+              <div class="settings-item">
                 <div class="settings-info">
-                  <span style="font-size: 0.88rem; font-weight: 500;">볼륨 내리기</span>
+                  <span>볼륨 내리기</span>
                 </div>
                 <div class="settings-control">
-                  <button id="btnShortcutVolumeDown" type="button" class="shortcut-capture-btn" data-action="volumeDown" style="width: 140px; text-align: center;">ArrowDown</button>
+                  <button id="btnShortcutVolumeDown" type="button" class="shortcut-capture-btn" data-action="volumeDown">ArrowDown</button>
                 </div>
               </div>
-              <div class="settings-item" style="padding: 6px 0;">
+              <div class="settings-item">
                 <div class="settings-info">
-                  <span style="font-size: 0.88rem; font-weight: 500;">이전 곡 재생</span>
+                  <span>이전 곡 재생</span>
                 </div>
                 <div class="settings-control">
-                  <button id="btnShortcutPrevTrack" type="button" class="shortcut-capture-btn" data-action="prevTrack" style="width: 140px; text-align: center;">KeyP</button>
+                  <button id="btnShortcutPrevTrack" type="button" class="shortcut-capture-btn" data-action="prevTrack">KeyP</button>
                 </div>
               </div>
-              <div class="settings-item" style="padding: 6px 0;">
+              <div class="settings-item">
                 <div class="settings-info">
-                  <span style="font-size: 0.88rem; font-weight: 500;">다음 곡 재생</span>
+                  <span>다음 곡 재생</span>
                 </div>
                 <div class="settings-control">
-                  <button id="btnShortcutNextTrack" type="button" class="shortcut-capture-btn" data-action="nextTrack" style="width: 140px; text-align: center;">KeyN</button>
+                  <button id="btnShortcutNextTrack" type="button" class="shortcut-capture-btn" data-action="nextTrack">KeyN</button>
                 </div>
               </div>
-              <div class="settings-item" style="padding: 6px 0;">
+              <div class="settings-item">
                 <div class="settings-info">
-                  <span style="font-size: 0.88rem; font-weight: 500;">음소거 토글</span>
+                  <span>음소거 토글</span>
                 </div>
                 <div class="settings-control">
-                  <button id="btnShortcutToggleMute" type="button" class="shortcut-capture-btn" data-action="toggleMute" style="width: 140px; text-align: center;">KeyM</button>
+                  <button id="btnShortcutToggleMute" type="button" class="shortcut-capture-btn" data-action="toggleMute">KeyM</button>
                 </div>
               </div>
-              <div class="settings-item" style="padding: 6px 0;">
+              <div class="settings-item">
                 <div class="settings-info">
-                  <span style="font-size: 0.88rem; font-weight: 500;">플로팅 가사창 토글</span>
+                  <span>플로팅 가사창 토글</span>
                 </div>
                 <div class="settings-control">
-                  <button id="btnShortcutToggleFloating" type="button" class="shortcut-capture-btn" data-action="toggleFloating" style="width: 140px; text-align: center;">KeyF</button>
+                  <button id="btnShortcutToggleFloating" type="button" class="shortcut-capture-btn" data-action="toggleFloating">KeyF</button>
                 </div>
               </div>
             </div>
