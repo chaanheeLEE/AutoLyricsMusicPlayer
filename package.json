@@ -1,6 +1,6 @@
 {
   "name": "auto-lyrics-player",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Desktop music player prototype with synchronized and floating lyrics.",
   "main": "src/main/main.js",
   "type": "commonjs",
