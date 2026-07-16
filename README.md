@@ -6,28 +6,28 @@ Auto Lyrics Player는 오디오 파일을 재생하고, AI 기반 로컬 음성 
 
 ## 필수 설치 요구사항
 
-이 앱은 환경설정(STT & AI)에서 선택한 음성 인식 엔진에 따라 필요한 외부 도구가 다릅니다.
+이 앱은 사용 환경(일반 사용자 vs 개발자) 및 환경설정(`STT & AI` 탭)에서 선택한 음성 인식 엔진에 따라 요구사항이 다릅니다.
 
-* **Local Whisper (로컬 오프라인 분석) 사용 시 (권장)**:
-  * 로컬에서 직접 AI 모델을 구동하기 위해 아래 외부 도구들이 필요합니다.
-  *(참고: 무설치 단일 실행 파일(`.exe`)로 빌드하여 배포하는 경우, FFmpeg은 빌드 시 자동으로 패키징에 내장되므로 사용자는 **Python** 및 **`faster-whisper`**만 설치하면 됩니다.)*
+### 1. 일반 사용자 (배포 패키지 사용 시)
+* **설치 요구사항 없음 (Zero-Dependency)**
+  * 배포용 설치 마법사(`AutoLyricsPlayer Setup.exe`)를 통해 설치하는 경우, 플레이어 구동에 필요한 FFmpeg/FFprobe, 컴파일된 로컬 STT 엔진(`transcribe.exe`), 그리고 GPU 가속에 필요한 NVIDIA CUDA/cuDNN 필수 DLL 라이브러리가 모두 기본으로 내장되어 배포됩니다.
+  * 따라서 일반 사용자는 Python, FFmpeg 등을 수동으로 설치하지 않고도 로컬 Whisper(CPU 및 CUDA GPU 가속) 분석과 Gemini 클라우드 분석 기능을 즉시 사용할 수 있습니다.
+
+### 2. 개발 및 소스 빌드 환경
+소스 코드를 클론하여 로컬에서 개발하거나 직접 빌드 패키징하려는 경우 다음 도구들이 필요합니다.
+
+* **FFmpeg & FFprobe**:
+  * 빌드 및 실행 시 `scripts/setup-binaries.js` 스크립트가 시스템 환경변수(PATH) 또는 WinGet 패키지 경로를 검색하여 자동으로 복사합니다. 만약 로컬에 존재하지 않는 경우, 스크립트가 공식 Gyan.FFmpeg 바이너리를 웹에서 자동으로 다운로드하여 배치하므로 수동 설치 과정이 생략됩니다.
+* **Python 3.9 이상**:
+  * 로컬 STT 분석 스크립트(`transcribe.py`) 실행 및 빌드를 위해 필요합니다. 파이썬 설치 시 **"Add python.exe to PATH"** 옵션을 반드시 체크해 주십시오.
+  * PyInstaller 빌드 스크립트가 Conda 환경명을 참조하므로, Conda 환경을 사용하는 경우 가상환경 이름을 **`lyrics_player`**로 구성하는 것을 권장합니다.
+  * 터미널에서 아래 명령어를 실행하여 필수 모듈들을 설치합니다.
+    ```bash
+    pip install faster-whisper ctranslate2 pyinstaller
+    ```
+
 * **Gemini API (클라우드 분석) 사용 시**:
-  * 외부 설치 요구사항이 **없습니다**. 설정창(`STT & AI` 탭)에서 Gemini API Key만 입력하면 즉시 초고속 클라우드 분석이 가능합니다.
-
-### 1. FFmpeg 설치 (로컬 Whisper 개발 환경 전용)
-윈도우 환경에서 터미널(PowerShell 또는 CMD)을 열고 아래 명령어를 입력하여 설치합니다.
-```bash
-winget install Gyan.FFmpeg
-```
-설치 완료 후, 환경변수(PATH)가 정상적으로 반영되도록 실행 중인 터미널이나 에디터를 재시작해 주십시오.
-
-### 2. Python 및 필수 패키지 설치
-컴퓨터에 Python(버전 3.9 이상 권장)이 설치되어 있어야 합니다. 파이썬 설치 시 **"Add python.exe to PATH"** 옵션을 반드시 체크해 주십시오.
-
-그 후, 터미널에서 아래 명령어를 실행하여 음성 인식 핵심 모듈을 설치합니다.
-```bash
-pip install faster-whisper
-```
+  * 별도의 로컬 AI 구동 환경(Python 등)이 필요하지 않습니다. 설정창(`STT & AI` 탭)에서 사용자의 Gemini API Key만 입력하면 바로 사용 가능합니다.
 
 ---
 
@@ -53,21 +53,27 @@ pip install faster-whisper
 
 ### 2. 원클릭 AI 가사 분석 (Analyze)
 * 가사가 없는 곡을 로드한 뒤 Analyze 버튼을 누르면 인공지능 기반 가사 전사(STT)가 수행됩니다.
-* **로컬 분석 (Local Whisper)** 또는 **클라우드 분석 (Gemini API - 기본값 gemini-3.1-flash-lite 및 gemini-3.5-flash 선택 가능)** 중 원하는 엔진을 선택하여 구동할 수 있습니다.
+* **로컬 분석 (Local Whisper)** 또는 **클라우드 분석 (Gemini API - gemini-3.1-flash-lite, gemini-3.5-flash 등)** 중 원하는 엔진을 선택하여 구동할 수 있습니다.
 * 실시간 전사 진행률(%)이 표시되며 완료 시 타임스탬프를 획득합니다.
 
-### 3. AI 가사 싱크 정밀 대조 (AI Align)
+### 3. Whisper Device (STT 가속 장치) 설정 지원
+* 로컬 Whisper 엔진을 사용할 때 연산을 담당할 하드웨어 장치를 직접 선택할 수 있습니다.
+  * **Auto-detect (기본값)**: NVIDIA CUDA GPU 환경이 감지되면 GPU(float16)로 고속 구동하며, 실패하거나 지원되지 않는 경우 CPU(int8)로 자동 안전하게 폴백합니다.
+  * **CPU Only**: GPU를 강제로 사용하지 않고 오직 CPU 연산으로만 분석을 수행합니다. (저사양 시스템이거나 분석 중 다른 그래픽 부하 작업을 원활히 병행할 때 유용)
+  * **GPU Only (CUDA)**: CUDA GPU 가속을 강제로 사용하도록 지정합니다. (CUDA를 지원하지 않는 시스템에서는 구동 시 에러가 발생합니다)
+
+### 4. AI 가사 싱크 정밀 대조 (AI Align / Realign)
 * 오디오에서 받아온 타임스탬프 정보와 음원에 내장된 평문(텍스트) 가사를 대조하여 정밀한 타임라인 싱크를 완성하는 하이브리드 파이프라인을 지원합니다.
 * 사용자가 선택한 제미나이 모델(기본값: **Gemini 3.1 Flash-Lite** 또는 고성능 **Gemini 3.5 Flash**)을 연동하여 다국어 발음/시맨틱 유사성 등을 고려해 매핑을 수행합니다.
 * 1차 분석 시에도 음원의 실제 재생 길이(Duration) 정보를 프롬프트 가이드라인으로 주입하여, 생성된 타임스탬프가 음원 길이를 초과하지 않도록 안전하게 가드 처리하였습니다.
 * 반복되는 가사(1절/2절 후렴 등)가 동일한 타임스탬프를 복사해 와 싱크가 꼬이는 것을 방지하기 위해 중복 할당 제거 후처리(Deduplication)를 거쳐 자연스럽게 선형 보간 시스템으로 가사를 인계합니다.
 * AI Realign(재정합) 시, 1차 정합된 가사 라인별 기존 타임스탬프 범위(`[시작 시간 ~ 종료 시간]`)를 Gemini 프롬프트에 동봉해 피드백으로 던집니다. AI가 이 시간축의 흐름을 적극 활용해 싱크 오차와 반복 구절의 시간대를 더 정밀하게 교정합니다.
 
-### 4. 화면 투명 플로팅 가사
+### 5. 화면 투명 플로팅 가사
 * 항상 화면 맨 위에 떠 있는 투명 가사 창을 지원합니다.
 * 가사가 없는 빈 영역을 마우스로 클릭하면 클릭이 관통되어 뒤에 있는 웹브라우저나 프로그램들을 그대로 조작할 수 있습니다.
 
-### 5. 가사 편집 및 싱크 오프셋
+### 6. 가사 편집 및 싱크 오프셋
 * 가사 텍스트를 플레이어 내에서 즉시 수정할 수 있는 편집(Edit) 모드를 제공합니다.
 * 단축키나 버튼을 이용해 가사의 속도를 0.1초 혹은 0.5초 단위로 미세하게 앞당기거나 늦출 수 있습니다.
 
@@ -75,15 +81,19 @@ pip install faster-whisper
 
 ## 배포 및 패키징 방법
 
-타인에게 공유할 수 있는 무설치 단일 실행 파일(.exe)로 빌드하려면 아래 명령어를 실행합니다.
+앱을 설치 가능한 실행 파일로 빌드하려면 아래 명령어를 실행합니다.
 ```bash
 npm run build
 ```
-빌드가 완료되면 프로젝트 루트에 `dist/` 폴더가 생성되며, 그 내부에 `AutoLyricsPlayer 0.1.0.exe` 파일이 위치하게 됩니다.
 
-> **주의 사항**
-> * 만약 사용자가 설정에서 **Gemini API** 엔진을 선택해 사용한다면 Python 등의 추가 설치가 전혀 필요하지 않습니다. (무설치 즉시 사용 가능)
-> * 만약 **Local Whisper** 엔진을 사용하는 경우, 배포 대상자의 PC에도 **Python** 및 **`faster-whisper` 패키지**가 설치되어 있어야 분석 기능이 정상 작동합니다. (FFmpeg은 빌드 시 실행 파일 내부에 동봉되어 함께 패키징되므로 배포 대상자가 따로 설치할 필요가 없습니다.)
+이 명령어는 내부적으로 `node scripts/setup-binaries.js` 스크립트를 거쳐 아래의 자동화된 빌드 과정을 순차적으로 수행합니다:
+
+1. **바이너리 수집 및 경량화**: FFmpeg 및 FFprobe 파일을 로컬 환경에서 감지하거나 없으면 공식 릴리즈를 자동 다운로드하여 `bin/win32`에 적재합니다. 이후 배포 패키지 용량 최적화를 위해 **UPX 압축 필터**를 사용해 실행 파일의 용량을 경량화합니다.
+2. **GPU 가속용 필수 DLL 선별 추출**: Conda 가상환경(`lyrics_player`)을 조회하여, 로컬 Whisper가 GPU(CUDA) 가속을 정상적으로 수행할 때 반드시 필요한 핵심 DLL(cuBLAS, cuDNN, zlibwapi 등)만 Whitelist 방식으로 선별 추출하여 패키징에 포함시킵니다. (GPU 구동 관련 라이브러리 미인식 문제 해결 및 배포 용량 절감 효과)
+3. **STT 엔진 컴파일**: `transcribe.py` 파일의 최종 수정 일시(mtime)를 검사하여 소스 코드가 업데이트되었을 때만 PyInstaller를 통해 독립 실행 파일 `transcribe.exe`로 자동 컴파일합니다.
+4. **NSIS 설치 마법사 패키징**: 최종적으로 `electron-builder`를 사용하여 **NSIS 설치 마법사 프로그램(`AutoLyricsPlayer Setup 0.3.1.exe`)**을 생성합니다.
+   * 원클릭 설치가 아닌 사용자가 직접 설치 경로를 지정할 수 있는 기능을 제공합니다.
+   * 바탕화면 바로가기 및 시작메뉴 단축아이콘 생성을 완벽히 지원합니다.
 
 ---
 
@@ -95,6 +105,9 @@ npm run build
 music-player/
 │
 ├── package.json               # Electron 의존성 및 빌드/실행 스크립트 정의
+├── scripts/                   # 빌드 및 의존성 바이너리 준비 자동화 스크립트 영역
+│   ├── setup-binaries.js      # FFmpeg/FFprobe 탐색 및 UPX 압축, PyInstaller 빌드 오케스트레이터
+│   └── copy-nvidia-dlls.py    # Conda 환경에서 로컬 GPU 가속용 CUDA/cuDNN 필수 DLL 추출기
 │
 └── src/
     ├── main/                  # Electron 메인 프로세스 영역 (Core Shell)
@@ -145,4 +158,5 @@ music-player/
     │   └── lyrics-core.js     # 싱크 검색, HTML 이스케이프(escapeHtml), LRC/WebVTT 포맷 변환 공통 로직
     │
     └── assets/                # 앱 아이콘 및 리소스 디렉토리
+```
 ```
