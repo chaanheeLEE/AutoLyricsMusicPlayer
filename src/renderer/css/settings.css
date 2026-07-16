@@ -271,6 +271,11 @@
   outline: none;
 }
 
+.settings-control select option {
+  background-color: var(--panel);
+  color: var(--text);
+}
+
 .settings-control input[type="range"] {
   width: 140px;
   cursor: pointer;
