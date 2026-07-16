@@ -143,6 +143,7 @@ function convertAudio(inputPath, outputPath) {
  */
 function startTranscription(track, options, onProgress) {
   const model = options?.model || "base";
+  const whisperDevice = options?.whisperDevice || "auto";
   const language = options?.language || null;
   const initialPrompt = options?.initialPrompt || null;
   const beamSize = options?.beamSize !== undefined ? options.beamSize : 5;
@@ -194,6 +195,7 @@ function startTranscription(track, options, onProgress) {
         cmd = resolvePython();
         args = [TRANSCRIBE_SCRIPT, tmpWav, "--model", model];
       }
+      args.push("--device", whisperDevice);
       if (language) args.push("--language", language);
       if (initialPrompt) args.push("--initial_prompt", initialPrompt);
       if (beamSize) args.push("--beam_size", String(beamSize));

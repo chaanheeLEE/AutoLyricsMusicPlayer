@@ -5,6 +5,7 @@ const path = require("node:path");
 const DEFAULT_SETTINGS = {
   sttEngine: "whisper",
   model: "base",
+  whisperDevice: "auto",
   language: null,
   geminiApiKey: "",
   geminiModel: "gemini-3.1-flash-lite",
@@ -71,6 +72,7 @@ async function saveSettings(settings) {
   const safe = {
     sttEngine: settings.sttEngine || DEFAULT_SETTINGS.sttEngine,
     model: settings.model || DEFAULT_SETTINGS.model,
+    whisperDevice: settings.whisperDevice || DEFAULT_SETTINGS.whisperDevice,
     language: settings.language || null,
     geminiApiKey: settings.geminiApiKey || "",
     geminiModel: settings.geminiModel || DEFAULT_SETTINGS.geminiModel,

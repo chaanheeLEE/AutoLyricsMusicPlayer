@@ -164,6 +164,15 @@
             </select>
           </div>
 
+          <div class="settings-group" id="settingWhisperDeviceGroup">
+            <label for="settingWhisperDevice">Whisper Device (STT 가속 장치)</label>
+            <select id="settingWhisperDevice" name="whisperDevice">
+              <option value="auto" selected>Auto-detect (GPU 시도 후 CPU 폴백)</option>
+              <option value="cpu">CPU Only (저사양/멀티태스킹용)</option>
+              <option value="cuda">GPU Only (CUDA 가속 강제)</option>
+            </select>
+          </div>
+
           <div class="settings-group" id="settingGeminiModelGroup" style="display: none;">
             <label for="settingGeminiModel">Gemini STT Model</label>
             <select id="settingGeminiModel" name="geminiModel">

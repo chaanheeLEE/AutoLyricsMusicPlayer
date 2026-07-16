@@ -16,11 +16,13 @@ class SettingsView {
     
     this.settingEngine = document.querySelector("#settingEngine");
     this.settingModel = document.querySelector("#settingModel");
+    this.settingWhisperDevice = document.querySelector("#settingWhisperDevice");
     this.settingGeminiModel = document.querySelector("#settingGeminiModel");
     this.settingLanguage = document.querySelector("#settingLanguage");
     this.settingGeminiKey = document.querySelector("#settingGeminiKey");
     this.settingAutoAnalyzeMode = document.querySelector("#settingAutoAnalyzeMode");
     this.settingModelGroup = document.querySelector("#settingModelGroup");
+    this.settingWhisperDeviceGroup = document.querySelector("#settingWhisperDeviceGroup");
     this.settingGeminiModelGroup = document.querySelector("#settingGeminiModelGroup");
     
     this.settingFloatingFontSize = document.querySelector("#settingFloatingFontSize");
@@ -148,9 +150,11 @@ class SettingsView {
     const engine = this.settingEngine.value;
     if (engine === "gemini") {
       this.settingModelGroup.style.display = "none";
+      this.settingWhisperDeviceGroup.style.display = "none";
       this.settingGeminiModelGroup.style.display = "";
     } else {
       this.settingModelGroup.style.display = "";
+      this.settingWhisperDeviceGroup.style.display = "";
       this.settingGeminiModelGroup.style.display = "none";
     }
     this.updateAutoAnalyzeDropdownState();
@@ -178,6 +182,7 @@ class SettingsView {
     const next = {
       sttEngine: this.settingEngine.value,
       model: this.settingModel.value,
+      whisperDevice: this.settingWhisperDevice.value,
       geminiModel: this.settingGeminiModel.value,
       language: this.settingLanguage.value || null,
       geminiApiKey: this.settingGeminiKey.value || "",
@@ -206,6 +211,7 @@ class SettingsView {
   bindConfigValues(settings, dataPath) {
     this.settingEngine.value = settings.sttEngine || "whisper";
     this.settingModel.value = settings.model;
+    this.settingWhisperDevice.value = settings.whisperDevice || "auto";
     this.settingGeminiModel.value = settings.geminiModel || "gemini-3.1-flash-lite";
     this.settingLanguage.value = settings.language || "";
     this.settingGeminiKey.value = settings.geminiApiKey || "";

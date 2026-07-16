@@ -27,6 +27,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("audio_path")
     parser.add_argument("--model", default="base")
+    parser.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda"])
     parser.add_argument("--language", default=None)
     parser.add_argument("--initial_prompt", default=None)
     parser.add_argument("--beam_size", type=int, default=5)
@@ -94,31 +95,42 @@ def main():
             return output_lines, info_obj
 
         model = None
-        gpu_activated = False
+        device_choice = args.device
         lines = []
         info = None
 
-        if ctranslate2.get_cuda_device_count() > 0:
-            try:
-                # Attempt GPU (CUDA) execution
-                model = WhisperModel(args.model, device="cuda", compute_type="float16")
-                lines, info = run_transcription(model)
-                gpu_activated = True
-                emit({"type": "info", "message": "Using CUDA (GPU) for transcription."})
-            except Exception as e:
-                # Print CUDA initialization error details to let user debug
-                import traceback
-                emit({
-                    "type": "info",
-                    "message": f"CUDA initialization failed, falling back to CPU. Error: {str(e)}\n{traceback.format_exc()}"
-                })
-                model = None
-
-        if not gpu_activated:
-            # CPU Fallback
-            emit({"type": "info", "message": "Using CPU for transcription."})
+        if device_choice == "cpu":
+            emit({"type": "info", "message": "Using CPU for transcription (forced)."})
             model = WhisperModel(args.model, device="cpu", compute_type="int8")
             lines, info = run_transcription(model)
+        elif device_choice == "cuda":
+            if ctranslate2.get_cuda_device_count() == 0:
+                raise RuntimeError("No CUDA devices found, but GPU Only (cuda) was requested.")
+            emit({"type": "info", "message": "Using CUDA (GPU) for transcription (forced)."})
+            model = WhisperModel(args.model, device="cuda", compute_type="float16")
+            lines, info = run_transcription(model)
+        else: # "auto"
+            gpu_activated = False
+            if ctranslate2.get_cuda_device_count() > 0:
+                try:
+                    # Attempt GPU (CUDA) execution
+                    model = WhisperModel(args.model, device="cuda", compute_type="float16")
+                    lines, info = run_transcription(model)
+                    gpu_activated = True
+                    emit({"type": "info", "message": "Using CUDA (GPU) for transcription (auto)."})
+                except Exception as e:
+                    import traceback
+                    emit({
+                        "type": "info",
+                        "message": f"CUDA initialization failed, falling back to CPU. Error: {str(e)}\n{traceback.format_exc()}"
+                    })
+                    model = None
+
+            if not gpu_activated:
+                # CPU Fallback
+                emit({"type": "info", "message": "Using CPU for transcription (fallback)."})
+                model = WhisperModel(args.model, device="cpu", compute_type="int8")
+                lines, info = run_transcription(model)
 
         # Emit all generated segment JSONs
         for line in lines:
