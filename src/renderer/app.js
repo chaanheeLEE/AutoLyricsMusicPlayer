@@ -273,11 +273,13 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
     trackStatus.textContent = `내장 가사 ${state.embeddedLyricsLines.length}줄 감지됨. Analyze 실행 후 AI Align으로 싱크 적용 가능.`;
     analyzeButton.textContent = "Analyze";
 
-    if (
-      state.settings.autoAnalyzeMode === "align" &&
-      (state.settings.geminiApiKey || "").trim().length > 0 &&
-      !state.isTranscribing
-    ) {
+    const shouldAutoAnalyze =
+      !state.isTranscribing && (
+        state.settings.autoAnalyzeMode === "analyze" ||
+        (state.settings.autoAnalyzeMode === "align" && (state.settings.geminiApiKey || "").trim().length > 0)
+      );
+
+    if (shouldAutoAnalyze) {
       state.isAutoAnalyzing = true;
       setTimeout(() => {
         lyricsJobManager.handleAnalyzeClick();
