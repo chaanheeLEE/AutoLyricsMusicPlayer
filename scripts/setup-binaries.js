@@ -134,6 +134,73 @@ if (!fs.existsSync(ffmpegDest) || !fs.existsSync(ffprobeDest)) {
   console.log("FFmpeg and FFprobe already exist in bin/win32.");
 }
 
+// Helper function to compress executable with UPX
+function compressWithUpx(binPath) {
+  if (process.platform !== "win32") return;
+  
+  const upxDest = path.join(os.tmpdir(), "upx.exe");
+  const tempExtract = path.join(os.tmpdir(), "upx_temp_extracted");
+
+  if (!fs.existsSync(upxDest)) {
+    console.log("Downloading UPX for binary compression...");
+    const upxUrl = "https://github.com/upx/upx/releases/download/v4.2.4/upx-4.2.4-win64.zip";
+    const tempZip = path.join(os.tmpdir(), "upx_temp.zip");
+    try {
+      if (fs.existsSync(tempExtract)) {
+        fs.rmSync(tempExtract, { recursive: true, force: true });
+      }
+      execSync(`powershell -Command "Invoke-WebRequest -Uri '${upxUrl}' -OutFile '${tempZip}'"`, { stdio: "inherit" });
+      execSync(`powershell -Command "Expand-Archive -Path '${tempZip}' -DestinationPath '${tempExtract}'"`, { stdio: "inherit" });
+      
+      const searchForUpx = (dir) => {
+        const files = fs.readdirSync(dir);
+        for (const file of files) {
+          const fullPath = path.join(dir, file);
+          if (fs.statSync(fullPath).isDirectory()) {
+            const res = searchForUpx(fullPath);
+            if (res) return res;
+          } else if (file === "upx.exe") {
+            return fullPath;
+          }
+        }
+        return null;
+      };
+
+      const foundUpx = searchForUpx(tempExtract);
+      if (foundUpx) {
+        fs.copyFileSync(foundUpx, upxDest);
+        console.log("UPX executable ready.");
+      } else {
+        throw new Error("upx.exe not found in extracted archive.");
+      }
+      
+      fs.unlinkSync(tempZip);
+      fs.rmSync(tempExtract, { recursive: true, force: true });
+    } catch (err) {
+      console.error("Failed to download or prepare UPX. Skipping compression:", err);
+      return;
+    }
+  }
+
+  console.log(`Compressing ${path.basename(binPath)} with UPX...`);
+  try {
+    execSync(`"${upxDest}" --best --lzma "${binPath}"`, { stdio: "inherit" });
+    console.log(`${path.basename(binPath)} compression complete.`);
+  } catch (err) {
+    console.log(`UPX compression finished (might be already compressed or skipped).`);
+  }
+}
+
+// Compress FFmpeg and FFprobe with UPX
+if (process.platform === "win32") {
+  try {
+    compressWithUpx(ffmpegDest);
+    compressWithUpx(ffprobeDest);
+  } catch (err) {
+    console.error("Error during UPX compression of FFmpeg/FFprobe:", err);
+  }
+}
+
 // 3. Compile transcribe.py into transcribe.exe using PyInstaller
 const transcribeSource = path.join(__dirname, "..", "src", "main", "services", "transcribe.py");
 const transcribeDest = path.join(binDir, "transcribe.exe");

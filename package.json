@@ -18,8 +18,15 @@
     "appId": "com.autolyricsplayer.app",
     "productName": "AutoLyricsPlayer",
     "win": {
-      "target": "portable",
+      "target": "nsis",
       "icon": "src/assets/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": "always",
+      "createStartMenuShortcut": true,
+      "shortcutName": "AutoLyricsPlayer"
     },
     "asar": true,
     "asarUnpack": [
@@ -30,7 +37,7 @@
         "from": "bin/win32",
         "to": "bin",
         "filter": [
-          "*"
+          "**/*"
         ]
       }
     ],
