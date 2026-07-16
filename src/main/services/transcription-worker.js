@@ -11,16 +11,24 @@ if (TRANSCRIBE_SCRIPT.includes("app.asar")) {
   TRANSCRIBE_SCRIPT = TRANSCRIBE_SCRIPT.replace("app.asar", "app.asar.unpacked");
 }
 
+let cachedFfmpegPath = null;
+
 /** Resolve ffmpeg binary — PATH first, then winget fallback on Windows. */
 function resolveFfmpeg() {
+  if (cachedFfmpegPath) {
+    return cachedFfmpegPath;
+  }
+
   const { existsSync } = require("node:fs");
   const packedFfmpeg = path.join(process.resourcesPath, "bin", "ffmpeg.exe");
   if (existsSync(packedFfmpeg)) {
+    cachedFfmpegPath = packedFfmpeg;
     return packedFfmpeg;
   }
 
   try {
     execFileSync("ffmpeg", ["-version"], { stdio: "ignore" });
+    cachedFfmpegPath = "ffmpeg";
     return "ffmpeg";
   } catch {
     // Winget installs under AppData on Windows
@@ -42,6 +50,7 @@ function resolveFfmpeg() {
               const bin = path.join(candidate, s, "bin", "ffmpeg.exe");
               try {
                 require("node:fs").accessSync(bin);
+                cachedFfmpegPath = bin;
                 return bin;
               } catch { /* skip */ }
             }

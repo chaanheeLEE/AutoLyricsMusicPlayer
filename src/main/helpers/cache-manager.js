@@ -37,7 +37,12 @@ async function loadLyricsCache(track) {
     }
   }
 
-  // 음원 파일 내장 가사(LRC 또는 평문) 및 외부 .lrc 파일 확인
+  // 캐시가 이미 존재하고 유효하다면 로드 작업을 건너뛰고 즉시 반환
+  if (cached?.lyrics?.length > 0) {
+    return cached;
+  }
+
+  // 캐시가 없으면 음원 파일 내장 가사(LRC 또는 평문) 및 외부 .lrc 파일 확인
   let embeddedInfo = null;
   if (track.path) {
     try {
@@ -47,16 +52,7 @@ async function loadLyricsCache(track) {
     }
   }
 
-  // 캐시가 유효한 경우 반환하되, 내장 평문 가사가 있다면 embeddedPlainLyrics에 텍스트 배열을 보존해 전달
-  if (cached?.lyrics?.length > 0) {
-    const result = { ...cached };
-    if (embeddedInfo && embeddedInfo.source === "embedded_plain") {
-      result.embeddedPlainLyrics = embeddedInfo.lyrics.map(l => l.text);
-    }
-    return result;
-  }
-
-  // 캐시가 없으면 내장/외부 가사 소스 활용
+  // 내장/외부 가사 소스 활용
   if (embeddedInfo) {
     console.log(`[Cache] Lyrics loaded from source: ${embeddedInfo.source}`);
     const result = {
@@ -84,6 +80,7 @@ async function saveLyricsCache(payload) {
     track: payload.track,
     lyrics: payload.lyrics || [],
     syncOffset: Number(payload.syncOffset) || 0,
+    embeddedPlainLyrics: payload.embeddedPlainLyrics || null,
     metadata: {
       source: payload.metadata?.source || "mock",
       updatedAt: new Date().toISOString()

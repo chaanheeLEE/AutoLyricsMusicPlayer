@@ -53,6 +53,7 @@ function persistLyricsSoon() {
       track: state.track,
       lyrics: state.lyrics,
       syncOffset: state.syncOffset,
+      embeddedPlainLyrics: state.embeddedLyricsLines,
       metadata: { source: "local" }
     });
   }, 250);
@@ -255,9 +256,14 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
 
   setControlsEnabled(true);
 
+  // 캐시 가사 정보 로드 전 UI 및 상태 즉시 초기화
+  state.lyrics = [];
+  state.embeddedLyricsLines = null;
+  lyricsViewer.setOffset(0);
+  lyricsViewer.render();
+
   // 캐시 가사 정보 로드
   trackStatus.textContent = "Loading cached lyrics…";
-  state.embeddedLyricsLines = null;
   const cached = await window.lyricsPlayer.loadCachedLyrics(track);
   
   // 캐시 상태에 무관하게, 음원 자체에 내장된 평문 가사가 존재하면 항상 보관
