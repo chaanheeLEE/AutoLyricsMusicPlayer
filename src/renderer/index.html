@@ -145,156 +145,274 @@
 
         <!-- 1. General Settings Tab Content -->
         <div id="tabGeneralContent" class="tab-content active">
-          <div class="settings-group">
-            <label for="settingEngine">STT Engine</label>
-            <select id="settingEngine" name="sttEngine">
-              <option value="whisper" selected>Local Whisper (Offline)</option>
-              <option value="gemini">Gemini API (Cloud)</option>
-            </select>
+          <!-- Card 1: STT Engine & Device Options -->
+          <div class="settings-card">
+            <div class="settings-card-header">STT 엔진 및 가속 설정</div>
+            
+            <div class="settings-item">
+              <div class="settings-info">
+                <label for="settingEngine">STT 엔진</label>
+                <p>음성 인식 및 가사 추출 방식을 선택합니다.</p>
+              </div>
+              <div class="settings-control">
+                <select id="settingEngine" name="sttEngine">
+                  <option value="whisper" selected>Local Whisper (Offline)</option>
+                  <option value="gemini">Gemini API (Cloud)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="settings-item" id="settingModelGroup">
+              <div class="settings-info">
+                <label for="settingModel">Whisper 모델</label>
+                <p>로컬 Whisper 모델의 크기입니다. 클수록 느리지만 더 정확합니다.</p>
+              </div>
+              <div class="settings-control">
+                <select id="settingModel" name="model">
+                  <option value="tiny">tiny — 속도 우선, 최저 정확도</option>
+                  <option value="base" selected>base — 기본값 (추천)</option>
+                  <option value="small">small — 양호한 정확도</option>
+                  <option value="medium">medium — 높은 정확도</option>
+                  <option value="large-v3">large-v3 — 최고 정확도, 매우 느림</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="settings-item" id="settingWhisperDeviceGroup">
+              <div class="settings-info">
+                <label for="settingWhisperDevice">Whisper 가속 장치</label>
+                <p>STT 연산을 처리할 하드웨어 장치를 선택합니다.</p>
+              </div>
+              <div class="settings-control">
+                <select id="settingWhisperDevice" name="whisperDevice">
+                  <option value="auto" selected>Auto (GPU 시도 후 CPU 폴백)</option>
+                  <option value="cpu">CPU Only (저사양/멀티태스킹)</option>
+                  <option value="cuda">GPU Only (CUDA 가속 강제)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="settings-item">
+              <div class="settings-info">
+                <label for="settingLanguage">음성 분석 언어</label>
+                <p>가사로 추출할 오디오 음성의 언어입니다.</p>
+              </div>
+              <div class="settings-control">
+                <select id="settingLanguage" name="language">
+                  <option value="">Auto-detect (자동 감지)</option>
+                  <option value="ko">Korean (한국어)</option>
+                  <option value="en">English (영어)</option>
+                  <option value="ja">Japanese (일본어)</option>
+                  <option value="zh">Chinese (중국어)</option>
+                </select>
+              </div>
+            </div>
           </div>
 
-          <div class="settings-group" id="settingModelGroup">
-            <label for="settingModel">Whisper Model</label>
-            <select id="settingModel" name="model">
-              <option value="tiny">tiny — fastest, lowest accuracy</option>
-              <option value="base" selected>base — good balance (default)</option>
-              <option value="small">small — better accuracy</option>
-              <option value="medium">medium — high accuracy</option>
-              <option value="large-v3">large-v3 — best accuracy, slowest</option>
-            </select>
+          <!-- Card 2: AI Post-Processing & API -->
+          <div class="settings-card">
+            <div class="settings-card-header">Gemini 클라우드 & AI 자동 정렬</div>
+            
+            <div class="settings-item">
+              <div class="settings-info">
+                <label for="settingGeminiKey">Gemini API Key</label>
+                <p>클라우드 분석 및 정밀 싱크 대조(AI Align)에 필수적입니다.</p>
+              </div>
+              <div class="settings-control">
+                <input type="password" id="settingGeminiKey" placeholder="API 키 입력" />
+              </div>
+            </div>
+
+            <div class="settings-item" id="settingGeminiModelGroup" style="display: none;">
+              <div class="settings-info">
+                <label for="settingGeminiModel">Gemini STT 모델</label>
+                <p>Gemini 클라우드 분석 시 구동할 LLM 모델입니다.</p>
+              </div>
+              <div class="settings-control">
+                <select id="settingGeminiModel" name="geminiModel">
+                  <option value="gemini-3.5-flash">gemini-3.5-flash (빠름 & 정확)</option>
+                  <option value="gemini-3.1-flash-lite" selected>gemini-3.1-flash-lite (초고속 & 효율적)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="settings-item">
+              <div class="settings-info">
+                <label for="settingAutoAnalyzeMode">자동 분석 모드</label>
+                <p>곡 로드 시 자동으로 실행할 백그라운드 분석입니다.</p>
+              </div>
+              <div class="settings-control">
+                <select id="settingAutoAnalyzeMode" name="autoAnalyzeMode">
+                  <option value="off">사용 안 함 (수동 분석)</option>
+                  <option value="analyze">가사 자동 분석만 수행 (선택 엔진)</option>
+                  <option value="align">가사 자동 분석 + AI 정렬 동시 수행 (Gemini 필요)</option>
+                </select>
+              </div>
+            </div>
           </div>
 
-          <div class="settings-group" id="settingWhisperDeviceGroup">
-            <label for="settingWhisperDevice">Whisper Device (STT 가속 장치)</label>
-            <select id="settingWhisperDevice" name="whisperDevice">
-              <option value="auto" selected>Auto-detect (GPU 시도 후 CPU 폴백)</option>
-              <option value="cpu">CPU Only (저사양/멀티태스킹용)</option>
-              <option value="cuda">GPU Only (CUDA 가속 강제)</option>
-            </select>
-          </div>
-
-          <div class="settings-group" id="settingGeminiModelGroup" style="display: none;">
-            <label for="settingGeminiModel">Gemini STT Model</label>
-            <select id="settingGeminiModel" name="geminiModel">
-              <option value="gemini-3.5-flash">gemini-3.5-flash (Fast & Accurate)</option>
-              <option value="gemini-3.1-flash-lite" selected>gemini-3.1-flash-lite (Ultra-fast & Cost-efficient)</option>
-            </select>
-          </div>
-
-          <div class="settings-group">
-            <label for="settingLanguage">Analysis Language (분석 언어)</label>
-            <select id="settingLanguage" name="language">
-              <option value="">Auto-detect</option>
-              <option value="ko">Korean (한국어)</option>
-              <option value="en">English</option>
-              <option value="ja">Japanese (日本語)</option>
-              <option value="zh">Chinese (中文)</option>
-            </select>
-          </div>
-
-          <div class="settings-group">
-            <label for="settingGeminiKey">Gemini API Key</label>
-            <input type="password" id="settingGeminiKey" placeholder="AI 보정을 위한 API 키를 입력하세요" />
-          </div>
-
-          <div class="settings-group">
-            <label for="settingAutoAnalyzeMode">자동 분석 모드</label>
-            <select id="settingAutoAnalyzeMode" name="autoAnalyzeMode">
-              <option value="off">사용 안 함 (수동 분석)</option>
-              <option value="analyze">가사 자동 분석만 수행 (선택한 STT 엔진)</option>
-              <option value="align">가사 자동 분석 + AI 정렬 동시 수행 (선택한 엔진 + Gemini)</option>
-            </select>
-          </div>
-
-          <div class="settings-group">
-            <label>Cache</label>
-            <div class="settings-row">
-              <p id="cachePathLabel" class="settings-note">—</p>
-              <button id="clearCacheButton" type="button">Clear Cache</button>
+          <!-- Card 3: Cache Settings -->
+          <div class="settings-card">
+            <div class="settings-card-header">로컬 캐시 및 프라이버시</div>
+            
+            <div class="settings-item">
+              <div class="settings-info">
+                <label>디스크 캐시 경로</label>
+                <p id="cachePathLabel" style="word-break: break-all; margin-top: 4px; color: var(--muted); font-size: 0.74rem;">—</p>
+              </div>
+              <div class="settings-control">
+                <button id="clearCacheButton" type="button" style="width: 100%;">Clear Cache</button>
+              </div>
             </div>
           </div>
           
           <p class="settings-privacy">
-            🔒 All audio processing is local by default. If using Gemini API, audio files will be securely sent to Google Gemini servers.
+            🔒 로컬 분석(Whisper)은 외부로 어떠한 오디오도 전송하지 않습니다. Gemini API 선택 시 오디오 데이터가 Google Cloud 서버로 전송됩니다.
           </p>
         </div>
 
         <!-- 2. Floating Lyrics Settings Tab Content -->
         <div id="tabFloatingContent" class="tab-content">
-          <div class="settings-group">
-            <label for="settingFloatingFontSize">Font Size (<span id="valFloatingFontSize">18</span>px)</label>
-            <input type="range" id="settingFloatingFontSize" min="12" max="32" step="1" value="18" />
-          </div>
+          <div class="settings-card">
+            <div class="settings-card-header">플로팅 가사창 스타일</div>
 
-          <div class="settings-group">
-            <label for="settingFloatingOpacity">Background Opacity (<span id="valFloatingOpacity">0.85</span>)</label>
-            <input type="range" id="settingFloatingOpacity" min="0.0" max="1.0" step="0.05" value="0.85" />
-          </div>
+            <div class="settings-item">
+              <div class="settings-info">
+                <label for="settingFloatingFontSize">폰트 크기 (<span id="valFloatingFontSize">18</span>px)</label>
+                <p>바탕 화면 가사 글꼴 크기입니다.</p>
+              </div>
+              <div class="settings-control">
+                <input type="range" id="settingFloatingFontSize" min="12" max="32" step="1" value="18" />
+              </div>
+            </div>
 
-          <div class="settings-group">
-            <label for="settingFloatingBgColor">Background Color</label>
-            <input type="color" id="settingFloatingBgColor" value="#0b0d11" class="color-picker-input" />
-          </div>
+            <div class="settings-item">
+              <div class="settings-info">
+                <label for="settingFloatingOpacity">배경 투명도 (<span id="valFloatingOpacity">0.85</span>)</label>
+                <p>플로팅 윈도우의 검은색 배경 불투명도입니다.</p>
+              </div>
+              <div class="settings-control">
+                <input type="range" id="settingFloatingOpacity" min="0.0" max="1.0" step="0.05" value="0.85" />
+              </div>
+            </div>
 
-          <div class="settings-group">
-            <label for="settingFloatingFontColor">Font Color</label>
-            <input type="color" id="settingFloatingFontColor" value="#ffffff" class="color-picker-input" />
-          </div>
+            <div class="settings-item">
+              <div class="settings-info">
+                <label for="settingFloatingBgColor">배경 색상</label>
+                <p>플로팅 창의 배경 색상입니다.</p>
+              </div>
+              <div class="settings-control">
+                <input type="color" id="settingFloatingBgColor" value="#0b0d11" class="color-picker-input" />
+              </div>
+            </div>
 
-          <div class="settings-group">
-            <label for="settingFloatingAlign">Text Alignment</label>
-            <select id="settingFloatingAlign" name="floatingAlign">
-              <option value="left">Left</option>
-              <option value="center" selected>Center</option>
-              <option value="right">Right</option>
-            </select>
+            <div class="settings-item">
+              <div class="settings-info">
+                <label for="settingFloatingFontColor">텍스트 색상</label>
+                <p>가사 글꼴의 색상입니다.</p>
+              </div>
+              <div class="settings-control">
+                <input type="color" id="settingFloatingFontColor" value="#ffffff" class="color-picker-input" />
+              </div>
+            </div>
+
+            <div class="settings-item">
+              <div class="settings-info">
+                <label for="settingFloatingAlign">텍스트 정렬</label>
+                <p>가사 창 내부의 좌/우/중앙 정렬 방식입니다.</p>
+              </div>
+              <div class="settings-control">
+                <select id="settingFloatingAlign" name="floatingAlign">
+                  <option value="left">Left (왼쪽)</option>
+                  <option value="center" selected>Center (가운데)</option>
+                  <option value="right">Right (오른쪽)</option>
+                </select>
+              </div>
+            </div>
           </div>
         </div>
 
         <!-- 3. Shortcuts Settings Tab Content -->
         <div id="tabShortcutsContent" class="tab-content" style="overflow: hidden;">
-          <div class="settings-group" style="margin-bottom: 12px;">
-            <label style="font-size: 0.82rem; opacity: 0.8; line-height: 1.4;">
-              단축키를 변경하려면 변경할 기능 옆의 키 버튼을 클릭한 뒤, 새로운 키를 입력하십시오. (Esc 키 입력 시 초기화/취소)
-            </label>
-          </div>
+          <div class="settings-card" style="height: 100%; display: flex; flex-direction: column;">
+            <div class="settings-card-header" style="margin-bottom: 6px;">플레이어 단축키 설정</div>
+            <p style="font-size: 0.78rem; color: var(--muted); margin: 0 0 12px 0; line-height: 1.4;">
+              키 지정을 하려면 해당 단축키 버튼을 마우스로 클릭하고 새로운 키를 입력하십시오. (Esc 입력 시 초기화/취소)
+            </p>
 
-          <div class="shortcut-list-container" style="height: 290px; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 8px;">
-            <div class="settings-row" style="justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); margin-bottom: 0;">
-              <span style="font-size: 0.88rem; font-weight: 500;">재생 / 일시정지</span>
-              <button id="btnShortcutTogglePlay" type="button" class="shortcut-capture-btn" data-action="togglePlay" style="min-width: 130px; text-align: center;">Space</button>
-            </div>
-            <div class="settings-row" style="justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); margin-bottom: 0;">
-              <span style="font-size: 0.88rem; font-weight: 500;">5초 뒤로 이동</span>
-              <button id="btnShortcutSeekBackward" type="button" class="shortcut-capture-btn" data-action="seekBackward" style="min-width: 130px; text-align: center;">ArrowLeft</button>
-            </div>
-            <div class="settings-row" style="justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); margin-bottom: 0;">
-              <span style="font-size: 0.88rem; font-weight: 500;">5초 앞으로 이동</span>
-              <button id="btnShortcutSeekForward" type="button" class="shortcut-capture-btn" data-action="seekForward" style="min-width: 130px; text-align: center;">ArrowRight</button>
-            </div>
-            <div class="settings-row" style="justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); margin-bottom: 0;">
-              <span style="font-size: 0.88rem; font-weight: 500;">볼륨 올리기</span>
-              <button id="btnShortcutVolumeUp" type="button" class="shortcut-capture-btn" data-action="volumeUp" style="min-width: 130px; text-align: center;">ArrowUp</button>
-            </div>
-            <div class="settings-row" style="justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); margin-bottom: 0;">
-              <span style="font-size: 0.88rem; font-weight: 500;">볼륨 내리기</span>
-              <button id="btnShortcutVolumeDown" type="button" class="shortcut-capture-btn" data-action="volumeDown" style="min-width: 130px; text-align: center;">ArrowDown</button>
-            </div>
-            <div class="settings-row" style="justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); margin-bottom: 0;">
-              <span style="font-size: 0.88rem; font-weight: 500;">이전 곡 재생</span>
-              <button id="btnShortcutPrevTrack" type="button" class="shortcut-capture-btn" data-action="prevTrack" style="min-width: 130px; text-align: center;">KeyP</button>
-            </div>
-            <div class="settings-row" style="justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); margin-bottom: 0;">
-              <span style="font-size: 0.88rem; font-weight: 500;">다음 곡 재생</span>
-              <button id="btnShortcutNextTrack" type="button" class="shortcut-capture-btn" data-action="nextTrack" style="min-width: 130px; text-align: center;">KeyN</button>
-            </div>
-            <div class="settings-row" style="justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); margin-bottom: 0;">
-              <span style="font-size: 0.88rem; font-weight: 500;">음소거 토글</span>
-              <button id="btnShortcutToggleMute" type="button" class="shortcut-capture-btn" data-action="toggleMute" style="min-width: 130px; text-align: center;">KeyM</button>
-            </div>
-            <div class="settings-row" style="justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--line); margin-bottom: 0;">
-              <span style="font-size: 0.88rem; font-weight: 500;">플로팅 가사창 토글</span>
-              <button id="btnShortcutToggleFloating" type="button" class="shortcut-capture-btn" data-action="toggleFloating" style="min-width: 130px; text-align: center;">KeyF</button>
+            <div class="shortcut-list-container" style="flex: 1; overflow-y: auto; padding-right: 4px; display: flex; flex-direction: column; gap: 8px;">
+              <div class="settings-item" style="padding: 6px 0;">
+                <div class="settings-info">
+                  <span style="font-size: 0.88rem; font-weight: 500;">재생 / 일시정지</span>
+                </div>
+                <div class="settings-control">
+                  <button id="btnShortcutTogglePlay" type="button" class="shortcut-capture-btn" data-action="togglePlay" style="width: 140px; text-align: center;">Space</button>
+                </div>
+              </div>
+              <div class="settings-item" style="padding: 6px 0;">
+                <div class="settings-info">
+                  <span style="font-size: 0.88rem; font-weight: 500;">5초 뒤로 이동</span>
+                </div>
+                <div class="settings-control">
+                  <button id="btnShortcutSeekBackward" type="button" class="shortcut-capture-btn" data-action="seekBackward" style="width: 140px; text-align: center;">ArrowLeft</button>
+                </div>
+              </div>
+              <div class="settings-item" style="padding: 6px 0;">
+                <div class="settings-info">
+                  <span style="font-size: 0.88rem; font-weight: 500;">5초 앞으로 이동</span>
+                </div>
+                <div class="settings-control">
+                  <button id="btnShortcutSeekForward" type="button" class="shortcut-capture-btn" data-action="seekForward" style="width: 140px; text-align: center;">ArrowRight</button>
+                </div>
+              </div>
+              <div class="settings-item" style="padding: 6px 0;">
+                <div class="settings-info">
+                  <span style="font-size: 0.88rem; font-weight: 500;">볼륨 올리기</span>
+                </div>
+                <div class="settings-control">
+                  <button id="btnShortcutVolumeUp" type="button" class="shortcut-capture-btn" data-action="volumeUp" style="width: 140px; text-align: center;">ArrowUp</button>
+                </div>
+              </div>
+              <div class="settings-item" style="padding: 6px 0;">
+                <div class="settings-info">
+                  <span style="font-size: 0.88rem; font-weight: 500;">볼륨 내리기</span>
+                </div>
+                <div class="settings-control">
+                  <button id="btnShortcutVolumeDown" type="button" class="shortcut-capture-btn" data-action="volumeDown" style="width: 140px; text-align: center;">ArrowDown</button>
+                </div>
+              </div>
+              <div class="settings-item" style="padding: 6px 0;">
+                <div class="settings-info">
+                  <span style="font-size: 0.88rem; font-weight: 500;">이전 곡 재생</span>
+                </div>
+                <div class="settings-control">
+                  <button id="btnShortcutPrevTrack" type="button" class="shortcut-capture-btn" data-action="prevTrack" style="width: 140px; text-align: center;">KeyP</button>
+                </div>
+              </div>
+              <div class="settings-item" style="padding: 6px 0;">
+                <div class="settings-info">
+                  <span style="font-size: 0.88rem; font-weight: 500;">다음 곡 재생</span>
+                </div>
+                <div class="settings-control">
+                  <button id="btnShortcutNextTrack" type="button" class="shortcut-capture-btn" data-action="nextTrack" style="width: 140px; text-align: center;">KeyN</button>
+                </div>
+              </div>
+              <div class="settings-item" style="padding: 6px 0;">
+                <div class="settings-info">
+                  <span style="font-size: 0.88rem; font-weight: 500;">음소거 토글</span>
+                </div>
+                <div class="settings-control">
+                  <button id="btnShortcutToggleMute" type="button" class="shortcut-capture-btn" data-action="toggleMute" style="width: 140px; text-align: center;">KeyM</button>
+                </div>
+              </div>
+              <div class="settings-item" style="padding: 6px 0;">
+                <div class="settings-info">
+                  <span style="font-size: 0.88rem; font-weight: 500;">플로팅 가사창 토글</span>
+                </div>
+                <div class="settings-control">
+                  <button id="btnShortcutToggleFloating" type="button" class="shortcut-capture-btn" data-action="toggleFloating" style="width: 140px; text-align: center;">KeyF</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
