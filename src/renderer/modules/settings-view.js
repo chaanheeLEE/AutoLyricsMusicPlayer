@@ -82,7 +82,11 @@ class SettingsView {
       this.valFloatingOpacity.textContent = this.settingFloatingOpacity.value;
     });
 
-    this.settingGeminiKey.addEventListener("input", () => this.updateAutoAnalyzeDropdownState());
+    this.settingGeminiKey.addEventListener("input", () => {
+      this.updateAutoAnalyzeDropdownState();
+      this.updateSTTEngineUI();
+    });
+    this.settingAutoAnalyzeMode.addEventListener("change", () => this.updateSTTEngineUI());
     this.settingEngine.addEventListener("change", () => this.updateSTTEngineUI());
     
     this.saveSettingsButton.addEventListener("click", () => this.save());
@@ -154,9 +158,13 @@ class SettingsView {
 
   updateSTTEngineUI() {
     const isGemini = this.settingEngine.value === "gemini";
+    const isAlignMode = this.settingAutoAnalyzeMode.value === "align";
+    const hasApiKey = !!this.settingGeminiKey.value.trim();
+    const showGeminiModel = isGemini || isAlignMode || hasApiKey;
+
     this.toggleVisibility(this.settingModelGroup, !isGemini);
     this.toggleVisibility(this.settingWhisperDeviceGroup, !isGemini);
-    this.toggleVisibility(this.settingGeminiModelGroup, isGemini);
+    this.toggleVisibility(this.settingGeminiModelGroup, showGeminiModel);
     this.updateAutoAnalyzeDropdownState();
   }
 
