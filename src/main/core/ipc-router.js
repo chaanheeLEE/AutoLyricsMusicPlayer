@@ -61,6 +61,10 @@ function registerIpcHandlers(windowManager) {
     return await cacheManager.saveLyricsCache(payload);
   });
 
+  ipcMain.handle("lyrics-cache:delete-track", async (_event, track) => {
+    return await cacheManager.deleteTrackCache(track);
+  });
+
   ipcMain.handle("lyrics:export", async (_event, payload) => {
     const mainWindow = windowManager.getMainWindow();
     const lyrics = payload?.lyrics || [];

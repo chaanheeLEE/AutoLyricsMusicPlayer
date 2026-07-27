@@ -14,6 +14,7 @@ const syncForwardButton = document.querySelector("#syncForwardButton");
 const resetSyncButton = document.querySelector("#resetSyncButton");
 const exportLrcButton = document.querySelector("#exportLrcButton");
 const exportVttButton = document.querySelector("#exportVttButton");
+const deleteCacheButton = document.querySelector("#deleteCacheButton");
 const syncOffsetBadge = document.querySelector("#syncOffsetBadge");
 const playlistList = document.querySelector("#playlistList");
 
@@ -125,10 +126,12 @@ const lyricsViewer = new LyricsViewer(state, {
   onOffsetChange: () => {
     persistLyricsSoon();
     lyricsViewer.updateActive(player.getCurrentTime(), player.isPlaying());
+    updateDeleteCacheButtonState();
   },
   onLyricTextChange: () => {
     persistLyricsSoon();
     lyricsViewer.updateActive(player.getCurrentTime(), player.isPlaying());
+    updateDeleteCacheButtonState();
   },
   onGetCurrentTime: () => {
     return player.getCurrentTime();
@@ -316,11 +319,41 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
   lyricsViewer.updateActive(player.getCurrentTime(), player.isPlaying());
   playlist.render();
   updateAlignButtonState();
+  updateDeleteCacheButtonState();
 
   const activeItem = playlistList.querySelector(".playlist-item.active");
   if (activeItem) {
     activeItem.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }
+}
+
+function updateDeleteCacheButtonState() {
+  if (deleteCacheButton) {
+    const hasCacheToClear = !!(state.track && state.lyrics && state.lyrics.length > 0);
+    deleteCacheButton.style.display = hasCacheToClear ? "" : "none";
+  }
+}
+
+if (deleteCacheButton) {
+  deleteCacheButton.addEventListener("click", async () => {
+    if (!state.track) return;
+    
+    if (confirm(`'${state.track.title}' 곡의 저장된 가사 캐시를 삭제하시겠습니까?`)) {
+      const res = await window.lyricsPlayer.deleteTrackCache(state.track);
+      if (res?.ok) {
+        state.lyrics = [];
+        state.syncOffset = 0;
+        lyricsViewer.setOffset(0);
+        lyricsViewer.render();
+        trackStatus.textContent = "Cache deleted. Press Analyze to generate lyrics.";
+        analyzeButton.textContent = "Analyze";
+        updateAlignButtonState();
+        updateDeleteCacheButtonState();
+      } else {
+        alert(`캐시 삭제 실패: ${res?.error || "unknown error"}`);
+      }
+    }
+  });
 }
 
 function updateAlignButtonState() {

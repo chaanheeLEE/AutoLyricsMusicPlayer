@@ -91,6 +91,23 @@ async function saveLyricsCache(payload) {
   return { ok: true };
 }
 
+async function deleteTrackCache(track) {
+  if (!track?.cacheKey) {
+    return { ok: false, error: "missing_track_identity" };
+  }
+
+  const cachePath = getCachePath(track.cacheKey);
+  try {
+    await fs.unlink(cachePath);
+    return { ok: true };
+  } catch (err) {
+    if (err.code === "ENOENT") {
+      return { ok: true }; // 캐시 파일이 이미 존재하지 않으면 성공으로 간주
+    }
+    return { ok: false, error: err.message };
+  }
+}
+
 async function clearLyricsCache() {
   try {
     const dir = getCacheDir();
@@ -109,5 +126,6 @@ module.exports = {
   getCachePath,
   loadLyricsCache,
   saveLyricsCache,
+  deleteTrackCache,
   clearLyricsCache
 };
