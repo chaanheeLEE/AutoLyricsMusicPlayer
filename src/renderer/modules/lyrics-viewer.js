@@ -40,6 +40,17 @@ class LyricsViewer {
     this.lyricsList.addEventListener("click", (event) => {
       if (!this.state.editMode) return;
 
+      const updateRowTimestampUI = (lineRow, line) => {
+        if (!lineRow || !line) return;
+        const timeStr = window.lyricsCore.formatClock(line.start, true);
+        const timestampEl = lineRow.querySelector(".lyric-timestamp");
+        const timestampTextEl = lineRow.querySelector(".lyric-timestamp-text");
+        const seekBtnEl = lineRow.querySelector(".lyric-seek");
+        if (timestampEl) timestampEl.textContent = timeStr;
+        if (timestampTextEl) timestampTextEl.textContent = timeStr;
+        if (seekBtnEl) seekBtnEl.dataset.start = line.start;
+      };
+
       // (1) 현재 재생 시간 동기화 (Sync 🎯)
       const syncBtn = event.target.closest(".lyric-sync-btn");
       if (syncBtn) {
@@ -48,10 +59,8 @@ class LyricsViewer {
         if (line && this.callbacks.onGetCurrentTime) {
           const currentAudioTime = this.callbacks.onGetCurrentTime();
           if (Number.isFinite(currentAudioTime)) {
-            // 오프셋을 차감한 순수 시작 시간 적용
             line.start = Number(Math.max(0, currentAudioTime - this.state.syncOffset).toFixed(3));
-            this.state.lyrics.sort((a, b) => a.start - b.start);
-            this.render();
+            updateRowTimestampUI(syncBtn.closest(".lyric-line"), line);
             this.callbacks.onLyricTextChange();
           }
         }
@@ -65,8 +74,7 @@ class LyricsViewer {
         const line = this.state.lyrics.find(l => l.id === lineId);
         if (line) {
           line.start = Number(Math.max(0, line.start - 0.5).toFixed(3));
-          this.state.lyrics.sort((a, b) => a.start - b.start);
-          this.render();
+          updateRowTimestampUI(dec5Btn.closest(".lyric-line"), line);
           this.callbacks.onLyricTextChange();
         }
         return;
@@ -79,8 +87,7 @@ class LyricsViewer {
         const line = this.state.lyrics.find(l => l.id === lineId);
         if (line) {
           line.start = Number(Math.max(0, line.start - 0.1).toFixed(3));
-          this.state.lyrics.sort((a, b) => a.start - b.start);
-          this.render();
+          updateRowTimestampUI(decBtn.closest(".lyric-line"), line);
           this.callbacks.onLyricTextChange();
         }
         return;
@@ -93,8 +100,7 @@ class LyricsViewer {
         const line = this.state.lyrics.find(l => l.id === lineId);
         if (line) {
           line.start = Number((line.start + 0.1).toFixed(3));
-          this.state.lyrics.sort((a, b) => a.start - b.start);
-          this.render();
+          updateRowTimestampUI(incBtn.closest(".lyric-line"), line);
           this.callbacks.onLyricTextChange();
         }
         return;
@@ -107,8 +113,7 @@ class LyricsViewer {
         const line = this.state.lyrics.find(l => l.id === lineId);
         if (line) {
           line.start = Number((line.start + 0.5).toFixed(3));
-          this.state.lyrics.sort((a, b) => a.start - b.start);
-          this.render();
+          updateRowTimestampUI(inc5Btn.closest(".lyric-line"), line);
           this.callbacks.onLyricTextChange();
         }
         return;
@@ -131,6 +136,7 @@ class LyricsViewer {
       input.className = "lyric-timestamp-input";
       input.value = window.lyricsCore.formatClock(line.start, true);
       
+      const lineRow = timeSpan.closest(".lyric-line");
       timeSpan.replaceWith(input);
       input.focus();
       input.select();
@@ -165,8 +171,24 @@ class LyricsViewer {
           line.start = Number(nextVal.toFixed(3));
         }
         
-        this.state.lyrics.sort((a, b) => a.start - b.start);
-        this.render();
+        const timeStr = window.lyricsCore.formatClock(line.start, true);
+        const newSpan = document.createElement("span");
+        newSpan.className = "lyric-timestamp-text";
+        newSpan.dataset.lineId = line.id;
+        newSpan.title = "더블 클릭하여 직접 시간 입력";
+        newSpan.textContent = timeStr;
+        
+        if (input.parentNode) {
+          input.replaceWith(newSpan);
+        }
+
+        if (lineRow) {
+          const timestampEl = lineRow.querySelector(".lyric-timestamp");
+          const seekBtnEl = lineRow.querySelector(".lyric-seek");
+          if (timestampEl) timestampEl.textContent = timeStr;
+          if (seekBtnEl) seekBtnEl.dataset.start = line.start;
+        }
+
         this.callbacks.onLyricTextChange();
       };
 
@@ -174,7 +196,7 @@ class LyricsViewer {
         if (e.key === "Enter") {
           finishEdit();
         } else if (e.key === "Escape") {
-          this.render();
+          finishEdit();
         }
       });
 
@@ -302,6 +324,12 @@ class LyricsViewer {
     this.state.editMode = !this.state.editMode;
     this.editModeButton.textContent = this.state.editMode ? "Done" : "Edit";
     this.editModeButton.classList.toggle("active", this.state.editMode);
+
+    if (wasEditMode && !this.state.editMode) {
+      // 편집 완료(Done 클릭) 시점에만 타임스탬프 순서대로 가사를 한 번에 정렬
+      this.state.lyrics.sort((a, b) => a.start - b.start);
+    }
+
     this.render();
 
     if (wasEditMode && !this.state.editMode && this.callbacks.onEditDone) {
