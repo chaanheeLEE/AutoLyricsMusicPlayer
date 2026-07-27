@@ -40,30 +40,20 @@
       return -1;
     }
     const adjustedTime = clampTime(time + syncOffset);
-    
-    // 극초반 재생 혹은 첫 가사 시작 전에는 항상 첫 가사(index 0)가 하이라이트되도록 조기 리턴
-    if (adjustedTime <= lyrics[0].start) {
+
+    // 첫 가사 시작 전인 경우 index 0 유지
+    if (adjustedTime < lyrics[0].start) {
       return 0;
     }
 
-    let low = 0;
-    let high = lyrics.length - 1;
-
-    while (low <= high) {
-      const mid = Math.floor((low + high) / 2);
-      const line = lyrics[mid];
-
-      if (adjustedTime < line.start) {
-        high = mid - 1;
-      } else if (adjustedTime > line.end) {
-        low = mid + 1;
-      } else {
-        return mid;
+    // 가사 start 시간을 기준으로 현재 재생 시간에 해당하는 가장 마지막 가사 index 탐색 (표준 LRC 싱크)
+    for (let i = lyrics.length - 1; i >= 0; i--) {
+      if (adjustedTime >= lyrics[i].start) {
+        return i;
       }
     }
 
-    // Default to the first lyric line (index 0) if playback is before the first lyric starts
-    return Math.max(Math.min(high, lyrics.length - 1), 0);
+    return 0;
   }
 
   function serializeLrc(lyrics, syncOffset) {

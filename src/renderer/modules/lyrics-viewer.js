@@ -251,22 +251,34 @@ class LyricsViewer {
     const activeLineId = activeLine ? activeLine.id : null;
 
     if (activeLineId !== this.state.activeLineId) {
+      const prevActiveLineId = this.state.activeLineId;
       this.state.activeLineId = activeLineId;
-      document.querySelectorAll(".lyric-line").forEach((lineRow) => {
-        const isActive = lineRow.dataset.lineId === activeLineId;
-        lineRow.classList.toggle("active", isActive);
-        if (isActive && !this.state.editMode) {
-          const container = this.lyricsList;
-          const containerHeight = container.clientHeight;
-          const rowTop = lineRow.offsetTop;
-          const rowHeight = lineRow.offsetHeight;
-          
-          container.scrollTo({
-            top: rowTop - (containerHeight / 2) + (rowHeight / 2),
-            behavior: "smooth"
-          });
+
+      if (prevActiveLineId) {
+        const prevRow = this.lyricsList.querySelector(`.lyric-line[data-line-id="${prevActiveLineId}"]`);
+        if (prevRow) prevRow.classList.remove("active");
+      }
+
+      if (activeLineId) {
+        const activeRow = this.lyricsList.querySelector(`.lyric-line[data-line-id="${activeLineId}"]`);
+        if (activeRow) {
+          activeRow.classList.add("active");
+          if (!this.state.editMode) {
+            const container = this.lyricsList;
+            if (container) {
+              const containerRect = container.getBoundingClientRect();
+              const activeRect = activeRow.getBoundingClientRect();
+              const relativeTop = activeRect.top - containerRect.top;
+              const targetTop = container.scrollTop + relativeTop - (container.clientHeight / 2) + (activeRow.offsetHeight / 2);
+
+              container.scrollTo({
+                top: targetTop,
+                behavior: "instant"
+              });
+            }
+          }
         }
-      });
+      }
     }
 
     window.lyricsPlayer.updateFloatingLine({
