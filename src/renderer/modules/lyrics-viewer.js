@@ -51,15 +51,25 @@ class LyricsViewer {
         if (seekBtnEl) seekBtnEl.dataset.start = line.start;
       };
 
+      const adjustLineTime = (btnEl, delta) => {
+        const lineId = btnEl.dataset.lineId;
+        const line = this.state.lyrics.find((l) => l.id === lineId);
+        if (line) {
+          line.start = window.lyricsCore.adjustTimestamp(line.start, delta);
+          updateRowTimestampUI(btnEl.closest(".lyric-line"), line);
+          this.callbacks.onLyricTextChange();
+        }
+      };
+
       // (1) 현재 재생 시간 동기화 (Sync 🎯)
       const syncBtn = event.target.closest(".lyric-sync-btn");
       if (syncBtn) {
         const lineId = syncBtn.dataset.lineId;
-        const line = this.state.lyrics.find(l => l.id === lineId);
+        const line = this.state.lyrics.find((l) => l.id === lineId);
         if (line && this.callbacks.onGetCurrentTime) {
           const currentAudioTime = this.callbacks.onGetCurrentTime();
           if (Number.isFinite(currentAudioTime)) {
-            line.start = Number(Math.max(0, currentAudioTime - this.state.syncOffset).toFixed(3));
+            line.start = window.lyricsCore.adjustTimestamp(currentAudioTime - this.state.syncOffset, 0);
             updateRowTimestampUI(syncBtn.closest(".lyric-line"), line);
             this.callbacks.onLyricTextChange();
           }
@@ -67,60 +77,21 @@ class LyricsViewer {
         return;
       }
 
-      // (2) 0.5초 줄이기 («)
+      // (2) 시간 증감 버튼 («, -, +, ») 단일화 (DRY)
       const dec5Btn = event.target.closest(".lyric-time-adjust-btn.dec5");
-      if (dec5Btn) {
-        const lineId = dec5Btn.dataset.lineId;
-        const line = this.state.lyrics.find(l => l.id === lineId);
-        if (line) {
-          line.start = Number(Math.max(0, line.start - 0.5).toFixed(3));
-          updateRowTimestampUI(dec5Btn.closest(".lyric-line"), line);
-          this.callbacks.onLyricTextChange();
-        }
-        return;
-      }
+      if (dec5Btn) return adjustLineTime(dec5Btn, -0.5);
 
-      // (3) 0.1초 줄이기 (-)
       const decBtn = event.target.closest(".lyric-time-adjust-btn.dec");
-      if (decBtn) {
-        const lineId = decBtn.dataset.lineId;
-        const line = this.state.lyrics.find(l => l.id === lineId);
-        if (line) {
-          line.start = Number(Math.max(0, line.start - 0.1).toFixed(3));
-          updateRowTimestampUI(decBtn.closest(".lyric-line"), line);
-          this.callbacks.onLyricTextChange();
-        }
-        return;
-      }
+      if (decBtn) return adjustLineTime(decBtn, -0.1);
 
-      // (4) 0.1초 늘리기 (+)
       const incBtn = event.target.closest(".lyric-time-adjust-btn.inc");
-      if (incBtn) {
-        const lineId = incBtn.dataset.lineId;
-        const line = this.state.lyrics.find(l => l.id === lineId);
-        if (line) {
-          line.start = Number((line.start + 0.1).toFixed(3));
-          updateRowTimestampUI(incBtn.closest(".lyric-line"), line);
-          this.callbacks.onLyricTextChange();
-        }
-        return;
-      }
+      if (incBtn) return adjustLineTime(incBtn, 0.1);
 
-      // (5) 0.5초 늘리기 (»)
       const inc5Btn = event.target.closest(".lyric-time-adjust-btn.inc5");
-      if (inc5Btn) {
-        const lineId = inc5Btn.dataset.lineId;
-        const line = this.state.lyrics.find(l => l.id === lineId);
-        if (line) {
-          line.start = Number((line.start + 0.5).toFixed(3));
-          updateRowTimestampUI(inc5Btn.closest(".lyric-line"), line);
-          this.callbacks.onLyricTextChange();
-        }
-        return;
-      }
+      if (inc5Btn) return adjustLineTime(inc5Btn, 0.5);
     });
 
-    // 시간 텍스트 더블클릭 시 타이핑 가능한 입력창으로 직접 전환
+    // 시간 텍스트 더블클릭 시 타이핑 가능한 입력창으로 전환
     this.lyricsList.addEventListener("dblclick", (event) => {
       if (!this.state.editMode) return;
 
@@ -128,56 +99,32 @@ class LyricsViewer {
       if (!timeSpan) return;
 
       const lineId = timeSpan.dataset.lineId;
-      const line = this.state.lyrics.find(l => l.id === lineId);
+      const line = this.state.lyrics.find((l) => l.id === lineId);
       if (!line) return;
 
       const input = document.createElement("input");
       input.type = "text";
       input.className = "lyric-timestamp-input";
       input.value = window.lyricsCore.formatClock(line.start, true);
-      
+
       const lineRow = timeSpan.closest(".lyric-line");
       timeSpan.replaceWith(input);
       input.focus();
       input.select();
 
-      const parseTime = (val) => {
-        const trimmed = val.trim();
-        if (!trimmed) return NaN;
-
-        if (/^\d+(\.\d+)?$/.test(trimmed)) {
-          return Number(trimmed);
-        }
-
-        const parts = trimmed.split(":");
-        if (parts.length >= 2) {
-          let seconds = 0;
-          let multiplier = 1;
-          for (let i = parts.length - 1; i >= 0; i--) {
-            const num = Number(parts[i]);
-            if (isNaN(num)) return NaN;
-            seconds += num * multiplier;
-            multiplier *= 60;
-          }
-          return seconds;
-        }
-
-        return NaN;
-      };
-
       const finishEdit = () => {
-        let nextVal = parseTime(input.value);
+        const nextVal = window.lyricsCore.parseTimeString(input.value);
         if (!isNaN(nextVal)) {
-          line.start = Number(nextVal.toFixed(3));
+          line.start = window.lyricsCore.adjustTimestamp(nextVal, 0);
         }
-        
+
         const timeStr = window.lyricsCore.formatClock(line.start, true);
         const newSpan = document.createElement("span");
         newSpan.className = "lyric-timestamp-text";
         newSpan.dataset.lineId = line.id;
         newSpan.title = "더블 클릭하여 직접 시간 입력";
         newSpan.textContent = timeStr;
-        
+
         if (input.parentNode) {
           input.replaceWith(newSpan);
         }
@@ -193,16 +140,12 @@ class LyricsViewer {
       };
 
       input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          finishEdit();
-        } else if (e.key === "Escape") {
+        if (e.key === "Enter" || e.key === "Escape") {
           finishEdit();
         }
       });
 
-      input.addEventListener("blur", () => {
-        finishEdit();
-      });
+      input.addEventListener("blur", finishEdit);
     });
   }
 

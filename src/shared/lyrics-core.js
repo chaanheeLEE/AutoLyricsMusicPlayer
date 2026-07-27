@@ -85,6 +85,36 @@
       .replace(/'/g, "&#039;");
   }
 
+  function parseTimeString(val) {
+    if (!val || typeof val !== "string") return NaN;
+    const trimmed = val.trim();
+    if (!trimmed) return NaN;
+
+    if (/^\d+(\.\d+)?$/.test(trimmed)) {
+      return Number(trimmed);
+    }
+
+    const parts = trimmed.split(":");
+    if (parts.length >= 2) {
+      let seconds = 0;
+      let multiplier = 1;
+      for (let i = parts.length - 1; i >= 0; i--) {
+        const num = Number(parts[i]);
+        if (isNaN(num)) return NaN;
+        seconds += num * multiplier;
+        multiplier *= 60;
+      }
+      return seconds;
+    }
+
+    return NaN;
+  }
+
+  function adjustTimestamp(seconds, delta) {
+    const current = Number.isFinite(seconds) ? seconds : 0;
+    return Number(Math.max(0, current + delta).toFixed(3));
+  }
+
   const api = {
     clampTime,
     formatClock,
@@ -93,7 +123,9 @@
     getActiveLineIndex,
     serializeLrc,
     serializeVtt,
-    escapeHtml
+    escapeHtml,
+    parseTimeString,
+    adjustTimestamp
   };
 
   if (typeof module !== "undefined" && module.exports) {

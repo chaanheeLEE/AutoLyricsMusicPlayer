@@ -13,6 +13,26 @@ const lyricsAligner = require("../helpers/lyrics-aligner");
 
 let activeJob = null;
 
+async function createTrackObject(filePath) {
+  try {
+    const stats = await fs.stat(filePath);
+    const track = {
+      path: filePath,
+      url: pathToFileURL(filePath).toString(),
+      title: path.basename(filePath),
+      size: stats.size,
+      modifiedMs: stats.mtimeMs,
+      albumArt: null
+    };
+    return {
+      ...track,
+      cacheKey: cacheManager.getTrackCacheKey(track)
+    };
+  } catch {
+    return null;
+  }
+}
+
 function registerIpcHandlers(windowManager) {
   ipcMain.handle("track:open", async () => {
     const mainWindow = windowManager.getMainWindow();
@@ -30,25 +50,7 @@ function registerIpcHandlers(windowManager) {
     }
 
     const tracks = (await Promise.all(
-      result.filePaths.map(async (filePath) => {
-        try {
-          const stats = await fs.stat(filePath);
-          const track = {
-            path: filePath,
-            url: pathToFileURL(filePath).toString(),
-            title: path.basename(filePath),
-            size: stats.size,
-            modifiedMs: stats.mtimeMs,
-            albumArt: null
-          };
-          return {
-            ...track,
-            cacheKey: cacheManager.getTrackCacheKey(track)
-          };
-        } catch {
-          return null;
-        }
-      })
+      result.filePaths.map((filePath) => createTrackObject(filePath))
     )).filter(Boolean);
 
     return tracks;
