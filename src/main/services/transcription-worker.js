@@ -155,7 +155,7 @@ function startTranscription(track, options, onProgress) {
   const whisperDevice = options?.whisperDevice || "auto";
   const language = options?.language || null;
   const initialPrompt = options?.initialPrompt || null;
-  const beamSize = options?.beamSize !== undefined ? options.beamSize : 5;
+  const beamSize = options?.beamSize !== undefined ? options.beamSize : 2;
   const tmpId = crypto.randomBytes(6).toString("hex");
   const tmpWav = path.join(os.tmpdir(), `alp_${tmpId}.wav`);
 

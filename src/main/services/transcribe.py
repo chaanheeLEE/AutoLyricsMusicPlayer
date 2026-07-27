@@ -76,22 +76,80 @@ def main():
                 args.audio_path,
                 language=args.language,
                 beam_size=args.beam_size,
-                vad_filter=False,
+                vad_filter=False,  # 사용자 요구사항에 따라 vad_filter=False 고정 (가사 손실 0%)
+                word_timestamps=True,  # 단어 단위 precise timestamp 추출
                 condition_on_previous_text=False,
                 temperature=0.0,
-                initial_prompt=args.initial_prompt,
+                initial_prompt=args.initial_prompt or "가사 전사: 노래 가사를 줄 단위로 명확히 분할하여 기록합니다.",
             )
             
             output_lines = []
-            for idx, seg in enumerate(iter_segments):
-                output_lines.append({
-                    "type": "segment",
-                    "id": f"line_{idx + 1:03d}",
-                    "start": round(seg.start, 3),
-                    "end": round(seg.end, 3),
-                    "text": seg.text.strip(),
-                    "confidence": 0.9,
-                })
+            line_count = 1
+
+            for seg in iter_segments:
+                words = getattr(seg, "words", None)
+                if words and len(words) > 0:
+                    current_line_words = []
+                    
+                    for w in words:
+                        w_text = w.word.strip()
+                        if not w_text:
+                            continue
+                        
+                        if not current_line_words:
+                            current_line_words.append(w)
+                        else:
+                            prev_w = current_line_words[-1]
+                            gap = w.start - prev_w.end
+                            
+                            # 단어 간 시간 차이가 1.2초 이상이거나, 줄바꿈 힌트가 포함되거나, 텍스트가 너무 길어지면 줄 분할
+                            should_split = (
+                                gap >= 1.2 or
+                                "\n" in w.word or
+                                len(" ".join([x.word.strip() for x in current_line_words])) > 45
+                            )
+                            
+                            if should_split:
+                                line_text = " ".join([x.word.strip() for x in current_line_words]).strip()
+                                if line_text:
+                                    output_lines.append({
+                                        "type": "segment",
+                                        "id": f"line_{line_count:03d}",
+                                        "start": round(current_line_words[0].start, 3),
+                                        "end": round(current_line_words[-1].end, 3),
+                                        "text": line_text,
+                                        "confidence": 0.9,
+                                    })
+                                    line_count += 1
+                                current_line_words = [w]
+                            else:
+                                current_line_words.append(w)
+                    
+                    if current_line_words:
+                        line_text = " ".join([x.word.strip() for x in current_line_words]).strip()
+                        if line_text:
+                            output_lines.append({
+                                "type": "segment",
+                                "id": f"line_{line_count:03d}",
+                                "start": round(current_line_words[0].start, 3),
+                                "end": round(current_line_words[-1].end, 3),
+                                "text": line_text,
+                                "confidence": 0.9,
+                            })
+                            line_count += 1
+                else:
+                    text = seg.text.strip()
+                    if text:
+                        output_lines.append({
+                            "type": "segment",
+                            "id": f"line_{line_count:03d}",
+                            "start": round(seg.start, 3),
+                            "end": round(seg.end, 3),
+                            "text": text,
+                            "confidence": 0.9,
+                        })
+                        line_count += 1
+
             return output_lines, info_obj
 
         model = None
