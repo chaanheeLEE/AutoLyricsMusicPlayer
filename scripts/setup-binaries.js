@@ -234,14 +234,36 @@ if (shouldBuild) {
   try {
     const tempDllsDir = path.join(__dirname, "..", "temp_nvidia_dlls");
 
-    // 1. Copy NVIDIA DLLs from conda environment
-    console.log("Collecting NVIDIA CUDA/CuDNN DLLs...");
-    const copyCmd = `conda run -n lyrics_player python scripts/copy-nvidia-dlls.py "${tempDllsDir}"`;
-    console.log(`Running: ${copyCmd}`);
-    execSync(copyCmd, { stdio: "inherit" });
+    let pythonRunner = "python";
+    let pyinstallerRunner = "pyinstaller";
 
-    // 2. Build using PyInstaller with collected DLLs
-    const buildCmd = `conda run -n lyrics_player pyinstaller --onefile --clean --collect-all faster_whisper --collect-all ctranslate2 --add-data "${tempDllsDir}/nvidia;nvidia" --distpath "${binDir}" "src/main/services/transcribe.py"`;
+    try {
+      execSync("conda run -n lyrics_player python --version", { stdio: "ignore" });
+      console.log("Found conda environment 'lyrics_player'.");
+      pythonRunner = "conda run -n lyrics_player python";
+      pyinstallerRunner = "conda run -n lyrics_player pyinstaller";
+    } catch {
+      console.log("Conda environment 'lyrics_player' not found. Using system python...");
+      pythonRunner = "python";
+      pyinstallerRunner = "python -m PyInstaller";
+    }
+
+    // 1. Copy NVIDIA DLLs
+    console.log("Collecting NVIDIA CUDA/CuDNN DLLs...");
+    const copyCmd = `${pythonRunner} scripts/copy-nvidia-dlls.py "${tempDllsDir}"`;
+    console.log(`Running: ${copyCmd}`);
+    try {
+      execSync(copyCmd, { stdio: "inherit" });
+    } catch (e) {
+      console.warn("Warning: copy-nvidia-dlls skipped or encountered warning.", e.message);
+    }
+
+    // 2. Build using PyInstaller
+    const addDataArg = fs.existsSync(path.join(tempDllsDir, "nvidia"))
+      ? `--add-data "${tempDllsDir}/nvidia;nvidia"`
+      : "";
+
+    const buildCmd = `${pyinstallerRunner} --onefile --clean --collect-all faster_whisper --collect-all ctranslate2 ${addDataArg} --distpath "${binDir}" "src/main/services/transcribe.py"`;
     console.log(`Running: ${buildCmd}`);
     execSync(buildCmd, { stdio: "inherit" });
     console.log("transcribe.exe built successfully!");
