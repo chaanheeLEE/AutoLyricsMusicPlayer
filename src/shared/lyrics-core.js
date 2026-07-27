@@ -7,9 +7,13 @@
     return seconds;
   }
 
-  function formatClock(seconds) {
+  function formatClock(seconds, showMs = false) {
     const safeSeconds = clampTime(seconds);
     const minutes = Math.floor(safeSeconds / 60);
+    if (showMs) {
+      const remainingSeconds = (safeSeconds % 60).toFixed(1).padStart(4, "0");
+      return `${minutes}:${remainingSeconds}`;
+    }
     const remainingSeconds = Math.floor(safeSeconds % 60).toString().padStart(2, "0");
     return `${minutes}:${remainingSeconds}`;
   }

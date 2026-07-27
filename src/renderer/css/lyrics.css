@@ -139,18 +139,19 @@
 .lyric-time-controls {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-right: 8px;
+  gap: 3px;
+  margin-right: 6px;
+  height: 20px;
 }
 
 /* 캡처 버튼 (아이콘 ➔ sync 텍스트 전환) */
 .lyric-sync-btn {
   position: relative;
-  width: 54px;
-  height: 26px;
+  width: 46px;
+  height: 20px;
   background-color: var(--bg-dark, #2b303c);
   border: 1px solid var(--line, #454d5e);
-  border-radius: 6px;
+  border-radius: 4px;
   cursor: pointer;
   padding: 0;
   display: flex;
@@ -177,7 +178,7 @@
   justify-content: center;
   align-items: center;
   font-family: inherit;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 700;
   transition: opacity 0.2s, transform 0.2s;
 }
@@ -208,15 +209,15 @@
   transform: scale(1);
 }
 
-/* 미세 조정 버튼 (원형) */
+/* 미세 조정 버튼 */
 .lyric-time-adjust-btn {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
+  width: 19px;
+  height: 19px;
+  border-radius: 4px;
   background: var(--bg-dark, #2b303c);
   border: 1px solid var(--line, #454d5e);
   color: var(--text, #ffffff);
-  font-size: 0.8rem;
+  font-size: 0.72rem;
   font-weight: bold;
   display: flex;
   justify-content: center;
@@ -236,14 +237,15 @@
 /* 시간 텍스트 및 인풋 */
 .lyric-timestamp-text {
   font-family: monospace;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   color: var(--accent);
-  padding: 2px 4px;
+  padding: 0 2px;
   border-radius: 4px;
   cursor: pointer;
   user-select: none;
-  min-width: 52px;
+  min-width: 50px;
   text-align: center;
+  line-height: 19px;
 }
 
 .lyric-timestamp-text:hover {
@@ -251,14 +253,16 @@
 }
 
 .lyric-timestamp-input {
-  width: 52px;
+  width: 50px;
   font-family: monospace;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   color: var(--text);
   background: var(--bg-dark, #1e222b);
   border: 1px solid var(--accent);
   border-radius: 4px;
-  padding: 1px 3px;
+  padding: 0 2px;
   text-align: center;
   outline: none;
+  height: 19px;
+  line-height: 17px;
 }

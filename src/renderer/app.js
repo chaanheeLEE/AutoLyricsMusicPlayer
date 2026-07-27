@@ -60,6 +60,21 @@ function persistLyricsSoon() {
   }, 250);
 }
 
+function persistLyricsImmediately() {
+  if (!state.track || state.lyrics.length === 0) {
+    return;
+  }
+
+  clearTimeout(saveTimer);
+  return window.lyricsPlayer.saveCachedLyrics({
+    track: state.track,
+    lyrics: state.lyrics,
+    syncOffset: state.syncOffset,
+    embeddedPlainLyrics: state.embeddedLyricsLines,
+    metadata: { source: "local" }
+  });
+}
+
 // -------------------------------------------------------------
 // 모듈 인스턴스 초기화 및 콜백 바인딩
 // -------------------------------------------------------------
@@ -130,6 +145,11 @@ const lyricsViewer = new LyricsViewer(state, {
   },
   onLyricTextChange: () => {
     persistLyricsSoon();
+    lyricsViewer.updateActive(player.getCurrentTime(), player.isPlaying());
+    updateDeleteCacheButtonState();
+  },
+  onEditDone: () => {
+    persistLyricsImmediately();
     lyricsViewer.updateActive(player.getCurrentTime(), player.isPlaying());
     updateDeleteCacheButtonState();
   },
