@@ -29,28 +29,38 @@ function registerIpcHandlers(windowManager) {
       return [];
     }
 
-    const tracks = [];
-    for (const filePath of result.filePaths) {
-      try {
-        const stats = await fs.stat(filePath);
-        const albumArt = await mediaHelper.extractAlbumArt(filePath);
-        const track = {
-          path: filePath,
-          url: pathToFileURL(filePath).toString(),
-          title: path.basename(filePath),
-          size: stats.size,
-          modifiedMs: stats.mtimeMs,
-          albumArt
-        };
-        tracks.push({
-          ...track,
-          cacheKey: cacheManager.getTrackCacheKey(track)
-        });
-      } catch {
-        // ignore
-      }
-    }
+    const tracks = (await Promise.all(
+      result.filePaths.map(async (filePath) => {
+        try {
+          const stats = await fs.stat(filePath);
+          const track = {
+            path: filePath,
+            url: pathToFileURL(filePath).toString(),
+            title: path.basename(filePath),
+            size: stats.size,
+            modifiedMs: stats.mtimeMs,
+            albumArt: null
+          };
+          return {
+            ...track,
+            cacheKey: cacheManager.getTrackCacheKey(track)
+          };
+        } catch {
+          return null;
+        }
+      })
+    )).filter(Boolean);
+
     return tracks;
+  });
+
+  ipcMain.handle("track:get-album-art", async (_event, filePath) => {
+    if (!filePath) return null;
+    try {
+      return await mediaHelper.extractAlbumArt(filePath);
+    } catch {
+      return null;
+    }
   });
 
   ipcMain.handle("lyrics-cache:load", async (_event, track) => {

@@ -266,7 +266,7 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
   updateTitleMarquee();
   updateMediaSessionMetadata(track);
 
-  // 앨범 아트 설정
+  // 앨범 아트 설정 (비동기 지연 로드 지원)
   if (track.albumArt) {
     albumArt.src = track.albumArt;
     albumArt.style.display = "block";
@@ -275,6 +275,18 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
     albumArt.src = "";
     albumArt.style.display = "none";
     albumArtPlaceholder.style.display = "flex";
+
+    // 앨범 아트 비동기 Lazy Extraction
+    if (track.path) {
+      window.lyricsPlayer.getTrackAlbumArt(track.path).then((art) => {
+        if (art && state.track === track) {
+          track.albumArt = art;
+          albumArt.src = art;
+          albumArt.style.display = "block";
+          albumArtPlaceholder.style.display = "none";
+        }
+      }).catch(() => {});
+    }
   }
 
   setControlsEnabled(true);

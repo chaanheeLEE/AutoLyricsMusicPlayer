@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("lyricsPlayer", {
   openTrack: () => ipcRenderer.invoke("track:open"),
+  getTrackAlbumArt: (filePath) => ipcRenderer.invoke("track:get-album-art", filePath),
   loadCachedLyrics: (track) => ipcRenderer.invoke("lyrics-cache:load", track),
   saveCachedLyrics: (payload) => ipcRenderer.invoke("lyrics-cache:save", payload),
   deleteTrackCache: (track) => ipcRenderer.invoke("lyrics-cache:delete-track", track),
