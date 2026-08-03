@@ -172,8 +172,9 @@ const settingsView = new SettingsView(state, {
 });
 
 const lyricsJobManager = new LyricsJobManager(state, player, lyricsViewer, settingsView, {
-  persistLyricsSoon: () => persistLyricsSoon(),
-  updateAlignButtonState: () => updateAlignButtonState()
+  persistLyricsSoon,
+  updateAlignButtonState,
+  updateAnalyzeButtonState
 });
 
 const embedManager = new EmbedManager(state, trackStatus, updateAlignButtonState);
@@ -331,7 +332,6 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
     state.lyrics = [];
     lyricsViewer.setOffset(0);
     trackStatus.textContent = `내장 가사 ${state.embeddedLyricsLines.length}줄 감지됨. Analyze 실행 후 AI Align으로 싱크 적용 가능.`;
-    analyzeButton.textContent = "Analyze";
 
     const shouldAutoAnalyze =
       !state.isTranscribing && (
@@ -351,12 +351,10 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
     trackStatus.textContent = state.embeddedLyricsLines
       ? `Loaded cached lyrics. (내장 평문 가사 보존됨)`
       : `Loaded cached lyrics.`;
-    analyzeButton.textContent = "Reanalyze";
   } else {
     state.lyrics = [];
     lyricsViewer.setOffset(0);
     trackStatus.textContent = "No cached lyrics. Press Analyze to generate.";
-    analyzeButton.textContent = "Analyze";
 
     if (state.settings.autoAnalyzeMode !== "off" && !state.isTranscribing) {
       state.isAutoAnalyzing = true;
@@ -369,7 +367,7 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
   lyricsViewer.render();
   lyricsViewer.updateActive(player.getCurrentTime(), player.isPlaying());
   playlist.render();
-  updateAlignButtonState();
+  updateActionButtonsState();
   updateDeleteCacheButtonState();
 
   const activeItem = playlistList.querySelector(".playlist-item.active");
@@ -397,14 +395,19 @@ if (deleteCacheButton) {
         lyricsViewer.setOffset(0);
         lyricsViewer.render();
         trackStatus.textContent = "Cache deleted. Press Analyze to generate lyrics.";
-        analyzeButton.textContent = "Analyze";
-        updateAlignButtonState();
+        updateActionButtonsState();
         updateDeleteCacheButtonState();
       } else {
         alert(`캐시 삭제 실패: ${res?.error || "unknown error"}`);
       }
     }
   });
+}
+
+function updateAnalyzeButtonState() {
+  const hasLyrics = state.lyrics && state.lyrics.length > 0;
+  analyzeButton.classList.toggle("reanalyze-state", hasLyrics);
+  analyzeButton.textContent = hasLyrics ? "Reanalyze" : "Analyze";
 }
 
 function updateAlignButtonState() {
@@ -431,6 +434,11 @@ function updateAlignButtonState() {
   }
 }
 
+function updateActionButtonsState() {
+  updateAnalyzeButtonState();
+  updateAlignButtonState();
+}
+
 function setControlsEnabled(enabled) {
   player.setEnabled(enabled);
   playlist.setEnabled(enabled);
@@ -447,7 +455,7 @@ function setControlsEnabled(enabled) {
   exportVttButton.disabled = !enabled;
   embedManager.setEnabled(enabled);
   
-  updateAlignButtonState();
+  updateActionButtonsState();
 }
 
 // showProgress, hideProgress, align, analyze, cancel 관련 로직은 LyricsJobManager가 관리하므로 제거합니다.

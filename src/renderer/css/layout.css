@@ -350,23 +350,47 @@ input[type="range"] {
   border-color: #ff6666;
 }
 
-#alignButton {
+#analyzeButton {
   border-color: var(--accent-strong);
   color: var(--accent-strong);
+  background: rgba(49, 185, 217, 0.08);
 }
 
-.analyze-group #alignButton:hover:not(:disabled) {
-  background: rgba(49, 185, 217, 0.08);
+#analyzeButton:hover:not(:disabled) {
+  background: rgba(49, 185, 217, 0.16);
   border-color: #50c4df;
 }
 
-.analyze-group #alignButton.realign-state {
+#analyzeButton.reanalyze-state {
   border-color: var(--accent);
   color: var(--accent);
+  background: rgba(66, 211, 146, 0.08);
 }
 
-.analyze-group #alignButton.realign-state:hover:not(:disabled) {
+#analyzeButton.reanalyze-state:hover:not(:disabled) {
+  background: rgba(66, 211, 146, 0.16);
+  border-color: #50e4a3;
+}
+
+#alignButton {
+  border-color: var(--accent-strong);
+  color: var(--accent-strong);
+  background: rgba(49, 185, 217, 0.08);
+}
+
+#alignButton:hover:not(:disabled) {
+  background: rgba(49, 185, 217, 0.16);
+  border-color: #50c4df;
+}
+
+#alignButton.realign-state {
+  border-color: var(--accent);
+  color: var(--accent);
   background: rgba(66, 211, 146, 0.08);
+}
+
+#alignButton.realign-state:hover:not(:disabled) {
+  background: rgba(66, 211, 146, 0.16);
   border-color: #50e4a3;
 }
 

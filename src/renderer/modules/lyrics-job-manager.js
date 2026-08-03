@@ -122,7 +122,7 @@ class LyricsJobManager {
       this.state.lyrics = result.lyrics;
       this.lyricsViewer.setOffset(0);
       this.trackStatus.textContent = `Transcription complete. ${result.lyrics.length} lines found.`;
-      this.analyzeButton.textContent = "Reanalyze";
+      if (this.callbacks.updateAnalyzeButtonState) this.callbacks.updateAnalyzeButtonState();
       this.lyricsViewer.render();
       this.lyricsViewer.updateActive(this.player.getCurrentTime(), this.player.isPlaying());
       this.callbacks.persistLyricsSoon();
@@ -135,9 +135,11 @@ class LyricsJobManager {
       }
     } else if (result?.ok && result.lyrics?.length === 0) {
       this.trackStatus.textContent = "No speech detected. Check settings or audio file.";
+      if (this.callbacks.updateAnalyzeButtonState) this.callbacks.updateAnalyzeButtonState();
       this.callbacks.updateAlignButtonState();
     } else {
       this.trackStatus.textContent = `Analysis failed: ${result?.error || "unknown error"}`;
+      if (this.callbacks.updateAnalyzeButtonState) this.callbacks.updateAnalyzeButtonState();
       this.callbacks.updateAlignButtonState();
     }
 
