@@ -56,12 +56,27 @@ function registerIpcHandlers(windowManager) {
     return tracks;
   });
 
-  ipcMain.handle("track:get-album-art", async (_event, filePath) => {
+  ipcMain.handle("track:get-album-art", async (_event, payload) => {
+    const filePath = typeof payload === "string" ? payload : payload?.path;
+    const cacheKey = typeof payload === "object" ? payload?.cacheKey : null;
     if (!filePath) return null;
     try {
-      return await mediaHelper.extractAlbumArt(filePath);
+      return await mediaHelper.extractAlbumArt(filePath, cacheKey);
     } catch {
       return null;
+    }
+  });
+
+  ipcMain.handle("track:prefetch", async (_event, track) => {
+    if (!track?.path) return false;
+    try {
+      await Promise.all([
+        cacheManager.loadLyricsCache(track),
+        mediaHelper.extractAlbumArt(track.path, track.cacheKey)
+      ]);
+      return true;
+    } catch {
+      return false;
     }
   });
 
@@ -265,7 +280,9 @@ function registerIpcHandlers(windowManager) {
   });
 
   ipcMain.handle("cache:clear", async () => {
-    return await cacheManager.clearLyricsCache();
+    const res1 = await cacheManager.clearLyricsCache();
+    const res2 = await mediaHelper.clearAlbumArtCache();
+    return { ok: res1.ok && res2.ok };
   });
 
   ipcMain.handle("app:get-data-path", () => {

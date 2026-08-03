@@ -278,7 +278,7 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
 
     // 앨범 아트 비동기 Lazy Extraction
     if (track.path) {
-      window.lyricsPlayer.getTrackAlbumArt(track.path).then((art) => {
+      window.lyricsPlayer.getTrackAlbumArt(track).then((art) => {
         if (art && state.track === track) {
           track.albumArt = art;
           albumArt.src = art;
@@ -286,6 +286,17 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
           albumArtPlaceholder.style.display = "none";
         }
       }).catch(() => {});
+    }
+  }
+
+  // 다음 트랙 사전 적재 (백그라운드 프리페치)
+  if (Array.isArray(state.tracks) && state.tracks.length > 1) {
+    const currentIndex = state.tracks.indexOf(track);
+    if (currentIndex !== -1 && currentIndex + 1 < state.tracks.length) {
+      const nextTrack = state.tracks[currentIndex + 1];
+      if (nextTrack && window.lyricsPlayer?.prefetchTrack) {
+        window.lyricsPlayer.prefetchTrack(nextTrack).catch(() => {});
+      }
     }
   }
 
