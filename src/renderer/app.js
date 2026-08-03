@@ -598,8 +598,11 @@ if (confirmEmbedBtn && embedModal) {
       });
 
       if (result?.ok) {
-        trackStatus.textContent = "Successfully embedded lyrics into audio metadata!";
+        state.embeddedLyricsLines = targetLyrics.map(l => typeof l === "string" ? l : l.text);
         updateEmbedButtonHighlight(true); // 성공 시 푸른색 하이라이트 해제
+        updateAlignButtonState(); // AI Align 버튼 상태 갱신
+
+        trackStatus.textContent = "음원 파일에 가사 내장 완료! [AI Align]을 누르면 내장된 가사로 AI 정렬이 시작됩니다.";
         alert("음원 파일 메타데이터에 가사가 성공적으로 내장되었습니다.");
       } else {
         trackStatus.textContent = `Failed to embed lyrics: ${result?.error || "unknown error"}`;

@@ -137,6 +137,7 @@ function registerIpcHandlers(windowManager) {
         track: payload.track,
         lyrics,
         syncOffset,
+        embeddedPlainLyrics: lyrics.map(l => typeof l === "string" ? l : l.text),
         metadata: { source: "embedded_lrc", updatedAt: new Date().toISOString() }
       });
     }
