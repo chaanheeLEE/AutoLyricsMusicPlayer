@@ -72,6 +72,7 @@ class LyricsJobManager {
     this.analyzeButton.style.display = "none";
     this.cancelButton.style.display = "";
     this.cancelButton.disabled = false;
+    this.alignButton.disabled = true;
 
     const originalTrackKey = this.state.track.cacheKey;
 
@@ -114,6 +115,7 @@ class LyricsJobManager {
     this.state.isTranscribing = false;
     this.cancelButton.style.display = "none";
     this.analyzeButton.style.display = "";
+    this.analyzeButton.disabled = false;
     this.hideProgress();
 
     if (result?.ok && result.lyrics?.length > 0) {
@@ -146,9 +148,11 @@ class LyricsJobManager {
     this.cancelButton.disabled = true;
     await window.lyricsPlayer.cancelTranscription();
     this.state.isTranscribing = false;
-    this.analyzeButton.style.display = "";
     this.cancelButton.style.display = "none";
+    this.analyzeButton.style.display = "";
+    this.analyzeButton.disabled = false;
     this.hideProgress();
+    this.callbacks.updateAlignButtonState();
     this.trackStatus.textContent = "Analysis cancelled.";
   }
 
@@ -166,8 +170,8 @@ class LyricsJobManager {
     }
 
     this.state.isTranscribing = true;
-    this.alignButton.style.display = "none";
-    this.analyzeButton.style.display = "none";
+    this.alignButton.disabled = true;
+    this.analyzeButton.disabled = true;
     this.showProgress("Searching & alignment in progress…", 0.5);
     this.trackStatus.textContent = "AI Alignment in progress…";
 
@@ -201,8 +205,8 @@ class LyricsJobManager {
       this.trackStatus.textContent = `AI Alignment failed: ${error.message}`;
     } finally {
       this.state.isTranscribing = false;
-      this.alignButton.style.display = "";
-      this.analyzeButton.style.display = "";
+      this.analyzeButton.disabled = false;
+      this.callbacks.updateAlignButtonState();
       this.hideProgress();
     }
   }

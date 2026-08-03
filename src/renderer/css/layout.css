@@ -340,7 +340,17 @@ input[type="range"] {
   flex: 1;
 }
 
-.analyze-group #alignButton {
+.analyze-group #cancelButton {
+  border-color: #ff5555;
+  color: #ff5555;
+}
+
+#cancelButton:hover:not(:disabled) {
+  background: rgba(255, 85, 85, 0.12);
+  border-color: #ff6666;
+}
+
+#alignButton {
   border-color: var(--accent-strong);
   color: var(--accent-strong);
 }

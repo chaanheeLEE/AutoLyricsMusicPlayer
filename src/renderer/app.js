@@ -428,7 +428,9 @@ function updateAlignButtonState() {
 
   alignButton.classList.toggle("realign-state", isAligned);
 
-  if (!hasApiKey || !hasLyrics) {
+  if (state.isTranscribing) {
+    alignButton.disabled = true;
+  } else if (!hasApiKey || !hasLyrics) {
     alignButton.disabled = true;
     alignButton.title = !hasApiKey 
       ? "Gemini API Key is required. Please set it in settings." 
