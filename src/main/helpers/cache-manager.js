@@ -4,6 +4,9 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const { loadLyricsFromSources } = require("../services/lyrics-sources");
 
+// 가사 RAM 인메모리 캐시
+const lyricsRamCache = new Map();
+
 function getTrackCacheKey(track) {
   const identity = `${track.path}|${track.size}|${track.modifiedMs}`;
   return crypto.createHash("sha1").update(identity).digest("hex");
@@ -26,6 +29,11 @@ async function loadLyricsCache(track) {
     return null;
   }
 
+  // 0순위: RAM 캐시 확인 (0ms)
+  if (lyricsRamCache.has(track.cacheKey)) {
+    return lyricsRamCache.get(track.cacheKey);
+  }
+
   let cached = null;
   // 1순위: JSON 캐시
   try {
@@ -39,6 +47,7 @@ async function loadLyricsCache(track) {
 
   // 캐시가 이미 존재하고 유효하다면 로드 작업을 건너뛰고 즉시 반환
   if (cached?.lyrics?.length > 0) {
+    lyricsRamCache.set(track.cacheKey, cached);
     return cached;
   }
 
@@ -63,6 +72,7 @@ async function loadLyricsCache(track) {
     if (embeddedInfo.source === "embedded_plain") {
       result.embeddedPlainLyrics = embeddedInfo.lyrics.map(l => l.text);
     }
+    lyricsRamCache.set(track.cacheKey, result);
     return result;
   }
 
@@ -87,7 +97,11 @@ async function saveLyricsCache(payload) {
     }
   };
 
-  await fs.writeFile(getCachePath(payload.track.cacheKey), JSON.stringify(cachePayload, null, 2), "utf8");
+  // RAM 캐시 실시간 업데이트
+  lyricsRamCache.set(payload.track.cacheKey, cachePayload);
+
+  // 축소된 JSON 포맷으로 저장하여 파일 용량 및 파싱 시간 절감
+  await fs.writeFile(getCachePath(payload.track.cacheKey), JSON.stringify(cachePayload), "utf8");
   return { ok: true };
 }
 
@@ -96,6 +110,7 @@ async function deleteTrackCache(track) {
     return { ok: false, error: "missing_track_identity" };
   }
 
+  lyricsRamCache.delete(track.cacheKey);
   const cachePath = getCachePath(track.cacheKey);
   try {
     await fs.unlink(cachePath);
@@ -109,6 +124,7 @@ async function deleteTrackCache(track) {
 }
 
 async function clearLyricsCache() {
+  lyricsRamCache.clear();
   try {
     const dir = getCacheDir();
     const files = await fs.readdir(dir).catch(() => []);
