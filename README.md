@@ -1,8 +1,10 @@
-# 🎵 Auto Lyrics Player
+# <img src="src/assets/icon.png" width="38" height="38" align="center" /> Auto Lyrics Player
+
+<p align="center">
+  <img src="src/assets/app.png" alt="Auto Lyrics Player App Screenshot" width="100%" />
+</p>
 
 **Auto Lyrics Player**는 음원 파일을 재생하며, 최신 AI 인공지능 음성 인식(STT) 기술을 이용해 가사가 없는 노래에서도 **실시간 가사 싱크(Timeline)를 자동으로 생성해 보여주는 스마트 데스크톱 뮤직 플레이어**입니다.
-
-![Auto Lyrics Player](src/assets/icon.png)
 
 ---
 
