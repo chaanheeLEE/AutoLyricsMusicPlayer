@@ -329,8 +329,10 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
   const cached = await window.lyricsPlayer.loadCachedLyrics(track);
 
   // 내장 가사 존재 여부에 따른 Embed 버튼 하이라이트 지정
-  const hasEmbeddedLyrics = cached?.metadata?.source === "embedded_lrc" || cached?.metadata?.source === "embedded_plain";
-  updateEmbedButtonHighlight(hasEmbeddedLyrics);
+  const hasEmbedded = typeof cached?.hasEmbeddedLyrics === "boolean"
+    ? cached.hasEmbeddedLyrics
+    : (cached?.metadata?.source === "embedded_lrc" || cached?.metadata?.source === "embedded_plain");
+  updateEmbedButtonHighlight(hasEmbedded);
   
   // 캐시 상태에 무관하게, 음원 자체에 내장된 평문 가사가 존재하면 항상 보관
   if (cached?.embeddedPlainLyrics) {

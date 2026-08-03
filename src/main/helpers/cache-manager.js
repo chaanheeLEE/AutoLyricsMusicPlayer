@@ -47,6 +47,22 @@ async function loadLyricsCache(track) {
 
   // 캐시가 이미 존재하고 유효하다면 로드 작업을 건너뛰고 즉시 반환
   if (cached?.lyrics?.length > 0) {
+    if (typeof cached.hasEmbeddedLyrics !== "boolean") {
+      // 불리언 플래그가 없으면 1회 판별하여 보존
+      const source = cached.metadata?.source;
+      if (source === "embedded_lrc" || source === "embedded_plain") {
+        cached.hasEmbeddedLyrics = true;
+      } else if (track.path) {
+        try {
+          const emb = await loadLyricsFromSources(track.path);
+          cached.hasEmbeddedLyrics = Boolean(emb && (emb.source === "embedded_lrc" || emb.source === "embedded_plain"));
+        } catch {
+          cached.hasEmbeddedLyrics = false;
+        }
+      } else {
+        cached.hasEmbeddedLyrics = false;
+      }
+    }
     lyricsRamCache.set(track.cacheKey, cached);
     return cached;
   }
@@ -64,9 +80,11 @@ async function loadLyricsCache(track) {
   // 내장/외부 가사 소스 활용
   if (embeddedInfo) {
     console.log(`[Cache] Lyrics loaded from source: ${embeddedInfo.source}`);
+    const isEmbeddedSource = embeddedInfo.source === "embedded_lrc" || embeddedInfo.source === "embedded_plain";
     const result = {
       lyrics: embeddedInfo.lyrics,
       syncOffset: 0,
+      hasEmbeddedLyrics: isEmbeddedSource,
       metadata: { source: embeddedInfo.source }
     };
     if (embeddedInfo.source === "embedded_plain") {
@@ -85,12 +103,19 @@ async function saveLyricsCache(payload) {
   }
 
   await ensureCacheDir();
+  const existing = lyricsRamCache.get(payload.track.cacheKey);
+  const isEmbeddedSource = payload.metadata?.source === "embedded_lrc" || payload.metadata?.source === "embedded_plain";
+  const hasEmbeddedLyrics = typeof payload.hasEmbeddedLyrics === "boolean"
+    ? payload.hasEmbeddedLyrics
+    : (typeof existing?.hasEmbeddedLyrics === "boolean" ? existing.hasEmbeddedLyrics : isEmbeddedSource);
+
   const cachePayload = {
     version: 1,
     track: payload.track,
     lyrics: payload.lyrics || [],
     syncOffset: Number(payload.syncOffset) || 0,
     embeddedPlainLyrics: payload.embeddedPlainLyrics || null,
+    hasEmbeddedLyrics: hasEmbeddedLyrics,
     metadata: {
       source: payload.metadata?.source || "mock",
       updatedAt: new Date().toISOString()
