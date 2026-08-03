@@ -10,6 +10,7 @@ const cacheManager = require("../helpers/cache-manager");
 const settingsManager = require("../helpers/settings-manager");
 const mediaHelper = require("../helpers/media-helper");
 const lyricsAligner = require("../helpers/lyrics-aligner");
+const lyricsTagger = require("../services/lyrics-tagger");
 
 let activeJob = null;
 
@@ -116,6 +117,30 @@ function registerIpcHandlers(windowManager) {
     const contents = extension === "vtt" ? serializeVtt(lyrics, syncOffset) : serializeLrc(lyrics, syncOffset);
     await fs.writeFile(result.filePath, contents, "utf8");
     return { ok: true, filePath: result.filePath };
+  });
+
+  ipcMain.handle("lyrics:embed-to-file", async (_event, payload) => {
+    const trackPath = payload?.trackPath || payload?.track?.path;
+    const lyrics = payload?.lyrics || [];
+    const syncOffset = Number(payload?.syncOffset) || 0;
+
+    if (!trackPath) {
+      return { ok: false, error: "no_track_path" };
+    }
+    if (!Array.isArray(lyrics) || lyrics.length === 0) {
+      return { ok: false, error: "no_lyrics" };
+    }
+
+    const res = await lyricsTagger.embedLyricsToAudio(trackPath, lyrics, syncOffset);
+    if (res.ok && payload?.track) {
+      await cacheManager.saveLyricsCache({
+        track: payload.track,
+        lyrics,
+        syncOffset,
+        metadata: { source: "embedded_lrc", updatedAt: new Date().toISOString() }
+      });
+    }
+    return res;
   });
 
   ipcMain.handle("floating:toggle", async (_event, shouldShow) => {

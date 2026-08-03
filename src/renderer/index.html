@@ -69,14 +69,13 @@
         </div>
 
         <div class="action-grid">
-          <div class="analyze-group">
-            <button id="analyzeButton" type="button" disabled>Analyze</button>
-            <button id="cancelButton" type="button" disabled style="display:none">Cancel</button>
-            <button id="alignButton" type="button" disabled>AI Align</button>
-          </div>
+          <button id="analyzeButton" type="button" disabled>Analyze</button>
+          <button id="cancelButton" type="button" disabled style="display:none">Cancel</button>
+          <button id="alignButton" type="button" disabled>AI Align</button>
           <button id="floatingButton" type="button" disabled>Show Floating Lyrics</button>
           <button id="exportLrcButton" type="button" disabled>Export LRC</button>
           <button id="exportVttButton" type="button" disabled>Export VTT</button>
+          <button id="embedAudioButton" type="button" disabled title="음원 파일 메타데이터 태그에 가사 직접 내장">Embed to Audio</button>
         </div>
 
         <div id="transcriptionProgress" class="transcription-progress" style="display:none">
@@ -421,6 +420,42 @@
         <div class="settings-footer">
           <button value="cancel" type="submit">Close</button>
           <button id="saveSettingsButton" type="button" class="primary-button">Save</button>
+        </div>
+      </form>
+    </dialog>
+
+    <!-- Embed Lyrics Modal -->
+    <dialog id="embedModal" class="settings-dialog embed-modal">
+      <form method="dialog" class="settings-form">
+        <h2>💾 Embed Lyrics to Audio</h2>
+        <p class="embed-desc">음원 파일 메타데이터 태그에 내장할 가사 출처를 선택하세요.</p>
+
+        <div class="embed-options">
+          <label class="embed-option-card">
+            <input type="radio" name="embedSource" value="current" checked />
+            <div class="embed-option-info">
+              <strong>현재 화면의 분석/생성된 가사 사용</strong>
+              <p id="embedCurrentSummary">현재 0개의 싱크가사 라인이 있습니다.</p>
+            </div>
+          </label>
+
+          <label class="embed-option-card">
+            <input type="radio" name="embedSource" value="custom" />
+            <div class="embed-option-info">
+              <strong>외부 가사 직접 입력 / 붙여넣기</strong>
+              <p>웹에서 구해온 평문 텍스트 또는 .lrc 가사를 직접 입력하여 저장합니다.</p>
+            </div>
+          </label>
+        </div>
+
+        <div id="customLyricsSection" class="custom-lyrics-section" style="display: none;">
+          <label for="customLyricsTextarea">가사 텍스트 / LRC 내용:</label>
+          <textarea id="customLyricsTextarea" rows="6" placeholder="[00:10.00] 가사 텍스트를 여기에 붙여넣으세요..."></textarea>
+        </div>
+
+        <div class="settings-footer">
+          <button id="closeEmbedModalBtn" type="button">Cancel</button>
+          <button id="confirmEmbedBtn" type="button" class="primary-button">Embed to File</button>
         </div>
       </form>
     </dialog>

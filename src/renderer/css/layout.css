@@ -372,6 +372,103 @@ input[type="range"] {
   color: var(--accent);
 }
 
+#embedAudioButton.highlight-blue {
+  border-color: var(--accent-strong) !important;
+  color: var(--accent-strong) !important;
+  background: rgba(49, 185, 217, 0.12) !important;
+  font-weight: 700;
+  box-shadow: 0 0 8px rgba(49, 185, 217, 0.3);
+}
+
+#embedAudioButton.highlight-blue:hover:not(:disabled) {
+  background: rgba(49, 185, 217, 0.22) !important;
+  border-color: #50c4df !important;
+}
+
+/* Embed Modal Styles */
+.embed-modal {
+  max-width: 500px;
+  width: 90%;
+}
+
+.embed-desc {
+  font-size: 0.84rem;
+  color: var(--muted);
+  margin-bottom: 16px;
+}
+
+.embed-options {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.embed-option-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+.embed-option-card:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: var(--accent-strong);
+}
+
+.embed-option-card input[type="radio"] {
+  margin-top: 3px;
+  accent-color: var(--accent-strong);
+}
+
+.embed-option-info strong {
+  font-size: 0.9rem;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.embed-option-info p {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.custom-lyrics-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.custom-lyrics-section label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.custom-lyrics-section textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  color: var(--fg);
+  font-family: monospace;
+  font-size: 0.8rem;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.custom-lyrics-section textarea:focus {
+  outline: none;
+  border-color: var(--accent-strong);
+}
+
 .icon-button {
   width: 38px;
   height: 38px;

@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld("lyricsPlayer", {
   saveCachedLyrics: (payload) => ipcRenderer.invoke("lyrics-cache:save", payload),
   deleteTrackCache: (track) => ipcRenderer.invoke("lyrics-cache:delete-track", track),
   exportLyrics: (payload) => ipcRenderer.invoke("lyrics:export", payload),
+  embedLyricsToFile: (payload) => ipcRenderer.invoke("lyrics:embed-to-file", payload),
   toggleFloating: (shouldShow) => ipcRenderer.invoke("floating:toggle", shouldShow),
   updateFloatingLine: (payload) => ipcRenderer.send("floating:update-line", payload),
   setFloatingLocked: (locked) => ipcRenderer.send("floating:set-locked", locked),

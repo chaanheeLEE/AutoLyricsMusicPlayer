@@ -14,11 +14,27 @@ const syncForwardButton = document.querySelector("#syncForwardButton");
 const resetSyncButton = document.querySelector("#resetSyncButton");
 const exportLrcButton = document.querySelector("#exportLrcButton");
 const exportVttButton = document.querySelector("#exportVttButton");
+const embedAudioButton = document.querySelector("#embedAudioButton");
+const embedModal = document.querySelector("#embedModal");
+const embedCurrentSummary = document.querySelector("#embedCurrentSummary");
+const customLyricsSection = document.querySelector("#customLyricsSection");
+const customLyricsTextarea = document.querySelector("#customLyricsTextarea");
+const confirmEmbedBtn = document.querySelector("#confirmEmbedBtn");
+const closeEmbedModalBtn = document.querySelector("#closeEmbedModalBtn");
 const deleteCacheButton = document.querySelector("#deleteCacheButton");
 const syncOffsetBadge = document.querySelector("#syncOffsetBadge");
 const playlistList = document.querySelector("#playlistList");
 
 const { formatClock, escapeHtml } = window.lyricsCore;
+
+function updateEmbedButtonHighlight(hasEmbedded) {
+  if (!embedAudioButton) return;
+  if (hasEmbedded) {
+    embedAudioButton.classList.remove("highlight-blue");
+  } else {
+    embedAudioButton.classList.add("highlight-blue");
+  }
+}
 
 // Global State
 const state = {
@@ -311,6 +327,10 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
   // 캐시 가사 정보 로드
   trackStatus.textContent = "Loading cached lyrics…";
   const cached = await window.lyricsPlayer.loadCachedLyrics(track);
+
+  // 내장 가사 존재 여부에 따른 Embed 버튼 하이라이트 지정
+  const hasEmbeddedLyrics = cached?.metadata?.source === "embedded_lrc" || cached?.metadata?.source === "embedded_plain";
+  updateEmbedButtonHighlight(hasEmbeddedLyrics);
   
   // 캐시 상태에 무관하게, 음원 자체에 내장된 평문 가사가 존재하면 항상 보관
   if (cached?.embeddedPlainLyrics) {
@@ -435,6 +455,7 @@ function setControlsEnabled(enabled) {
   resetSyncButton.disabled = !enabled;
   exportLrcButton.disabled = !enabled;
   exportVttButton.disabled = !enabled;
+  if (embedAudioButton) embedAudioButton.disabled = !enabled;
   
   updateAlignButtonState();
 }
@@ -493,6 +514,106 @@ exportLrcButton.addEventListener("click", () => {
 exportVttButton.addEventListener("click", () => {
   exportLyrics("vtt");
 });
+
+// Embed Lyrics Modal Controls & Action
+if (closeEmbedModalBtn && embedModal) {
+  closeEmbedModalBtn.addEventListener("click", () => {
+    embedModal.close();
+  });
+}
+
+document.querySelectorAll("input[name='embedSource']").forEach((radio) => {
+  radio.addEventListener("change", (e) => {
+    if (customLyricsSection) {
+      customLyricsSection.style.display = e.target.value === "custom" ? "flex" : "none";
+    }
+  });
+});
+
+if (embedAudioButton && embedModal) {
+  embedAudioButton.addEventListener("click", () => {
+    if (!state.track) return;
+
+    const count = state.lyrics ? state.lyrics.length : 0;
+    if (embedCurrentSummary) {
+      embedCurrentSummary.textContent = `현재 화면에 ${count}개의 싱크가사 라인이 있습니다.`;
+    }
+
+    const defaultRadio = document.querySelector("input[name='embedSource'][value='current']");
+    if (defaultRadio) defaultRadio.checked = true;
+    if (customLyricsSection) customLyricsSection.style.display = "none";
+    if (customLyricsTextarea) customLyricsTextarea.value = "";
+
+    embedModal.showModal();
+  });
+}
+
+if (confirmEmbedBtn && embedModal) {
+  confirmEmbedBtn.addEventListener("click", async () => {
+    if (!state.track) return;
+
+    const selectedSource = document.querySelector("input[name='embedSource']:checked")?.value;
+    let targetLyrics = [];
+    let targetOffset = state.syncOffset;
+
+    if (selectedSource === "current") {
+      if (!state.lyrics || state.lyrics.length === 0) {
+        alert("현재 화면에 분석/생성된 가사가 없습니다. 먼저 [Analyze]로 가사를 생성하거나 '외부 가사 직접 입력' 옵션을 선택해 주세요.");
+        return;
+      }
+      targetLyrics = state.lyrics;
+    } else {
+      const rawText = (customLyricsTextarea?.value || "").trim();
+      if (!rawText) {
+        alert("내장할 가사 텍스트를 입력해 주세요.");
+        return;
+      }
+
+      if (window.lyricsSources?.parseLrc) {
+        targetLyrics = window.lyricsSources.parseLrc(rawText);
+      }
+      if (!targetLyrics || targetLyrics.length === 0) {
+        const lines = rawText.split("\n").map(l => l.trim()).filter(Boolean);
+        targetLyrics = lines.map((text, i) => ({
+          id: `custom_${i + 1}`,
+          start: 0,
+          end: 0,
+          text
+        }));
+      }
+      targetOffset = 0;
+    }
+
+    embedModal.close();
+
+    embedAudioButton.disabled = true;
+    const originalText = embedAudioButton.textContent;
+    embedAudioButton.textContent = "Embedding...";
+
+    try {
+      const result = await window.lyricsPlayer.embedLyricsToFile({
+        track: state.track,
+        lyrics: targetLyrics,
+        syncOffset: targetOffset
+      });
+
+      if (result?.ok) {
+        trackStatus.textContent = "Successfully embedded lyrics into audio metadata!";
+        updateEmbedButtonHighlight(true); // 성공 시 푸른색 하이라이트 해제
+        alert("음원 파일 메타데이터에 가사가 성공적으로 내장되었습니다.");
+      } else {
+        trackStatus.textContent = `Failed to embed lyrics: ${result?.error || "unknown error"}`;
+        alert(`가사 내장 실패: ${result?.error || "알 수 없는 오류"}`);
+      }
+    } catch (err) {
+      trackStatus.textContent = `Embed error: ${err.message}`;
+      alert(`오류 발생: ${err.message}`);
+    } finally {
+      embedAudioButton.disabled = false;
+      embedAudioButton.textContent = originalText;
+    }
+  });
+}
 
 window.lyricsPlayer.onFloatingClosed(() => {
   state.floatingVisible = false;
