@@ -180,7 +180,6 @@ def main():
                     compute_type = "float16"
                     mode_msg = "Using CUDA (GPU) for transcription (auto)."
                 except Exception as e:
-                    import traceback
                     emit({
                         "type": "info",
                         "message": f"CUDA initialization failed, falling back to CPU. Error: {str(e)}\n{traceback.format_exc()}"
@@ -205,7 +204,6 @@ def main():
         emit({"type": "done", "count": len(lines), "language": info.language if info else (args.language or "unknown")})
 
     except FileNotFoundError as exc:
-        import os
         if not os.path.exists(args.audio_path):
             emit({"type": "error", "message": f"Audio file not found: {args.audio_path}"})
         else:
