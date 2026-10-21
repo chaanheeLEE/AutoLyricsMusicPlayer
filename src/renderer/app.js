@@ -179,6 +179,8 @@ const lyricsJobManager = new LyricsJobManager(state, player, lyricsViewer, setti
 
 const embedManager = new EmbedManager(state, trackStatus, updateAlignButtonState);
 
+const onboardingManager = new OnboardingManager(state);
+
 // -------------------------------------------------------------
 // Orchestrator 핵심 비즈니스 로직
 // -------------------------------------------------------------
@@ -678,6 +680,13 @@ function initMediaSession() {
   }
 
   updateAlignButtonState();
+
+  // 첫 실행 시 온보딩 모달 표시
+  if (!loaded.firstRunCompleted) {
+    setTimeout(() => {
+      onboardingManager.show();
+    }, 400);
+  }
 })();
 
 // --- Playlist Height Resizer ---

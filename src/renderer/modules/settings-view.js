@@ -37,11 +37,26 @@ class SettingsView {
     this.clearCacheButton = document.querySelector("#clearCacheButton");
     this.cachePathLabel = document.querySelector("#cachePathLabel");
 
+    this.modelCardsContainer = document.querySelector("#modelCardsContainer");
+    this.modelManagerTotalSize = document.querySelector("#modelManagerTotalSize");
+    this.modelManagerAccordion = document.querySelector("#modelManagerGroup");
+    this.modelManagerToggle = document.querySelector("#modelManagerToggle");
+    this.modelManagerBody = document.querySelector("#modelManagerBody");
+    this.currentDownloadingModelId = null;
+    this.cachedModelList = [];
+    this._accordionOpen = false;
+
     this.tempShortcuts = {};
     this.capturingAction = null;
     this.shortcutBtns = document.querySelectorAll(".shortcut-capture-btn");
 
     this._initEvents();
+
+    if (window.lyricsPlayer?.onModelDownloadProgress) {
+      window.lyricsPlayer.onModelDownloadProgress((msg) => {
+        this.handleDownloadProgress(msg);
+      });
+    }
   }
 
   _initEvents() {
@@ -93,6 +108,10 @@ class SettingsView {
     
     this.clearCacheButton.addEventListener("click", () => this.clearCache());
 
+    // 아코디언 토글
+    if (this.modelManagerToggle) {
+      this.modelManagerToggle.addEventListener("click", () => this._toggleAccordion());
+    }
     // 단축키 캡처 버튼 이벤트 바인딩
     this.shortcutBtns.forEach(btn => {
       btn.addEventListener("click", () => {
@@ -142,6 +161,7 @@ class SettingsView {
   open() {
     this.tabGeneralBtn.click();
     this.updateSTTEngineUI();
+    this._toggleAccordion(false);
     this.capturingAction = null;
     this.settingsDialog.showModal();
   }
@@ -163,6 +183,7 @@ class SettingsView {
     const showGeminiModel = isGemini || isAlignMode || hasApiKey;
 
     this.toggleVisibility(this.settingModelGroup, !isGemini);
+    this.toggleVisibility(this.modelManagerAccordion, !isGemini);
     this.toggleVisibility(this.settingWhisperDeviceGroup, !isGemini);
     this.toggleVisibility(this.settingGeminiModelGroup, showGeminiModel);
     this.updateAutoAnalyzeDropdownState();
@@ -245,7 +266,190 @@ class SettingsView {
     });
 
     this.cachePathLabel.textContent = dataPath;
+
+    // 모델 목록 비동기 갱신 (설정창이 열릴 때마다 자동 새로고침)
+    this.refreshModelList();
   }
+
+  _toggleAccordion(forceState) {
+    this._accordionOpen = typeof forceState === "boolean" ? forceState : !this._accordionOpen;
+    if (this.modelManagerAccordion) {
+      this.modelManagerAccordion.classList.toggle("expanded", this._accordionOpen);
+    }
+    if (this.modelManagerToggle) {
+      this.modelManagerToggle.setAttribute("aria-expanded", String(this._accordionOpen));
+    }
+  }
+
+  // ─── Whisper Model Manager ────────────────────────────────────────────
+  async refreshModelList() {
+    if (!this.modelCardsContainer) return;
+    try {
+      const result = await window.lyricsPlayer.listModels();
+      if (!result) return;
+      this.cachedModelList = result.models;
+      this.renderModelCards(result.models, this.state.settings?.model || "base");
+      this._rebuildModelSelect(result.models);
+      if (this.modelManagerTotalSize) {
+        this.modelManagerTotalSize.textContent = result.totalDiskSizeFormatted || "0 MB";
+      }
+    } catch (e) {
+      console.warn("[ModelManager] Failed to load models:", e);
+    }
+  }
+
+  /**
+   * settingModel <select>를 설치된 모델만, 크기 오름차순으로 재구성합니다.
+   * 현재 설정값이 설치된 모델 중에 없으면 첫 번째 설치 모델로 자동 변경합니다.
+   */
+  _rebuildModelSelect(models) {
+    if (!this.settingModel) return;
+
+    // 크기 오름차순은 SUPPORTED_MODELS 순서(model-manager)가 이미 보장하므로 그대로 활용
+    const installed = models.filter(m => m.downloaded);
+    const currentVal = this.settingModel.value;
+
+    this.settingModel.innerHTML = "";
+
+    if (installed.length === 0) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "설치된 모델 없음 — 아래에서 다운로드하세요";
+      opt.disabled = true;
+      opt.selected = true;
+      this.settingModel.appendChild(opt);
+      return;
+    }
+
+    let matched = false;
+    for (const m of installed) {
+      const opt = document.createElement("option");
+      opt.value = m.id;
+      const badge = m.badge ? ` (${m.badge})` : "";
+      opt.textContent = `${m.label} — ${m.sizeLabel}${badge}`;
+      if (m.id === currentVal) {
+        opt.selected = true;
+        matched = true;
+      }
+      this.settingModel.appendChild(opt);
+    }
+
+    // 현재 선택값이 설치 목록에 없으면 첫 번째 설치 모델로 fallback
+    if (!matched) {
+      this.settingModel.selectedIndex = 0;
+    }
+  }
+
+  renderModelCards(models, currentModel) {
+    if (!this.modelCardsContainer) return;
+    this.modelCardsContainer.innerHTML = "";
+
+    for (const m of models) {
+      const isActive = m.id === currentModel;
+      const isDownloading = this.currentDownloadingModelId === m.id;
+
+      const card = document.createElement("div");
+      card.className = "model-card" + (isActive ? " current-active" : "");
+      card.dataset.modelId = m.id;
+
+      let badgeHtml = "";
+      if (m.badge === "최신 추천") badgeHtml = `<span class="model-badge badge-recommend">🚀 최신 추천</span>`;
+      else if (m.badge === "기본값") badgeHtml = `<span class="model-badge badge-default">⚡ 기본</span>`;
+
+      const statusHtml = m.downloaded
+        ? `<span class="model-status-installed">✓ 설치됨 (${m.diskSizeFormatted})</span>`
+        : `<span class="model-status-not-installed">미설치 (${m.sizeLabel})</span>`;
+
+      let actionsHtml = "";
+      if (isDownloading) {
+        actionsHtml = `<button type="button" class="btn-model-action" disabled>⏳ 다운로드 중...</button>`;
+      } else if (m.downloaded) {
+        actionsHtml = `
+          <button type="button" class="btn-model-action btn-delete" data-action="delete" data-model="${m.id}"${isActive ? " title=\"현재 선택된 모델입니다\"" : ""}>삭제</button>
+        `;
+      } else {
+        actionsHtml = `<button type="button" class="btn-model-action btn-download" data-action="download" data-model="${m.id}">⬇ 다운로드</button>`;
+      }
+
+      card.innerHTML = `
+        <div class="model-card-info">
+          <div class="model-card-name-row">
+            <span class="model-card-name">${m.label}</span>
+            ${badgeHtml}
+            ${isActive ? `<span class="model-badge badge-primary">✓ 사용 중</span>` : ""}
+          </div>
+          <div class="model-card-desc">${m.description}</div>
+          <div class="model-card-meta">${statusHtml}</div>
+        </div>
+        <div class="model-card-actions">${actionsHtml}</div>
+      `;
+
+      card.querySelectorAll("[data-action]").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const action = btn.dataset.action;
+          const modelId = btn.dataset.model;
+          if (action === "download") this.startModelDownload(modelId);
+          else if (action === "delete") this.deleteModel(modelId);
+        });
+      });
+
+      this.modelCardsContainer.appendChild(card);
+    }
+  }
+
+  async startModelDownload(modelId) {
+    if (this.currentDownloadingModelId) {
+      alert("이미 다른 모델 다운로드가 진행 중입니다. 완료 후 다시 시도하세요.");
+      return;
+    }
+    this.currentDownloadingModelId = modelId;
+    this.renderModelCards(this.cachedModelList, this.state.settings?.model || "base");
+
+    try {
+      await window.lyricsPlayer.downloadModel(modelId);
+      // 완료 후 목록 갱신
+      await this.refreshModelList();
+    } catch (err) {
+      console.error("[ModelManager] Download failed:", err);
+      alert(`모델 다운로드 실패: ${err.message || err}`);
+    } finally {
+      this.currentDownloadingModelId = null;
+      await this.refreshModelList();
+    }
+  }
+
+  handleDownloadProgress(msg) {
+    if (!this.modelCardsContainer) return;
+    const card = this.modelCardsContainer.querySelector(`[data-model-id="${msg.modelId}"]`);
+    if (!card) return;
+
+    const actionArea = card.querySelector(".model-card-actions");
+    if (!actionArea) return;
+
+    const pct = msg.percent != null ? Math.round(msg.percent * 100) : null;
+    const label = pct != null ? `⏳ ${pct}%` : "⏳ 다운로드 중...";
+    actionArea.innerHTML = `<button type="button" class="btn-model-action" disabled>${label}</button>`;
+
+    if (msg.stage === "done") {
+      this.currentDownloadingModelId = null;
+      this.refreshModelList();
+    }
+  }
+
+  async deleteModel(modelId) {
+    const confirmed = confirm(`"${modelId}" 모델을 삭제하시겠습니까?\n모델 캐시 파일이 디스크에서 영구적으로 삭제됩니다.`);
+    if (!confirmed) return;
+
+    const result = await window.lyricsPlayer.deleteModel(modelId);
+    if (result?.ok) {
+      await this.refreshModelList();
+    } else {
+      alert(`모델 삭제 실패: ${result?.error || "알 수 없는 오류"}`);
+    }
+  }
+  // ─────────────────────────────────────────────────────────────────────
 }
 
 window.SettingsView = SettingsView;

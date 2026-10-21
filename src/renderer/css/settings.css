@@ -331,3 +331,433 @@
   text-align: center;
 }
 
+/* =========================================================
+   Whisper Model Manager — Accordion UI
+========================================================= */
+.model-manager-accordion {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.015);
+  margin-top: 6px;
+  margin-bottom: 6px;
+  padding: 0;
+}
+
+.model-manager-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.model-manager-toggle:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.model-manager-toggle-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.model-manager-label {
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.model-manager-sub {
+  font-size: 0.73rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.model-manager-sub strong {
+  color: var(--accent);
+}
+
+.model-manager-chevron {
+  font-size: 1rem;
+  color: var(--muted);
+  flex-shrink: 0;
+  transition: transform 0.25s ease;
+  line-height: 1;
+}
+
+.model-manager-accordion.expanded .model-manager-chevron {
+  transform: rotate(180deg);
+}
+
+/* 본문 슬라이드 애니메이션 — max-height 트릭 */
+.model-manager-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.model-manager-accordion.expanded .model-manager-body {
+  max-height: 360px;
+}
+
+.model-manager-body-inner {
+  padding: 0 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.model-manager-body-desc {
+  margin: 10px 0 2px 0;
+  font-size: 0.74rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.model-cards-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.model-loading-placeholder {
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-align: center;
+  padding: 18px 0;
+}
+
+
+.model-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.model-card:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.model-card.current-active {
+  border-color: var(--accent);
+  background: rgba(66, 211, 146, 0.04);
+}
+
+.model-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+
+.model-card-name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.model-card-name {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.model-badge {
+  font-size: 0.68rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.badge-primary, .badge-recommend {
+  background: rgba(66, 211, 146, 0.15);
+  color: var(--accent);
+  border: 1px solid rgba(66, 211, 146, 0.3);
+}
+
+.badge-default {
+  background: rgba(100, 180, 255, 0.12);
+  color: #70b5ff;
+}
+
+.badge-cloud {
+  background: rgba(180, 120, 255, 0.12);
+  color: #c792ea;
+}
+
+.model-card-desc {
+  font-size: 0.73rem;
+  color: var(--muted);
+}
+
+.model-card-meta {
+  font-size: 0.72rem;
+  color: var(--muted);
+  display: flex;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+.model-status-installed {
+  color: var(--accent);
+}
+
+.model-status-not-installed {
+  color: var(--muted);
+}
+
+.model-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 12px;
+}
+
+.btn-model-action {
+  padding: 5px 12px;
+  font-size: 0.76rem;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-model-action:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-model-action.btn-download {
+  background: rgba(66, 211, 146, 0.12);
+  border-color: rgba(66, 211, 146, 0.35);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.btn-model-action.btn-download:hover:not(:disabled) {
+  background: rgba(66, 211, 146, 0.22);
+}
+
+.btn-model-action.btn-delete {
+  color: #ff6b6b;
+  border-color: rgba(255, 107, 107, 0.25);
+  background: rgba(255, 107, 107, 0.05);
+}
+
+.btn-model-action.btn-delete:hover:not(:disabled) {
+  background: rgba(255, 107, 107, 0.15);
+  border-color: #ff6b6b;
+}
+
+.btn-model-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* =========================================================
+   Onboarding Modal UI Styles
+========================================================= */
+.onboarding-dialog {
+  min-width: 580px;
+  max-width: 620px;
+  border-radius: 16px;
+  background: #14171f;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.75);
+}
+
+.onboarding-form {
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.onboarding-header {
+  text-align: center;
+}
+
+.onboarding-badge-icon {
+  font-size: 2.2rem;
+  margin-bottom: 8px;
+}
+
+.onboarding-header h2 {
+  font-size: 1.35rem;
+  margin: 0 0 8px 0;
+  color: #ffffff;
+}
+
+.onboarding-desc {
+  font-size: 0.85rem;
+  color: var(--muted);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.onboarding-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.onboarding-card {
+  display: flex;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--panel-soft);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.onboarding-card:hover {
+  border-color: rgba(66, 211, 146, 0.4);
+}
+
+.onboarding-card.selected {
+  border-color: var(--accent);
+  background: rgba(66, 211, 146, 0.06);
+}
+
+.onboarding-card input[type="radio"] {
+  margin-right: 12px;
+  margin-top: 3px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.onboarding-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.onboarding-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.onboarding-card-title-row strong {
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.onboarding-card-detail {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin: 0;
+  line-height: 1.35;
+}
+
+.onboarding-card-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.74rem;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.onboarding-status-tag {
+  font-size: 0.72rem;
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.onboarding-progress-box {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.onboarding-progress-status-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: var(--text);
+}
+
+.onboarding-progress-track {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.onboarding-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  transition: width 0.25s ease;
+  animation: pulse-glow 2s infinite ease-in-out;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+
+.onboarding-progress-notice {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.onboarding-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.btn-subtle {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 0.82rem;
+  cursor: pointer;
+  padding: 6px 10px;
+}
+
+.btn-subtle:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+

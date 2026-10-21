@@ -165,16 +165,31 @@
             <div class="settings-item" id="settingModelGroup">
               <div class="settings-info">
                 <label for="settingModel">Whisper 모델</label>
-                <p>로컬 Whisper 모델의 크기입니다. 클수록 느리지만 더 정확합니다.</p>
+                <p>다운로드된 모델만 선택 가능합니다. 아래 관리자에서 모델을 추가하세요.</p>
               </div>
               <div class="settings-control">
                 <select id="settingModel" name="model">
-                  <option value="tiny">tiny — 속도 우선, 최저 정확도</option>
-                  <option value="base" selected>base — 기본값 (추천)</option>
-                  <option value="small">small — 양호한 정확도</option>
-                  <option value="medium">medium — 높은 정확도</option>
-                  <option value="large-v3">large-v3 — 최고 정확도, 매우 느림</option>
+                  <option value="" disabled selected>모델 목록 불러오는 중...</option>
                 </select>
+              </div>
+            </div>
+
+            <!-- Whisper 모델 저장소 관리자 (다운로드 & 삭제) — 아코디언 토글 -->
+            <div class="model-manager-accordion" id="modelManagerGroup">
+              <button type="button" class="model-manager-toggle" id="modelManagerToggle" aria-expanded="false">
+                <div class="model-manager-toggle-info">
+                  <span class="model-manager-label">Whisper 모델 저장소 관리</span>
+                  <span class="model-manager-sub">설치 / 삭제 · 총 사용량: <strong id="modelManagerTotalSize">계산 중...</strong></span>
+                </div>
+                <span class="model-manager-chevron" id="modelManagerChevron">▾</span>
+              </button>
+              <div class="model-manager-body" id="modelManagerBody">
+                <div class="model-manager-body-inner">
+                  <p class="model-manager-body-desc">내 PC에 저장된 AI 모델을 관리합니다. 미사용 모델을 삭제하여 디스크 용량을 확보할 수 있습니다.</p>
+                  <div class="model-cards-container" id="modelCardsContainer">
+                    <div class="model-loading-placeholder">모델 상태를 불러오는 중...</div>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -460,6 +475,83 @@
       </form>
     </dialog>
 
+    <!-- Onboarding Welcome & Model Setup Dialog -->
+    <dialog id="onboardingDialog" class="settings-dialog onboarding-dialog">
+      <div class="onboarding-form">
+        <div class="onboarding-header">
+          <div class="onboarding-badge-icon">🎵</div>
+          <h2>Auto Lyrics Player에 오신 것을 환영합니다!</h2>
+          <p class="onboarding-desc">
+            노래의 보컬 음성을 분석하여 실시간 가사 싱크를 생성하기 위해 사용할 <strong>AI 모델</strong>을 선택해주세요.
+          </p>
+        </div>
+
+        <div class="onboarding-options">
+          <label class="onboarding-card selected" data-model="large-v3-turbo">
+            <input type="radio" name="onboardingModelChoice" value="large-v3-turbo" checked />
+            <div class="onboarding-card-body">
+              <div class="onboarding-card-title-row">
+                <strong>large-v3-turbo</strong>
+                <span class="badge-recommend">🚀 최신 추천</span>
+              </div>
+              <p class="onboarding-card-detail">최고 수준의 가사 인식 정확도와 6배 빠른 연산 속도 (보컬 싱크 최적화)</p>
+              <div class="onboarding-card-foot">
+                <span>다운로드 용량: <strong>약 1.6 GB</strong></span>
+                <span class="onboarding-status-tag" id="onboardingTagTurbo">확인 중...</span>
+              </div>
+            </div>
+          </label>
+
+          <label class="onboarding-card" data-model="base">
+            <input type="radio" name="onboardingModelChoice" value="base" />
+            <div class="onboarding-card-body">
+              <div class="onboarding-card-title-row">
+                <strong>base</strong>
+                <span class="badge-default">⚡ 경량 기본</span>
+              </div>
+              <p class="onboarding-card-detail">가벼운 사양의 PC에 적합하며 즉시 빠르게 시작할 수 있는 표준 모델</p>
+              <div class="onboarding-card-foot">
+                <span>다운로드 용량: <strong>약 145 MB</strong></span>
+                <span class="onboarding-status-tag" id="onboardingTagBase">확인 중...</span>
+              </div>
+            </div>
+          </label>
+
+          <label class="onboarding-card" data-model="gemini">
+            <input type="radio" name="onboardingModelChoice" value="gemini" />
+            <div class="onboarding-card-body">
+              <div class="onboarding-card-title-row">
+                <strong>Gemini API (클라우드)</strong>
+                <span class="badge-cloud">☁️ 무설치</span>
+              </div>
+              <p class="onboarding-card-detail">로컬 모델 다운로드 없이 Google Cloud AI를 통해 직접 오디오를 고속 분석 (API 키 필요)</p>
+              <div class="onboarding-card-foot">
+                <span>다운로드 용량: <strong>0 MB</strong></span>
+                <span class="onboarding-status-tag">즉시 사용 가능</span>
+              </div>
+            </div>
+          </label>
+        </div>
+
+        <!-- 다운로드 진행 표시 바 -->
+        <div id="onboardingProgressBox" class="onboarding-progress-box" style="display: none;">
+          <div class="onboarding-progress-status-row">
+            <span id="onboardingProgressMsg">모델 다운로드 준비 중...</span>
+            <span id="onboardingProgressPct">0%</span>
+          </div>
+          <div class="onboarding-progress-track">
+            <div id="onboardingProgressBar" class="onboarding-progress-fill"></div>
+          </div>
+          <div class="onboarding-progress-notice">다운로드가 완료되면 자동으로 설정이 적용됩니다. 잠시만 기다려주세요.</div>
+        </div>
+
+        <div class="settings-footer onboarding-footer">
+          <button id="onboardingSkipBtn" type="button" class="btn-subtle">나중에 설정 (기본값으로 시작)</button>
+          <button id="onboardingConfirmBtn" type="button" class="primary-button">선택한 모델 적용 및 시작</button>
+        </div>
+      </div>
+    </dialog>
+
     <script src="../shared/lyrics-core.js"></script>
     <script src="./modules/player-controller.js"></script>
     <script src="./modules/playlist-manager.js"></script>
@@ -467,6 +559,7 @@
     <script src="./modules/settings-view.js"></script>
     <script src="./modules/lyrics-job-manager.js"></script>
     <script src="./modules/embed-manager.js"></script>
+    <script src="./modules/onboarding-manager.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

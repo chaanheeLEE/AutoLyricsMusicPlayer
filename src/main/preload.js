@@ -40,4 +40,14 @@ contextBridge.exposeInMainWorld("lyricsPlayer", {
   clearCache: () => ipcRenderer.invoke("cache:clear"),
   getAppDataPath: () => ipcRenderer.invoke("app:get-data-path"),
   alignLyrics: (payload) => ipcRenderer.invoke("lyrics:align", payload),
+  listModels: () => ipcRenderer.invoke("models:list"),
+  downloadModel: (modelId) => ipcRenderer.invoke("models:download", modelId),
+  cancelModelDownload: () => ipcRenderer.invoke("models:cancel-download"),
+  deleteModel: (modelId) => ipcRenderer.invoke("models:delete", modelId),
+  onModelDownloadProgress: (callback) => {
+    ipcRenderer.on("models:download-progress", (_event, msg) => callback(msg));
+  },
+  removeModelDownloadProgressListener: () => {
+    ipcRenderer.removeAllListeners("models:download-progress");
+  },
 });

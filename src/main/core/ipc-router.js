@@ -11,6 +11,7 @@ const settingsManager = require("../helpers/settings-manager");
 const mediaHelper = require("../helpers/media-helper");
 const lyricsAligner = require("../helpers/lyrics-aligner");
 const lyricsTagger = require("../services/lyrics-tagger");
+const modelManager = require("../services/model-manager");
 
 let activeJob = null;
 
@@ -318,6 +319,28 @@ function registerIpcHandlers(windowManager) {
 
   ipcMain.handle("lyrics:align", async (_event, payload) => {
     return await lyricsAligner.alignAndInterpolateLyrics(payload);
+  });
+
+  // Whisper 모델 관리 IPC
+  ipcMain.handle("models:list", async () => {
+    return await modelManager.listModels();
+  });
+
+  ipcMain.handle("models:download", async (_event, modelId) => {
+    const mainWindow = windowManager.getMainWindow();
+    return await modelManager.downloadModel(modelId, (msg) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("models:download-progress", msg);
+      }
+    });
+  });
+
+  ipcMain.handle("models:cancel-download", () => {
+    return modelManager.cancelDownload();
+  });
+
+  ipcMain.handle("models:delete", async (_event, modelId) => {
+    return await modelManager.deleteModel(modelId);
   });
 }
 

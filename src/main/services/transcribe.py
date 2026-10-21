@@ -25,7 +25,8 @@ def emit(obj):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("audio_path")
+    parser.add_argument("audio_path", nargs="?", default=None)
+    parser.add_argument("--download_only", action="store_true", help="Download the model and exit")
     parser.add_argument("--model", default="base")
     parser.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda"])
     parser.add_argument("--language", default=None)
@@ -60,9 +61,85 @@ def main():
                             pass
 
     try:
-        from faster_whisper import WhisperModel
+        from faster_whisper import WhisperModel, download_model
     except ImportError:
         emit({"type": "error", "message": "faster-whisper is not installed. Run: pip install faster-whisper"})
+        sys.exit(1)
+
+    # 모델 다운로드 전용 모드
+    if args.download_only:
+        try:
+            from huggingface_hub import snapshot_download
+            from huggingface_hub import HfFileSystem
+            import re
+
+            repo_id = f"Systran/faster-whisper-{args.model}"
+
+            # 전체 파일 목록 조회 → 총 예상 용량 계산
+            try:
+                fs = HfFileSystem()
+                files = fs.ls(repo_id, detail=True)
+                total_size = sum(f.get("size", 0) for f in files if f.get("type") == "file")
+            except Exception:
+                total_size = 0
+
+            emit({"type": "progress", "stage": "downloading", "percent": 0.0,
+                  "message": f"{args.model} 파일 목록 확인 중...", "totalBytes": total_size})
+
+            downloaded_bytes = 0
+            file_count = 0
+            completed_files = 0
+
+            # tqdm을 커스텀 서브클래스로 대체하여 진행률 캡처
+            try:
+                from tqdm import tqdm as original_tqdm
+
+                class ProgressTqdm(original_tqdm):
+                    def __init__(self, *a, **kw):
+                        super().__init__(*a, **kw)
+
+                    def update(self, n=1):
+                        super().update(n)
+                        nonlocal downloaded_bytes
+                        downloaded_bytes += n * (self.unit_scale or 1) if self.unit in ("B", "iB") else 0
+                        pct = (downloaded_bytes / total_size) if total_size > 0 else 0
+                        pct = min(pct, 0.99)
+                        emit({
+                            "type": "progress",
+                            "stage": "downloading",
+                            "percent": round(pct, 4),
+                            "message": f"다운로드 중: {self.desc or args.model}",
+                            "downloadedBytes": downloaded_bytes,
+                            "totalBytes": total_size
+                        })
+
+                import huggingface_hub.file_download as _fd
+                _orig_tqdm = _fd.tqdm
+                _fd.tqdm = ProgressTqdm
+
+                model_path = snapshot_download(repo_id=repo_id, local_files_only=False)
+
+                _fd.tqdm = _orig_tqdm
+
+            except Exception:
+                # tqdm 훅 실패 시 진행률 없이 그냥 다운로드
+                emit({"type": "progress", "stage": "downloading", "percent": 0.1,
+                      "message": f"{args.model} 다운로드 중... (진행률 표시 불가)"})
+                model_path = snapshot_download(repo_id=repo_id, local_files_only=False)
+
+            emit({"type": "done", "stage": "downloaded", "model": args.model, "path": model_path})
+            sys.exit(0)
+
+        except ImportError as e:
+            emit({"type": "error", "message": f"huggingface_hub를 찾을 수 없습니다. faster-whisper를 재설치하세요: {str(e)}"})
+            sys.exit(1)
+        except Exception as e:
+            emit({"type": "error", "message": f"모델 다운로드 실패: {str(e)}"})
+            sys.exit(1)
+
+
+    if not args.audio_path:
+        emit({"type": "error", "message": "Missing required audio_path argument."})
         sys.exit(1)
 
     try:
