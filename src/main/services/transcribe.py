@@ -45,6 +45,11 @@ def main():
         base_paths.append(os.path.dirname(sys.executable))
         base_paths.extend(sys.path)
 
+        app_data = os.environ.get("APPDATA")
+        if app_data:
+            base_paths.append(os.path.join(app_data, "auto-lyrics-player"))
+            base_paths.append(os.path.join(app_data, "auto-lyrics-player", "bin"))
+
         for path in base_paths:
             if not path:
                 continue
@@ -60,6 +65,18 @@ def main():
                         except Exception:
                             pass
 
+        # 2. 시스템 설치된 CUDA Toolkit (CUDA_PATH) 환경변수 탐색
+        cuda_path = os.environ.get("CUDA_PATH")
+        if cuda_path and os.path.exists(cuda_path):
+            cuda_bin = os.path.join(cuda_path, "bin")
+            if os.path.exists(cuda_bin):
+                try:
+                    if hasattr(os, "add_dll_directory"):
+                        os.add_dll_directory(cuda_bin)
+                    os.environ["PATH"] = cuda_bin + os.pathsep + os.environ["PATH"]
+                except Exception:
+                    pass
+        
     try:
         from faster_whisper import WhisperModel, download_model
     except ImportError:
