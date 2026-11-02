@@ -84,11 +84,60 @@ async function loadLrcFile(trackPath) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2순위: 음원 내장 가사 메타데이터 추출 (ffprobe 활용)
+// 2순위: 음원 내장 가사 메타데이터 추출 (ffmpeg ffmetadata 활용)
 //   - MP3의 USLT/SYLT 태그, MP4의 ©lyr 태그 등을 읽어옵니다.
-//   - 태그 키: lyrics, lyrics-kor, lyrics-eng, ©lyr 등 접두사 lyrics- 로 시작하는 모든 키
+//   - 별도의 ffprobe 바이너리 없이 ffmpeg 하나로 처리하여 번들 용량 절감
 // ─────────────────────────────────────────────────────────────────────────────
-function readEmbeddedLyricsViaFfprobe(trackPath) {
+function unescapeFfmetadata(str) {
+  return str
+    .replace(/\\=/g, "=")
+    .replace(/\\;/g, ";")
+    .replace(/\\#/g, "#")
+    .replace(/\\\\/g, "\\");
+}
+
+function parseFfmetadata(rawOutput) {
+  const tags = {};
+  const lines = rawOutput.split(/\r?\n/);
+  let currentKey = null;
+  let currentValue = "";
+
+  for (const line of lines) {
+    if (line.startsWith(";") || line.startsWith("#")) continue;
+
+    if (!currentKey) {
+      const eqIdx = line.indexOf("=");
+      if (eqIdx !== -1) {
+        currentKey = line.slice(0, eqIdx).trim();
+        const valPart = line.slice(eqIdx + 1);
+        if (valPart.endsWith("\\")) {
+          currentValue = valPart.slice(0, -1) + "\n";
+        } else {
+          tags[currentKey] = unescapeFfmetadata(valPart);
+          currentKey = null;
+          currentValue = "";
+        }
+      }
+    } else {
+      if (line.endsWith("\\")) {
+        currentValue += line.slice(0, -1) + "\n";
+      } else {
+        currentValue += line;
+        tags[currentKey] = unescapeFfmetadata(currentValue);
+        currentKey = null;
+        currentValue = "";
+      }
+    }
+  }
+
+  if (currentKey && currentValue) {
+    tags[currentKey] = unescapeFfmetadata(currentValue);
+  }
+
+  return tags;
+}
+
+function readEmbeddedLyricsViaFfmpeg(trackPath) {
   return new Promise((resolve) => {
     let ffmpegBin;
     try {
@@ -97,14 +146,11 @@ function readEmbeddedLyricsViaFfprobe(trackPath) {
       return resolve(null);
     }
 
-    // ffprobe는 ffmpeg과 동일 폴더에 있으므로 경로 치환
-    const ffprobeBin = ffmpegBin.replace(/ffmpeg(\.exe)?$/i, "ffprobe$1");
-
-    const proc = spawn(ffprobeBin, [
-      "-v", "quiet",
-      "-print_format", "json",
-      "-show_format",
-      trackPath
+    const proc = spawn(ffmpegBin, [
+      "-v", "error",
+      "-i", trackPath,
+      "-f", "ffmetadata",
+      "-"
     ], { stdio: ["ignore", "pipe", "ignore"] });
 
     let output = "";
@@ -112,14 +158,17 @@ function readEmbeddedLyricsViaFfprobe(trackPath) {
 
     proc.on("close", () => {
       try {
-        const data = JSON.parse(output);
-        const tags = data?.format?.tags || {};
+        const tags = parseFfmetadata(output);
 
-        // 대소문자 무관하게 lyrics 관련 태그 키를 탐색
-        // (lyrics, lyrics-kor, lyrics-eng, ©lyr 등)
         for (const key of Object.keys(tags)) {
           const lk = key.toLowerCase();
-          if (lk === "lyrics" || lk === "\u00a9lyr" || lk.startsWith("lyrics-")) {
+          if (
+            lk === "lyrics" ||
+            lk === "\u00a9lyr" ||
+            lk === "uslt" ||
+            lk === "unsyncedlyrics" ||
+            lk.startsWith("lyrics-")
+          ) {
             const rawLyrics = tags[key];
             if (rawLyrics && rawLyrics.trim().length > 0) {
               return resolve(rawLyrics.trim());
@@ -137,7 +186,7 @@ function readEmbeddedLyricsViaFfprobe(trackPath) {
 }
 
 async function loadEmbeddedLyrics(trackPath) {
-  const rawText = await readEmbeddedLyricsViaFfprobe(trackPath);
+  const rawText = await readEmbeddedLyricsViaFfmpeg(trackPath);
   if (!rawText) return null;
 
   // 내장 가사가 LRC 형식인 경우 타임스탬프 파싱 시도
