@@ -10,14 +10,21 @@ if (!fs.existsSync(binDir)) {
   fs.mkdirSync(binDir, { recursive: true });
 }
 
-// 2. Resolve or download FFmpeg & FFprobe
+// 2. Resolve or download FFmpeg (ffprobe is no longer needed, saving ~58MB)
 const ffmpegDest = path.join(binDir, "ffmpeg.exe");
-const ffprobeDest = path.join(binDir, "ffprobe.exe");
+const legacyFfprobeDest = path.join(binDir, "ffprobe.exe");
+if (fs.existsSync(legacyFfprobeDest)) {
+  try {
+    fs.unlinkSync(legacyFfprobeDest);
+    console.log("Removed legacy ffprobe.exe to reduce bundle size.");
+  } catch (e) {
+    // Ignore error
+  }
+}
 
-if (!fs.existsSync(ffmpegDest) || !fs.existsSync(ffprobeDest)) {
-  console.log("FFmpeg or FFprobe is missing from bin/win32. Attempting to locate or download...");
+if (!fs.existsSync(ffmpegDest)) {
+  console.log("FFmpeg is missing from bin/win32. Attempting to locate or download...");
   let foundFfmpeg = null;
-  let foundFfprobe = null;
 
   // Check system PATH
   try {
@@ -26,17 +33,12 @@ if (!fs.existsSync(ffmpegDest) || !fs.existsSync(ffprobeDest)) {
       foundFfmpeg = whereFfmpeg;
       console.log(`Found ffmpeg in PATH: ${foundFfmpeg}`);
     }
-    const whereFfprobe = execSync("where.exe ffprobe", { encoding: "utf8" }).trim().split("\r\n")[0];
-    if (whereFfprobe && fs.existsSync(whereFfprobe)) {
-      foundFfprobe = whereFfprobe;
-      console.log(`Found ffprobe in PATH: ${foundFfprobe}`);
-    }
   } catch (e) {
     // Ignore
   }
 
   // Check WinGet default installation folder
-  if ((!foundFfmpeg || !foundFfprobe) && process.platform === "win32") {
+  if (!foundFfmpeg && process.platform === "win32") {
     const wingetBase = path.join(os.homedir(), "AppData", "Local", "Microsoft", "WinGet", "Packages");
     try {
       if (fs.existsSync(wingetBase)) {
@@ -47,18 +49,14 @@ if (!fs.existsSync(ffmpegDest) || !fs.existsSync(ffprobeDest)) {
             const sub = fs.readdirSync(candidate);
             for (const s of sub) {
               const binFfmpeg = path.join(candidate, s, "bin", "ffmpeg.exe");
-              const binFfprobe = path.join(candidate, s, "bin", "ffprobe.exe");
               if (fs.existsSync(binFfmpeg) && !foundFfmpeg) {
                 foundFfmpeg = binFfmpeg;
                 console.log(`Found ffmpeg in WinGet directory: ${foundFfmpeg}`);
-              }
-              if (fs.existsSync(binFfprobe) && !foundFfprobe) {
-                foundFfprobe = binFfprobe;
-                console.log(`Found ffprobe in WinGet directory: ${foundFfprobe}`);
+                break;
               }
             }
           }
-          if (foundFfmpeg && foundFfprobe) break;
+          if (foundFfmpeg) break;
         }
       }
     } catch (e) {
@@ -66,19 +64,15 @@ if (!fs.existsSync(ffmpegDest) || !fs.existsSync(ffprobeDest)) {
     }
   }
 
-  // If found locally, copy them
+  // If found locally, copy it
   if (foundFfmpeg && !fs.existsSync(ffmpegDest)) {
     console.log(`Copying ffmpeg: ${foundFfmpeg} -> ${ffmpegDest}`);
     fs.copyFileSync(foundFfmpeg, ffmpegDest);
   }
-  if (foundFfprobe && !fs.existsSync(ffprobeDest)) {
-    console.log(`Copying ffprobe: ${foundFfprobe} -> ${ffprobeDest}`);
-    fs.copyFileSync(foundFfprobe, ffprobeDest);
-  }
 
-  // If still missing, download both
-  if (!fs.existsSync(ffmpegDest) || !fs.existsSync(ffprobeDest)) {
-    console.log("FFmpeg/FFprobe binaries still missing. Downloading official essentials release...");
+  // If still missing, download
+  if (!fs.existsSync(ffmpegDest)) {
+    console.log("FFmpeg binary is still missing. Downloading official essentials release...");
     const zipUrl = "https://github.com/GyanD/codexffmpeg/releases/download/7.0.1/ffmpeg-7.0.1-essentials_build.zip";
     const tempZip = path.join(os.tmpdir(), "ffmpeg_temp.zip");
     const tempExtract = path.join(os.tmpdir(), "ffmpeg_temp_extracted");
@@ -107,31 +101,26 @@ if (!fs.existsSync(ffmpegDest) || !fs.existsSync(ffprobeDest)) {
       };
 
       const foundTempFfmpeg = searchForBinary(tempExtract, "ffmpeg.exe");
-      const foundTempFfprobe = searchForBinary(tempExtract, "ffprobe.exe");
 
       if (foundTempFfmpeg && !fs.existsSync(ffmpegDest)) {
         console.log(`Copying downloaded ffmpeg: ${foundTempFfmpeg} -> ${ffmpegDest}`);
         fs.copyFileSync(foundTempFfmpeg, ffmpegDest);
       }
-      if (foundTempFfprobe && !fs.existsSync(ffprobeDest)) {
-        console.log(`Copying downloaded ffprobe: ${foundTempFfprobe} -> ${ffprobeDest}`);
-        fs.copyFileSync(foundTempFfprobe, ffprobeDest);
-      }
 
-      if (!fs.existsSync(ffmpegDest) || !fs.existsSync(ffprobeDest)) {
-        throw new Error("Could not find ffmpeg.exe or ffprobe.exe in extracted archive.");
+      if (!fs.existsSync(ffmpegDest)) {
+        throw new Error("Could not find ffmpeg.exe in extracted archive.");
       }
 
       // Cleanup
       fs.unlinkSync(tempZip);
       fs.rmSync(tempExtract, { recursive: true, force: true });
     } catch (err) {
-      console.error("Failed to download FFmpeg/FFprobe:", err);
+      console.error("Failed to download FFmpeg:", err);
       process.exit(1);
     }
   }
 } else {
-  console.log("FFmpeg and FFprobe already exist in bin/win32.");
+  console.log("FFmpeg already exists in bin/win32.");
 }
 
 // Helper function to compress executable with UPX
@@ -191,13 +180,12 @@ function compressWithUpx(binPath) {
   }
 }
 
-// Compress FFmpeg and FFprobe with UPX
+// Compress FFmpeg with UPX
 if (process.platform === "win32") {
   try {
     compressWithUpx(ffmpegDest);
-    compressWithUpx(ffprobeDest);
   } catch (err) {
-    console.error("Error during UPX compression of FFmpeg/FFprobe:", err);
+    console.error("Error during UPX compression of FFmpeg:", err);
   }
 }
 
