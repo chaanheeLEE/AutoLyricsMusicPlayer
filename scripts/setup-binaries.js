@@ -218,7 +218,8 @@ if (fs.existsSync(transcribeDest) && fs.existsSync(transcribeSource)) {
 }
 
 if (shouldBuild) {
-  console.log("Building transcribe.py into transcribe.exe using PyInstaller...");
+  const withCuda = process.argv.includes("--with-cuda");
+  console.log(`Building transcribe.py into transcribe.exe using PyInstaller (${withCuda ? "Full CUDA Bundle" : "Lightweight CPU Edition"})...`);
   try {
     const tempDllsDir = path.join(__dirname, "..", "temp_nvidia_dlls");
 
@@ -236,22 +237,37 @@ if (shouldBuild) {
       pyinstallerRunner = "python -m PyInstaller";
     }
 
-    // 1. Copy NVIDIA DLLs
-    console.log("Collecting NVIDIA CUDA/CuDNN DLLs...");
-    const copyCmd = `${pythonRunner} scripts/copy-nvidia-dlls.py "${tempDllsDir}"`;
-    console.log(`Running: ${copyCmd}`);
-    try {
-      execSync(copyCmd, { stdio: "inherit" });
-    } catch (e) {
-      console.warn("Warning: copy-nvidia-dlls skipped or encountered warning.", e.message);
+    let addDataArg = "";
+    if (withCuda) {
+      // 1. Copy NVIDIA DLLs (Only when --with-cuda flag is specified)
+      console.log("Collecting NVIDIA CUDA/CuDNN DLLs (--with-cuda enabled)...");
+      const copyCmd = `${pythonRunner} scripts/copy-nvidia-dlls.py "${tempDllsDir}"`;
+      console.log(`Running: ${copyCmd}`);
+      try {
+        execSync(copyCmd, { stdio: "inherit" });
+      } catch (e) {
+        console.warn("Warning: copy-nvidia-dlls skipped or encountered warning.", e.message);
+      }
+
+      if (fs.existsSync(path.join(tempDllsDir, "nvidia"))) {
+        addDataArg = `--add-data "${tempDllsDir}/nvidia;nvidia"`;
+      }
+    } else {
+      console.log("[Size Optimization] Skipping CUDA DLL bundling to reduce binary size by ~800MB.");
+      console.log("Note: To bundle CUDA/cuDNN DLLs for standalone GPU support, build with '--with-cuda'.");
     }
 
-    // 2. Build using PyInstaller
-    const addDataArg = fs.existsSync(path.join(tempDllsDir, "nvidia"))
-      ? `--add-data "${tempDllsDir}/nvidia;nvidia"`
-      : "";
+    // 2. Build using PyInstaller with excludes for unused modules
+    const excludeModules = [
+      "tkinter",
+      "matplotlib",
+      "scipy",
+      "unittest",
+      "test",
+      "pydoc"
+    ].map(m => `--exclude-module ${m}`).join(" ");
 
-    const buildCmd = `${pyinstallerRunner} --onefile --clean --collect-all faster_whisper --collect-all ctranslate2 ${addDataArg} --distpath "${binDir}" "src/main/services/transcribe.py"`;
+    const buildCmd = `${pyinstallerRunner} --onefile --clean ${excludeModules} --collect-all faster_whisper --collect-all ctranslate2 ${addDataArg} --distpath "${binDir}" "src/main/services/transcribe.py"`;
     console.log(`Running: ${buildCmd}`);
     execSync(buildCmd, { stdio: "inherit" });
     console.log("transcribe.exe built successfully!");
