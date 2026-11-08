@@ -207,6 +207,26 @@
               </div>
             </div>
 
+            <div class="settings-item" id="cudaPackManagerGroup">
+              <div class="settings-info">
+                <label>NVIDIA GPU 가속 팩 (CUDA)</label>
+                <p id="cudaStatusDesc">로컬 Whisper GPU 가속을 위한 CUDA 런타임 팩 상태입니다.</p>
+              </div>
+              <div class="settings-control cuda-pack-control">
+                <div class="cuda-status-row">
+                  <span id="cudaStatusBadge" class="cuda-status-badge">확인 중...</span>
+                  <span id="cudaSizeLabel" class="cuda-size-label"></span>
+                </div>
+                <div id="cudaProgressBarArea" class="cuda-progress-bar-area" style="display: none;">
+                  <div class="cuda-progress-track">
+                    <div id="cudaProgressFill" class="cuda-progress-fill"></div>
+                  </div>
+                  <div id="cudaProgressText" class="cuda-progress-text">다운로드 준비 중...</div>
+                </div>
+                <div class="cuda-actions" id="cudaActionsArea"></div>
+              </div>
+            </div>
+
             <div class="settings-item">
               <div class="settings-info">
                 <label for="settingLanguage">음성 분석 언어</label>

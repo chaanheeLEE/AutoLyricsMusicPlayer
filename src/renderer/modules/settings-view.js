@@ -46,6 +46,17 @@ class SettingsView {
     this.cachedModelList = [];
     this._accordionOpen = false;
 
+    // CUDA 가속 팩 관리 UI
+    this.cudaPackManagerGroup = document.querySelector("#cudaPackManagerGroup");
+    this.cudaStatusDesc = document.querySelector("#cudaStatusDesc");
+    this.cudaStatusBadge = document.querySelector("#cudaStatusBadge");
+    this.cudaSizeLabel = document.querySelector("#cudaSizeLabel");
+    this.cudaActionsArea = document.querySelector("#cudaActionsArea");
+    this.cudaProgressBarArea = document.querySelector("#cudaProgressBarArea");
+    this.cudaProgressFill = document.querySelector("#cudaProgressFill");
+    this.cudaProgressText = document.querySelector("#cudaProgressText");
+    this.isCudaDownloading = false;
+
     this.tempShortcuts = {};
     this.capturingAction = null;
     this.shortcutBtns = document.querySelectorAll(".shortcut-capture-btn");
@@ -55,6 +66,12 @@ class SettingsView {
     if (window.lyricsPlayer?.onModelDownloadProgress) {
       window.lyricsPlayer.onModelDownloadProgress((msg) => {
         this.handleDownloadProgress(msg);
+      });
+    }
+
+    if (window.lyricsPlayer?.onCudaDownloadProgress) {
+      window.lyricsPlayer.onCudaDownloadProgress((msg) => {
+        this.handleCudaProgress(msg);
       });
     }
   }
@@ -162,6 +179,7 @@ class SettingsView {
     this.tabGeneralBtn.click();
     this.updateSTTEngineUI();
     this._toggleAccordion(false);
+    this.refreshCudaStatus();
     this.capturingAction = null;
     this.settingsDialog.showModal();
   }
@@ -185,6 +203,7 @@ class SettingsView {
     this.toggleVisibility(this.settingModelGroup, !isGemini);
     this.toggleVisibility(this.modelManagerAccordion, !isGemini);
     this.toggleVisibility(this.settingWhisperDeviceGroup, !isGemini);
+    this.toggleVisibility(this.cudaPackManagerGroup, !isGemini);
     this.toggleVisibility(this.settingGeminiModelGroup, showGeminiModel);
     this.updateAutoAnalyzeDropdownState();
   }
@@ -267,8 +286,9 @@ class SettingsView {
 
     this.cachePathLabel.textContent = dataPath;
 
-    // 모델 목록 비동기 갱신 (설정창이 열릴 때마다 자동 새로고침)
+    // 모델 목록 및 CUDA 상태 비동기 갱신
     this.refreshModelList();
+    this.refreshCudaStatus();
   }
 
   _toggleAccordion(forceState) {
@@ -447,6 +467,159 @@ class SettingsView {
       await this.refreshModelList();
     } else {
       alert(`모델 삭제 실패: ${result?.error || "알 수 없는 오류"}`);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // NVIDIA GPU 가속 팩 (CUDA) 관리 기능
+  // ─────────────────────────────────────────────────────────────────────
+  async refreshCudaStatus() {
+    if (!window.lyricsPlayer?.checkCudaStatus || !this.cudaStatusBadge) return;
+    try {
+      const status = await window.lyricsPlayer.checkCudaStatus();
+      this.renderCudaStatus(status);
+    } catch (err) {
+      console.error("[SettingsView] Failed to check CUDA status:", err);
+    }
+  }
+
+  renderCudaStatus(status) {
+    if (!this.cudaStatusBadge || !this.cudaActionsArea) return;
+
+    this.cudaStatusBadge.className = "cuda-status-badge";
+    this.cudaActionsArea.innerHTML = "";
+    if (this.cudaSizeLabel) this.cudaSizeLabel.textContent = "";
+
+    if (status.installed) {
+      this.cudaStatusBadge.classList.add("installed");
+      this.cudaStatusBadge.textContent = "✓ GPU 가속 준비 완료 (CUDA)";
+      const gpuInfo = status.gpuName ? `[${status.gpuName}] ` : "";
+      this.cudaStatusDesc.textContent = `${gpuInfo}NVIDIA CUDA 가속 환경이 준비되어 고속 Whisper 전사를 지원합니다.`;
+      
+      if (status.diskSizeFormatted && status.diskSizeFormatted !== "0 MB") {
+        this.cudaSizeLabel.textContent = `(${status.diskSizeFormatted})`;
+      }
+
+      if (status.isCustomInstalled) {
+        // 재설치 버튼
+        const reinstallBtn = document.createElement("button");
+        reinstallBtn.type = "button";
+        reinstallBtn.className = "btn-cuda-action btn-reinstall";
+        reinstallBtn.textContent = "🔄 재설치";
+        reinstallBtn.disabled = this.isCudaDownloading;
+        reinstallBtn.addEventListener("click", () => this.reinstallCudaPack());
+
+        // 삭제 버튼
+        const deleteBtn = document.createElement("button");
+        deleteBtn.type = "button";
+        deleteBtn.className = "btn-cuda-action btn-delete";
+        deleteBtn.textContent = "🗑 삭제";
+        deleteBtn.disabled = this.isCudaDownloading;
+        deleteBtn.addEventListener("click", () => this.deleteCudaPack());
+
+        this.cudaActionsArea.appendChild(reinstallBtn);
+        this.cudaActionsArea.appendChild(deleteBtn);
+      } else if (status.isSystemInstalled) {
+        const sysLabel = document.createElement("span");
+        sysLabel.className = "cuda-size-label";
+        sysLabel.textContent = "(시스템 CUDA Toolkit 연동됨)";
+        this.cudaActionsArea.appendChild(sysLabel);
+      }
+    } else {
+      if (!status.hasNvidia) {
+        this.cudaStatusBadge.classList.add("no-gpu");
+        this.cudaStatusBadge.textContent = "NVIDIA GPU 미감지";
+        this.cudaStatusDesc.textContent = "NVIDIA 외장 그래픽 카드가 감지되지 않았습니다. (외장 GPU가 있는 경우 수동 설치 가능)";
+      } else {
+        this.cudaStatusBadge.classList.add("not-installed");
+        this.cudaStatusBadge.textContent = "미설치 (CPU 모드 동작)";
+        const gpuInfo = status.gpuName ? `[${status.gpuName} 감지됨] ` : "";
+        this.cudaStatusDesc.textContent = `${gpuInfo}GPU 가속 팩(CUDA DLL)을 설치하면 가사 추출 속도가 대폭 향상됩니다.`;
+      }
+
+      const installBtn = document.createElement("button");
+      installBtn.type = "button";
+      installBtn.className = "btn-cuda-action btn-download";
+      installBtn.textContent = "⬇ GPU 가속 팩 설치";
+      installBtn.disabled = this.isCudaDownloading;
+      installBtn.addEventListener("click", () => this.installCudaPack());
+
+      this.cudaActionsArea.appendChild(installBtn);
+    }
+  }
+
+  async installCudaPack() {
+    if (this.isCudaDownloading) return;
+    this.isCudaDownloading = true;
+    if (this.cudaProgressBarArea) {
+      this.cudaProgressBarArea.style.display = "flex";
+      this.cudaProgressFill.style.width = "0%";
+      this.cudaProgressText.textContent = "GPU 가속 팩 다운로드 준비 중...";
+    }
+    await this.refreshCudaStatus();
+
+    try {
+      const res = await window.lyricsPlayer.downloadCudaPack();
+      if (res?.ok) {
+        alert("NVIDIA GPU 가속 팩(CUDA) 설치가 완료되었습니다!\n이제 Whisper 가속 장치에서 GPU(CUDA)를 사용할 수 있습니다.");
+      }
+    } catch (err) {
+      console.error("[SettingsView] CUDA pack install failed:", err);
+      alert(`GPU 가속 팩 설치 실패: ${err.message || err}`);
+    } finally {
+      this.isCudaDownloading = false;
+      if (this.cudaProgressBarArea) {
+        this.cudaProgressBarArea.style.display = "none";
+      }
+      await this.refreshCudaStatus();
+    }
+  }
+
+  handleCudaProgress(msg) {
+    if (!this.cudaProgressBarArea) return;
+    this.cudaProgressBarArea.style.display = "flex";
+
+    if (msg.percent != null) {
+      const pct = Math.round(msg.percent * 100);
+      this.cudaProgressFill.style.width = `${pct}%`;
+    }
+    if (msg.message) {
+      this.cudaProgressText.textContent = msg.message;
+    }
+    if (msg.stage === "done" || msg.stage === "cancelled") {
+      this.isCudaDownloading = false;
+      this.cudaProgressBarArea.style.display = "none";
+      this.refreshCudaStatus();
+    }
+  }
+
+  async deleteCudaPack() {
+    const ok = confirm("GPU 가속 팩을 디스크에서 삭제하시겠습니까?\n삭제 후에는 기본 CPU 모드로 동작하게 됩니다.");
+    if (!ok) return;
+
+    try {
+      const res = await window.lyricsPlayer.deleteCudaPack();
+      if (res?.ok) {
+        alert("GPU 가속 팩이 성공적으로 삭제되었습니다.");
+      } else {
+        alert(`삭제 실패: ${res?.error || "알 수 없는 오류"}`);
+      }
+    } catch (err) {
+      alert(`삭제 처리 중 오류 발생: ${err.message}`);
+    } finally {
+      await this.refreshCudaStatus();
+    }
+  }
+
+  async reinstallCudaPack() {
+    const ok = confirm("현재 설치된 GPU 가속 팩을 제거하고 새로 재설치하시겠습니까?");
+    if (!ok) return;
+
+    try {
+      await window.lyricsPlayer.deleteCudaPack();
+      await this.installCudaPack();
+    } catch (err) {
+      alert(`재설치 중 오류 발생: ${err.message}`);
     }
   }
   // ─────────────────────────────────────────────────────────────────────

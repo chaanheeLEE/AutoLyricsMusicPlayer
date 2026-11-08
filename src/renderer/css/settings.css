@@ -760,4 +760,133 @@
   text-decoration: underline;
 }
 
+/* CUDA Pack Manager Styles */
+.cuda-pack-control {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.cuda-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cuda-status-badge {
+  font-size: 0.75rem;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+}
+
+.cuda-status-badge.installed {
+  background: rgba(46, 204, 113, 0.15);
+  color: #2ecc71;
+  border: 1px solid rgba(46, 204, 113, 0.3);
+}
+
+.cuda-status-badge.not-installed {
+  background: rgba(231, 76, 60, 0.12);
+  color: #e74c3c;
+  border: 1px solid rgba(231, 76, 60, 0.25);
+}
+
+.cuda-status-badge.no-gpu {
+  background: rgba(149, 165, 166, 0.15);
+  color: var(--muted);
+  border: 1px solid rgba(149, 165, 166, 0.25);
+}
+
+.cuda-size-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.cuda-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-cuda-action {
+  font-size: 0.78rem;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid var(--line);
+  background: var(--panel-soft);
+  color: var(--text);
+  transition: all 0.15s ease;
+}
+
+.btn-cuda-action:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.btn-cuda-action.btn-download {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.btn-cuda-action.btn-download:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.btn-cuda-action.btn-delete {
+  color: #e74c3c;
+  border-color: rgba(231, 76, 60, 0.3);
+}
+
+.btn-cuda-action.btn-delete:hover:not(:disabled) {
+  background: rgba(231, 76, 60, 0.15);
+}
+
+.btn-cuda-action.btn-reinstall {
+  color: var(--muted);
+}
+
+.btn-cuda-action.btn-reinstall:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.btn-cuda-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cuda-progress-bar-area {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.cuda-progress-track {
+  width: 100%;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.cuda-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+
+.cuda-progress-text {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-align: right;
+}
+
+
 

@@ -9,6 +9,12 @@
 
 ## ✅ 완료된 작업
 
+### GPU 가속 팩(CUDA) 관리자 구현 (2026-11-08)
+- `cuda-manager.js` 신규 생성: 시스템 NVIDIA GPU 및 런타임 DLL 상태 감지, 온디맨드 다운로드, 자동 압축 해제, 삭제 기능
+- `ipc-router.js` & `preload.js`: `cuda:status`, `cuda:download`, `cuda:cancel-download`, `cuda:delete` IPC 채널 및 렌더러 API 노출
+- `settings-view.js` & `settings.css` & `index.html`: 설정 화면 "Whisper 가속 장치" 아래에 실시간 상태 뱃지, 실시간 다운로드 프로그레스 바, **`[GPU 가속 팩 설치]`**, **`[재설치]`**, **`[삭제]`** 버튼 구현
+- `transcribe.py`: 지연 로딩(Lazy Loading)으로 인한 cuBLAS DLL 누락 사전 검사 및 런타임 CPU 자동 복구 Fallback 이중 안전장치 적용
+
 ### 애플리케이션 및 바이너리 용량 경량화 (2026-11-02)
 - **FFprobe 제거 및 메타데이터 추출 단일화**:
   - `lyrics-sources.js`: 음원 내장 가사 태그 추출 방식을 `ffprobe`에서 `ffmpeg -f ffmetadata` 표준 출력 파서로 교체

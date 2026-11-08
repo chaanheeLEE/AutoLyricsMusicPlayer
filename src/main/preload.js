@@ -50,4 +50,14 @@ contextBridge.exposeInMainWorld("lyricsPlayer", {
   removeModelDownloadProgressListener: () => {
     ipcRenderer.removeAllListeners("models:download-progress");
   },
+  checkCudaStatus: () => ipcRenderer.invoke("cuda:status"),
+  downloadCudaPack: () => ipcRenderer.invoke("cuda:download"),
+  cancelCudaDownload: () => ipcRenderer.invoke("cuda:cancel-download"),
+  deleteCudaPack: () => ipcRenderer.invoke("cuda:delete"),
+  onCudaDownloadProgress: (callback) => {
+    ipcRenderer.on("cuda:download-progress", (_event, msg) => callback(msg));
+  },
+  removeCudaDownloadProgressListener: () => {
+    ipcRenderer.removeAllListeners("cuda:download-progress");
+  },
 });

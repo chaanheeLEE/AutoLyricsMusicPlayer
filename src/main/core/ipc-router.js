@@ -12,6 +12,7 @@ const mediaHelper = require("../helpers/media-helper");
 const lyricsAligner = require("../helpers/lyrics-aligner");
 const lyricsTagger = require("../services/lyrics-tagger");
 const modelManager = require("../services/model-manager");
+const cudaManager = require("../services/cuda-manager");
 
 let activeJob = null;
 
@@ -341,6 +342,28 @@ function registerIpcHandlers(windowManager) {
 
   ipcMain.handle("models:delete", async (_event, modelId) => {
     return await modelManager.deleteModel(modelId);
+  });
+
+  // CUDA GPU 가속 팩 관리 IPC
+  ipcMain.handle("cuda:status", async () => {
+    return await cudaManager.getCudaStatus();
+  });
+
+  ipcMain.handle("cuda:download", async () => {
+    const mainWindow = windowManager.getMainWindow();
+    return await cudaManager.downloadCudaPack((msg) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("cuda:download-progress", msg);
+      }
+    });
+  });
+
+  ipcMain.handle("cuda:cancel-download", () => {
+    return cudaManager.cancelCudaDownload();
+  });
+
+  ipcMain.handle("cuda:delete", async () => {
+    return await cudaManager.deleteCudaPack();
   });
 }
 

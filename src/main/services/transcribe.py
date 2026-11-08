@@ -49,6 +49,8 @@ def main():
         if app_data:
             base_paths.append(os.path.join(app_data, "auto-lyrics-player"))
             base_paths.append(os.path.join(app_data, "auto-lyrics-player", "bin"))
+            base_paths.append(os.path.join(app_data, "AutoLyricsPlayer"))
+            base_paths.append(os.path.join(app_data, "AutoLyricsPlayer", "bin"))
 
         for path in base_paths:
             if not path:
@@ -246,6 +248,25 @@ def main():
 
             return output_lines, info_obj
 
+        # CUDA 런타임 라이브러리(cublas64_*.dll 등) 로드 가능 여부 사전 확인
+        def check_cuda_runtime():
+            if ctranslate2.get_cuda_device_count() == 0:
+                return False, "No CUDA devices detected"
+            if platform.system() == "Windows":
+                import ctypes
+                found_cublas = False
+                for dll_name in ["cublas64_12.dll", "cublas64_11.dll"]:
+                    try:
+                        ctypes.CDLL(dll_name)
+                        found_cublas = True
+                        break
+                    except Exception:
+                        pass
+                if not found_cublas:
+                    return False, "cublas64_12.dll 또는 cublas64_11.dll을 로드할 수 없습니다"
+            return True, "CUDA available"
+
+        cuda_ok, cuda_reason = check_cuda_runtime()
         model = None
         device_choice = args.device
         lines = []
@@ -260,13 +281,20 @@ def main():
             compute_type = "int8"
             mode_msg = "Using CPU for transcription (forced)."
         elif device_choice == "cuda":
-            if ctranslate2.get_cuda_device_count() == 0:
-                raise RuntimeError("No CUDA devices found, but GPU Only (cuda) was requested.")
-            resolved_device = "cuda"
-            compute_type = "float16"
-            mode_msg = "Using CUDA (GPU) for transcription (forced)."
+            if not cuda_ok:
+                emit({
+                    "type": "info",
+                    "message": f"GPU 가속(CUDA)이 요청되었으나 필수 런타임 라이브러리가 없어 CPU로 전환합니다 ({cuda_reason})."
+                })
+                resolved_device = "cpu"
+                compute_type = "int8"
+                mode_msg = "Using CPU for transcription (fallback from forced CUDA)."
+            else:
+                resolved_device = "cuda"
+                compute_type = "float16"
+                mode_msg = "Using CUDA (GPU) for transcription (forced)."
         else: # "auto"
-            if ctranslate2.get_cuda_device_count() > 0:
+            if cuda_ok:
                 try:
                     # Attempt GPU (CUDA) model load first
                     model = WhisperModel(args.model, device="cuda", compute_type="float16")
@@ -279,6 +307,11 @@ def main():
                         "message": f"CUDA initialization failed, falling back to CPU. Error: {str(e)}\n{traceback.format_exc()}"
                     })
                     model = None
+            else:
+                emit({
+                    "type": "info",
+                    "message": f"CUDA 미지원 또는 필수 라이브러리 부재로 CPU 모드를 사용합니다 ({cuda_reason})."
+                })
 
             if model is None:
                 resolved_device = "cpu"
@@ -289,7 +322,30 @@ def main():
             model = WhisperModel(args.model, device=resolved_device, compute_type=compute_type)
 
         emit({"type": "info", "message": mode_msg})
-        lines, info = run_transcription(model)
+
+        # 런타임 실행 중 예외 처리 (lazy loading으로 인한 cublas/cudnn 지연 에러 등 방어)
+        try:
+            lines, info = run_transcription(model)
+        except Exception as run_exc:
+            err_str = str(run_exc).lower()
+            if resolved_device == "cuda" and ("cublas" in err_str or "cudnn" in err_str or "cuda" in err_str or "out of memory" in err_str or isinstance(run_exc, RuntimeError)):
+                emit({
+                    "type": "info",
+                    "message": f"CUDA 추론 도중 런타임 오류 발생: {str(run_exc)}. CPU 모드로 안전하게 재시도합니다."
+                })
+                try:
+                    del model
+                    import gc
+                    gc.collect()
+                except Exception:
+                    pass
+                resolved_device = "cpu"
+                compute_type = "int8"
+                model = WhisperModel(args.model, device="cpu", compute_type="int8")
+                emit({"type": "info", "message": "Using CPU for transcription (recovered from GPU error)."})
+                lines, info = run_transcription(model)
+            else:
+                raise run_exc
 
         # Emit all generated segment JSONs
         for line in lines:
