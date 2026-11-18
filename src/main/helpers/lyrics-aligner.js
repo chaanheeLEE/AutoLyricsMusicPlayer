@@ -31,7 +31,7 @@ async function alignAndInterpolateLyrics(payload) {
     }
 
     // 2. Gemini API 호출 (gemini-service 모듈 위임)
-    const geminiModel = settings?.geminiModel || "gemini-3.5-flash";
+    const geminiModel = settings?.geminiModel || "gemini-3.5-flash-lite";
     const alignment = await alignLyricsWithGemini(apiKey, officialLines, whisperLyrics, geminiModel, maxDuration);
 
     const whisperMap = new Map();

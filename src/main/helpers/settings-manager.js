@@ -8,7 +8,7 @@ const DEFAULT_SETTINGS = {
   whisperDevice: "auto",
   language: null,
   geminiApiKey: "",
-  geminiModel: "gemini-3.1-flash-lite",
+  geminiModel: "gemini-3.5-flash-lite",
   autoAnalyzeMode: "off",
   firstRunCompleted: false,
   floatingFontSize: 18,

@@ -3,11 +3,15 @@
 ## 📌 남은 기능 구현
 - 더 많은 플레이리스트 정렬방식 (앨범명→ 앨범내 곡 번호, 커스텀 정렬 저장 가능)
 - 플레이리스트 저장 및 불러오기
-- Gemini 최신 모델로 Transcribe 및 Align 업데이트
 
 ---
 
 ## ✅ 완료된 작업
+
+### Gemini 최신 모델(3.5-flash-lite / 3.8-flash) 지원 및 구조 단순화 (2026-11-08)
+- **UI 및 기본 설정 단순화**: STT/정렬 전반에 가장 안정적이고 뛰어난 성능을 보이는 `gemini-3.5-flash-lite`(기본값), `gemini-3.8-flash` 2종 옵션 반영 (`gemini-3.5-transcribe`는 Developer Instruction 미지원 등 제약으로 배제)
+- **Fallback 걷어내기 및 즉시 직결 호출**: 불필요한 모델 재시도 루프와 분기 처리를 제거하고, 사용자가 선택한 모델로 딜레이 없이 즉시 직결 호출되도록 간소화
+- **안전한 응답 파서 구축**: `parseTranscriptionResponse`를 통해 표준 JSON뿐만 아니라 SRT, LRC, 마크다운 코드블록, 타임스탬프 텍스트 출력까지 견고하게 정규화 파싱
 
 ### GPU 가속 팩(CUDA) 관리자 구현 (2026-11-08)
 - `cuda-manager.js` 신규 생성: 시스템 NVIDIA GPU 및 런타임 DLL 상태 감지, 온디맨드 다운로드, 자동 압축 해제, 삭제 기능

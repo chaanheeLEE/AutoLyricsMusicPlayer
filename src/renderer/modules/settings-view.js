@@ -260,7 +260,7 @@ class SettingsView {
     this.settingEngine.value = settings.sttEngine || "whisper";
     this.settingModel.value = settings.model;
     this.settingWhisperDevice.value = settings.whisperDevice || "auto";
-    this.settingGeminiModel.value = settings.geminiModel || "gemini-3.1-flash-lite";
+    this.settingGeminiModel.value = settings.geminiModel || "gemini-3.5-flash-lite";
     this.settingLanguage.value = settings.language || "";
     this.settingGeminiKey.value = settings.geminiApiKey || "";
     this.settingAutoAnalyzeMode.value = settings.autoAnalyzeMode || "off";

@@ -240,7 +240,7 @@ function registerIpcHandlers(windowManager) {
 
         if (cancelled) throw new Error("cancelled");
 
-        const lines = await transcribeAudioWithGemini(apiKey, track.path, track.duration, options.geminiModel || "gemini-3.1-flash-lite");
+        const lines = await transcribeAudioWithGemini(apiKey, track.path, track.duration, options.geminiModel || "gemini-3.5-flash-lite");
 
         if (cancelled) throw new Error("cancelled");
 

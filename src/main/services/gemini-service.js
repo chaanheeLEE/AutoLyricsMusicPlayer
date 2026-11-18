@@ -6,10 +6,10 @@ const crypto = require("node:crypto");
 const { transcribeSystemInstruction, alignSystemInstruction } = require("./gemini-prompts");
 
 /**
- * Gemini 3.1 Flash-Lite 모델을 호출하여 공식 가사와 Whisper STT 결과를 정밀 정렬합니다.
+ * Gemini 모델을 호출하여 공식 가사와 Whisper STT 결과를 정밀 정렬합니다.
  * 공식 Google GenAI SDK를 활용해 스키마 번역 오류를 완벽히 해소하고, Exponential Backoff를 통한 재시도를 수행합니다.
  */
-async function callGeminiApiWithRetry(apiKey, contents, systemInstruction, responseSchema, geminiModel = "gemini-3.1-flash-lite", retries = 3, delay = 1000) {
+async function callGeminiApiWithRetry(apiKey, contents, systemInstruction, responseSchema, geminiModel = "gemini-3.5-flash-lite", retries = 3, delay = 1000) {
   const ai = new GoogleGenAI({ apiKey: apiKey });
 
   for (let attempt = 1; attempt <= retries; attempt++) {
@@ -47,7 +47,7 @@ async function callGeminiApiWithRetry(apiKey, contents, systemInstruction, respo
 /**
  * 공식 가사 라인 배열과 Whisper 분석 결과를 받아 정렬을 수행합니다.
  */
-async function alignLyricsWithGemini(apiKey, officialLines, whisperLyrics, geminiModel = "gemini-3.1-flash-lite", duration = null) {
+async function alignLyricsWithGemini(apiKey, officialLines, whisperLyrics, geminiModel = "gemini-3.5-flash-lite", duration = null) {
   const systemInstruction = alignSystemInstruction;
 
   const formatTime = (t) => (t !== null && t !== undefined && !isNaN(t)) ? `${t.toFixed(2)}s` : "unknown";
@@ -80,10 +80,101 @@ async function alignLyricsWithGemini(apiKey, officialLines, whisperLyrics, gemin
 }
 
 /**
+ * Gemini 모델의 텍스트/JSON 출력을 안전하게 자막 세그먼트 배열로 파싱합니다.
+ * JSON 스키마뿐만 아니라 마크다운 코드블록, 타임스탬프 텍스트 출력도 유연하게 파싱합니다.
+ */
+function parseTranscriptionResponse(rawText) {
+  if (!rawText) return [];
+
+  let cleaned = rawText.trim();
+  if (cleaned.startsWith("```")) {
+    cleaned = cleaned.replace(/^```[a-zA-Z]*\n?/, "").replace(/\n?```$/, "").trim();
+  }
+
+  // 1. JSON 파싱 시도
+  try {
+    const parsed = JSON.parse(cleaned);
+    if (Array.isArray(parsed)) {
+      return parsed.map((item, idx) => ({
+        id: `line_${String(idx + 1).padStart(3, "0")}`,
+        start: Number(item.start || item.startTime || 0),
+        end: Number(item.end || item.endTime || (item.start ? Number(item.start) + 2 : 0)),
+        text: String(item.text || item.sentence || "").trim(),
+        confidence: 0.9
+      })).filter(s => s.text.length > 0);
+    }
+  } catch {
+    // JSON 형식이 아닌 경우 정규식 파서로 fallback
+  }
+
+  // 2. [start ~ end] text 또는 [mm:ss.xx] text 라인별 파싱
+  const lines = cleaned.split(/\r?\n/);
+  const segments = [];
+  let segIdx = 1;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    // 패턴 A: [0.0 ~ 2.5] 가사 또는 [0:12.34 ~ 0:15.60] 가사
+    const rangeMatch = trimmed.match(/\[?\s*(\d+(?::\d+)?(?:\.\d+)?)\s*(?:~|-|-->)\s*(\d+(?::\d+)?(?:\.\d+)?)\s*\]?\s*:?\s*(.+)/);
+    if (rangeMatch) {
+      const parseSec = (str) => {
+        if (str.includes(":")) {
+          const parts = str.split(":");
+          return parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
+        }
+        return parseFloat(str);
+      };
+      const start = parseSec(rangeMatch[1]);
+      const end = parseSec(rangeMatch[2]);
+      const text = rangeMatch[3].trim();
+      if (text) {
+        segments.push({
+          id: `line_${String(segIdx++).padStart(3, "0")}`,
+          start: isNaN(start) ? 0 : start,
+          end: isNaN(end) ? (start + 2) : end,
+          text,
+          confidence: 0.9
+        });
+        continue;
+      }
+    }
+
+    // 패턴 B: [mm:ss.xx] 일반 LRC 타임스탬프
+    const lrcMatch = trimmed.match(/\[(\d{2}):(\d{2}(?:\.\d{2,3})?)\](.*)/);
+    if (lrcMatch) {
+      const min = parseInt(lrcMatch[1], 10);
+      const sec = parseFloat(lrcMatch[2]);
+      const start = min * 60 + sec;
+      const text = lrcMatch[3].trim();
+      if (text) {
+        segments.push({
+          id: `line_${String(segIdx++).padStart(3, "0")}`,
+          start,
+          end: start + 2.5,
+          text,
+          confidence: 0.9
+        });
+      }
+    }
+  }
+
+  // 인접 세그먼트 시간 보정
+  for (let i = 0; i < segments.length; i++) {
+    if (i < segments.length - 1 && segments[i].end > segments[i + 1].start) {
+      segments[i].end = segments[i + 1].start;
+    }
+  }
+
+  return segments;
+}
+
+/**
  * Gemini File API와 GenerateContent를 활용하여 로컬 오디오 파일을 텍스트(STT)로 변환합니다.
  * 타임스탬프 정보를 정확하게 JSON 형식으로 반환받습니다.
  */
-async function transcribeAudioWithGemini(apiKey, filePath, duration = null, geminiModel = "gemini-3.1-flash-lite") {
+async function transcribeAudioWithGemini(apiKey, filePath, duration = null, geminiModel = "gemini-3.5-flash-lite") {
   const ai = new GoogleGenAI({ apiKey: apiKey });
 
   const ext = path.extname(filePath).toLowerCase();
@@ -161,27 +252,19 @@ async function transcribeAudioWithGemini(apiKey, filePath, duration = null, gemi
       }
     };
 
-    console.log(`[Gemini STT] Calling generateContent with model: ${geminiModel}`);
     const response = await ai.models.generateContent({
-      model: geminiModel,
-      contents: [
-        {
-          role: "user",
-          parts: [
-            { text: prompt },
-            {
-              fileData: {
-                fileUri: uploadResult.uri,
-                mimeType: uploadResult.mimeType
-              }
-            }
-          ]
-        }
-      ],
+      model: geminiModel || "gemini-3.5-flash-lite",
+      contents: [{
+        role: "user",
+        parts: [
+          { text: prompt },
+          { fileData: { fileUri: uploadResult.uri, mimeType: uploadResult.mimeType } }
+        ]
+      }],
       config: {
-        systemInstruction: systemInstruction,
+        systemInstruction,
         responseMimeType: "application/json",
-        responseSchema: responseSchema
+        responseSchema
       }
     });
 
@@ -190,16 +273,10 @@ async function transcribeAudioWithGemini(apiKey, filePath, duration = null, gemi
       throw new Error("No transcription returned from Gemini");
     }
 
-    const segments = JSON.parse(text);
+    const segments = parseTranscriptionResponse(text);
     console.log(`[Gemini STT] Successfully transcribed ${segments.length} segments`);
 
-    return segments.map((seg, idx) => ({
-      id: `line_${String(idx + 1).padStart(3, "0")}`,
-      start: Number(seg.start),
-      end: Number(seg.end),
-      text: String(seg.text).trim(),
-      confidence: 0.9
-    }));
+    return segments;
 
   } finally {
     // 1. 로컬 임시 파일 제거
