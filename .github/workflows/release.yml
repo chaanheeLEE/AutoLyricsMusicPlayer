@@ -36,9 +36,7 @@ jobs:
         run: npm run check
 
       - name: Build Electron App
-        run: npm run build
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run build -- -c.publish=never
 
       - name: Package CUDA GPU Acceleration Pack
         run: |
