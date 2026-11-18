@@ -16,8 +16,10 @@ const { execFile } = require("node:child_process");
 const https = require("node:https");
 const http = require("node:http");
 
-// 공식 릴리즈 Assets 또는 미러 URL
-const CUDA_PACK_URL = "https://github.com/chaanheeLEE/musicPlayer/releases/download/v0.5.4/cuda-runtime-win64.zip";
+// 공식 릴리즈 최신(latest) Assets 또는 환경변수 오버라이드 URL
+const GITHUB_REPO = "chaanheeLEE/AutoLyricsMusicPlayer";
+const CUDA_PACK_FILENAME = "cuda-runtime-win64.zip";
+const CUDA_PACK_URL = process.env.CUDA_PACK_URL || `https://github.com/${GITHUB_REPO}/releases/latest/download/${CUDA_PACK_FILENAME}`;
 
 let activeAbortController = null;
 let isDownloading = false;

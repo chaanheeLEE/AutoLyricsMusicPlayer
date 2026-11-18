@@ -40,12 +40,19 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Package CUDA GPU Acceleration Pack
+        run: |
+          python scripts/copy-nvidia-dlls.py temp_nvidia_dlls
+          Compress-Archive -Path 'temp_nvidia_dlls/nvidia/*' -DestinationPath 'dist/cuda-runtime-win64.zip' -Force
+        shell: pwsh
+
       - name: Publish Release Artifacts
         uses: softprops/action-gh-release@v2
         with:
           files: |
             dist/*.exe
             dist/*.blockmap
+            dist/cuda-runtime-win64.zip
           draft: false
           prerelease: false
           generate_release_notes: true

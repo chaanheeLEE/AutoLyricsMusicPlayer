@@ -58,7 +58,7 @@ def main():
             nvidia_dir = os.path.join(path, "nvidia")
             if os.path.exists(nvidia_dir):
                 for root, dirs, files in os.walk(nvidia_dir):
-                    if root.endswith("bin") or root.endswith("lib"):
+                    if root.endswith("bin") or root.endswith("lib") or any(f.lower().endswith(".dll") for f in files):
                         try:
                             if hasattr(os, "add_dll_directory"):
                                 os.add_dll_directory(root)
