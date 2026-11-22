@@ -33,6 +33,15 @@ const playerBarArt = document.querySelector("#playerBarArt");
 const playerBarPlaceholder = document.querySelector("#playerBarPlaceholder");
 const queueToggleButton = document.querySelector("#queueToggleButton");
 
+// Views & Edit Toolbar Elements
+const nowPlayingView = document.querySelector("#nowPlayingView");
+const lyricsEditView = document.querySelector("#lyricsEditView");
+const editTrackTitle = document.querySelector("#editTrackTitle");
+const exitEditModeBtn = document.querySelector("#exitEditModeBtn");
+const saveEditBtn = document.querySelector("#saveEditBtn");
+const exportDropdownBtn = document.querySelector("#exportDropdownBtn");
+const exportDropdownMenu = document.querySelector("#exportDropdownMenu");
+
 const { formatClock, escapeHtml } = window.lyricsCore;
 
 // Global State
@@ -241,8 +250,29 @@ const lyricsViewer = new LyricsViewer(state, {
   },
   onGetCurrentTime: () => {
     return player.getCurrentTime();
+  },
+  onToggleEditView: (isEdit) => {
+    switchView(isEdit ? "lyrics-edit" : "now-playing");
   }
 });
+
+function switchView(viewName) {
+  if (viewName === "lyrics-edit") {
+    if (nowPlayingView) nowPlayingView.classList.remove("active");
+    if (lyricsEditView) lyricsEditView.classList.add("active");
+    if (editTrackTitle) {
+      editTrackTitle.textContent = state.track?.title ? parseArtistTitle(state.track.title).title : "선택된 곡 없음";
+    }
+    if (lyricsViewer) lyricsViewer.renderEditView();
+  } else {
+    // now-playing view
+    if (lyricsEditView) lyricsEditView.classList.remove("active");
+    if (nowPlayingView) nowPlayingView.classList.add("active");
+    if (navNowPlayingBtn) navNowPlayingBtn.classList.add("active");
+    if (navLibraryBtn) navLibraryBtn.classList.remove("active");
+    if (lyricsViewer) lyricsViewer.render();
+  }
+}
 
 const settingsView = new SettingsView(state, {
   onSave: (savedSettings) => {
@@ -961,10 +991,38 @@ function initMediaSession() {
 
   if (navEditLyricsBtn) {
     navEditLyricsBtn.addEventListener("click", () => {
-      const editBtn = document.querySelector("#editModeButton");
-      if (editBtn) {
-        editBtn.click();
+      lyricsViewer.toggleEditMode(true);
+    });
+  }
+
+  // 가사 전용 편집 화면 툴바 이벤트
+  if (exitEditModeBtn) {
+    exitEditModeBtn.addEventListener("click", () => {
+      lyricsViewer.toggleEditMode(false);
+    });
+  }
+
+  if (saveEditBtn) {
+    saveEditBtn.addEventListener("click", () => {
+      persistLyricsImmediately();
+      lyricsViewer.toggleEditMode(false);
+    });
+  }
+
+  if (exportDropdownBtn && exportDropdownMenu) {
+    exportDropdownBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      exportDropdownMenu.classList.toggle("show");
+    });
+
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".dropdown-wrap")) {
+        exportDropdownMenu.classList.remove("show");
       }
+    });
+
+    exportDropdownMenu.addEventListener("click", () => {
+      exportDropdownMenu.classList.remove("show");
     });
   }
 })();

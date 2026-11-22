@@ -1,11 +1,23 @@
 class LyricsViewer {
   constructor(state, callbacks) {
     this.state = state;
-    this.callbacks = callbacks; // { onSeek, onOffsetChange, onLyricTextChange }
+    this.callbacks = callbacks; // { onSeek, onOffsetChange, onLyricTextChange, onToggleEditView, onGetCurrentTime }
     this.lyricsList = document.querySelector("#lyricsList");
     this.syncOffsetBadge = document.querySelector("#syncOffsetBadge");
     this.editModeButton = document.querySelector("#editModeButton");
     this.resumeScrollBtn = document.querySelector("#resumeScrollBtn");
+
+    // 전용 가사 편집 화면 요소들
+    this.editLyricsList = document.querySelector("#editLyricsList");
+    this.editLineCount = document.querySelector("#editLineCount");
+    this.editLineTextInput = document.querySelector("#editLineTextInput");
+    this.editLineTimeInput = document.querySelector("#editLineTimeInput");
+    this.editSyncCurrentBtn = document.querySelector("#editSyncCurrentBtn");
+    this.editLineDec5 = document.querySelector("#editLineDec5");
+    this.editLineDec1 = document.querySelector("#editLineDec1");
+    this.editLineInc1 = document.querySelector("#editLineInc1");
+    this.editLineInc5 = document.querySelector("#editLineInc5");
+    this.selectedEditLineId = null;
 
     this.isUserScrolling = false;
     this.scrollTimeout = null;
@@ -14,18 +26,20 @@ class LyricsViewer {
   }
 
   _initEvents() {
-    this.editModeButton.addEventListener("click", () => this.toggleEditMode());
+    if (this.editModeButton) {
+      this.editModeButton.addEventListener("click", () => this.toggleEditMode());
+    }
 
     if (this.resumeScrollBtn) {
       this.resumeScrollBtn.addEventListener("click", () => this.resumeAutoScroll());
     }
 
-    // 수동 스크롤 감지 (마우스 휠, 터치, 스크롤바 조작)
+    // 수동 스크롤 감지 (마우스 휠, 터치)
     this.lyricsList.addEventListener("wheel", () => this.handleUserScroll(), { passive: true });
     this.lyricsList.addEventListener("touchmove", () => this.handleUserScroll(), { passive: true });
 
+    // 감상 뷰 가사 줄 클릭 시 해당 시점으로 이동
     this.lyricsList.addEventListener("click", (event) => {
-      if (this.state.editMode) return;
       const seekButton = event.target.closest(".lyric-seek");
       if (!seekButton) return;
 
@@ -33,20 +47,60 @@ class LyricsViewer {
       this.callbacks.onSeek(Math.max(start - this.state.syncOffset, 0));
     });
 
-    this.lyricsList.addEventListener("input", (event) => {
-      const editField = event.target.closest(".lyric-edit");
-      if (!editField) return;
+    // --- 가사 편집 뷰 전용 이벤트 바인딩 ---
+    if (this.editLyricsList) {
+      this.editLyricsList.addEventListener("click", (event) => {
+        const item = event.target.closest(".edit-line-item");
+        if (!item) return;
+        const lineId = item.dataset.lineId;
+        this.selectEditLine(lineId, true);
+      });
+    }
 
-      const lineId = editField.dataset.lineId;
-      const line = this.state.lyrics.find((item) => item.id === lineId);
-      if (!line) return;
+    if (this.editLineTextInput) {
+      this.editLineTextInput.addEventListener("input", () => {
+        const line = this.getSelectedEditLine();
+        if (!line) return;
+        line.text = this.editLineTextInput.value;
+        const row = this.editLyricsList?.querySelector(`.edit-line-item[data-line-id="${line.id}"]`);
+        if (row) {
+          const textEl = row.querySelector(".edit-line-text");
+          if (textEl) textEl.textContent = line.text;
+        }
+        this.callbacks.onLyricTextChange();
+      });
+    }
 
-      line.text = editField.value;
-      const lineRow = editField.closest(".lyric-line");
-      lineRow.querySelector("strong").textContent = line.text;
-      
-      this.callbacks.onLyricTextChange();
-    });
+    if (this.editLineTimeInput) {
+      const applyTimeInput = () => {
+        const line = this.getSelectedEditLine();
+        if (!line) return;
+        const nextVal = window.lyricsCore.parseTimeString(this.editLineTimeInput.value);
+        if (!isNaN(nextVal)) {
+          line.start = window.lyricsCore.adjustTimestamp(nextVal, 0);
+        }
+        this.updateSelectedLineUI(line);
+        this.callbacks.onLyricTextChange();
+      };
+
+      this.editLineTimeInput.addEventListener("change", applyTimeInput);
+      this.editLineTimeInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          applyTimeInput();
+          this.editLineTimeInput.blur();
+        }
+      });
+    }
+
+    if (this.editSyncCurrentBtn) {
+      this.editSyncCurrentBtn.addEventListener("click", () => this.syncSelectedLineWithAudio());
+    }
+
+    if (this.editLineDec5) this.editLineDec5.addEventListener("click", () => this.adjustSelectedLine(-0.5));
+    if (this.editLineDec1) this.editLineDec1.addEventListener("click", () => this.adjustSelectedLine(-0.1));
+    if (this.editLineInc1) this.editLineInc1.addEventListener("click", () => this.adjustSelectedLine(0.1));
+    if (this.editLineInc5) this.editLineInc5.addEventListener("click", () => this.adjustSelectedLine(0.5));
+  }
 
     // 편집 모드에서의 시간 조절 클릭 이벤트 핸들러
     this.lyricsList.addEventListener("click", (event) => {
@@ -306,23 +360,159 @@ class LyricsViewer {
     this.callbacks.onOffsetChange();
   }
 
-  toggleEditMode() {
+  toggleEditMode(forceState = null) {
     const wasEditMode = this.state.editMode;
-    this.state.editMode = !this.state.editMode;
-    this.editModeButton.textContent = this.state.editMode ? "Done" : "Edit";
-    this.editModeButton.classList.toggle("active", this.state.editMode);
+    this.state.editMode = typeof forceState === "boolean" ? forceState : !this.state.editMode;
+    if (this.editModeButton) {
+      this.editModeButton.textContent = this.state.editMode ? "감상으로 복귀" : "가사 편집";
+      this.editModeButton.classList.toggle("active", this.state.editMode);
+    }
 
     if (wasEditMode && !this.state.editMode) {
       // 편집 완료(Done 클릭) 시점에만 타임스탬프 순서대로 가사를 한 번에 정렬
       this.state.lyrics.sort((a, b) => a.start - b.start);
+      this.selectedEditLineId = null;
     }
 
-    this.render();
+    if (this.state.editMode) {
+      this.renderEditView();
+    } else {
+      this.render();
+    }
+
+    if (this.callbacks.onToggleEditView) {
+      this.callbacks.onToggleEditView(this.state.editMode);
+    }
 
     if (wasEditMode && !this.state.editMode && this.callbacks.onEditDone) {
       this.callbacks.onEditDone();
     } else {
       this.callbacks.onLyricTextChange();
+    }
+  }
+
+  getSelectedEditLine() {
+    if (!this.selectedEditLineId) return null;
+    return this.state.lyrics.find((l) => l.id === this.selectedEditLineId) || null;
+  }
+
+  selectEditLine(lineId, seekAudio = true) {
+    this.selectedEditLineId = lineId;
+    const line = this.getSelectedEditLine();
+
+    // 1. 목록 선택 하이라이트 갱신
+    if (this.editLyricsList) {
+      const allItems = this.editLyricsList.querySelectorAll(".edit-line-item");
+      allItems.forEach((el) => {
+        el.classList.toggle("selected", el.dataset.lineId === lineId);
+      });
+    }
+
+    // 2. 우측 도구 패널 인풋 및 버튼 활성화/값 바인딩
+    if (line) {
+      this.updateSelectedLineUI(line);
+      if (seekAudio && this.callbacks.onSeek) {
+        this.callbacks.onSeek(Math.max(line.start - this.state.syncOffset, 0));
+      }
+    } else {
+      this.clearSelectedLineUI();
+    }
+  }
+
+  updateSelectedLineUI(line) {
+    if (!line) return;
+    const timeFormatted = window.lyricsCore.formatClock(line.start, true);
+    if (this.editLineTextInput) {
+      this.editLineTextInput.value = line.text;
+      this.editLineTextInput.disabled = false;
+    }
+    if (this.editLineTimeInput) {
+      this.editLineTimeInput.value = timeFormatted;
+      this.editLineTimeInput.disabled = false;
+    }
+    if (this.editSyncCurrentBtn) this.editSyncCurrentBtn.disabled = false;
+    if (this.editLineDec5) this.editLineDec5.disabled = false;
+    if (this.editLineDec1) this.editLineDec1.disabled = false;
+    if (this.editLineInc1) this.editLineInc1.disabled = false;
+    if (this.editLineInc5) this.editLineInc5.disabled = false;
+
+    // 좌측 목록 UI 반영
+    const row = this.editLyricsList?.querySelector(`.edit-line-item[data-line-id="${line.id}"]`);
+    if (row) {
+      const timeEl = row.querySelector(".edit-line-time");
+      if (timeEl) timeEl.textContent = timeFormatted;
+      const textEl = row.querySelector(".edit-line-text");
+      if (textEl) textEl.textContent = line.text;
+    }
+  }
+
+  clearSelectedLineUI() {
+    if (this.editLineTextInput) {
+      this.editLineTextInput.value = "";
+      this.editLineTextInput.disabled = true;
+    }
+    if (this.editLineTimeInput) {
+      this.editLineTimeInput.value = "";
+      this.editLineTimeInput.disabled = true;
+    }
+    if (this.editSyncCurrentBtn) this.editSyncCurrentBtn.disabled = true;
+    if (this.editLineDec5) this.editLineDec5.disabled = true;
+    if (this.editLineDec1) this.editLineDec1.disabled = true;
+    if (this.editLineInc1) this.editLineInc1.disabled = true;
+    if (this.editLineInc5) this.editLineInc5.disabled = true;
+  }
+
+  adjustSelectedLine(delta) {
+    const line = this.getSelectedEditLine();
+    if (!line) return;
+    line.start = window.lyricsCore.adjustTimestamp(line.start, delta);
+    this.updateSelectedLineUI(line);
+    this.callbacks.onLyricTextChange();
+  }
+
+  syncSelectedLineWithAudio() {
+    const line = this.getSelectedEditLine();
+    if (!line || !this.callbacks.onGetCurrentTime) return;
+    const currentAudioTime = this.callbacks.onGetCurrentTime();
+    if (Number.isFinite(currentAudioTime)) {
+      line.start = window.lyricsCore.adjustTimestamp(currentAudioTime - this.state.syncOffset, 0);
+      this.updateSelectedLineUI(line);
+      this.callbacks.onLyricTextChange();
+    }
+  }
+
+  renderEditView() {
+    if (!this.editLyricsList) return;
+
+    if (this.editLineCount) {
+      this.editLineCount.textContent = `총 ${this.state.lyrics.length}줄`;
+    }
+
+    if (this.state.lyrics.length === 0) {
+      this.editLyricsList.innerHTML = `
+        <div class="empty-state" style="padding: 40px 20px; text-align: center; color: var(--muted);">
+          <p>등록된 가사가 없습니다.<br>우측 AI 가사 분석(Analyze)을 실행해 가사를 생성하세요.</p>
+        </div>
+      `;
+      this.clearSelectedLineUI();
+      return;
+    }
+
+    this.editLyricsList.innerHTML = this.state.lyrics.map((line) => {
+      const isSelected = line.id === this.selectedEditLineId;
+      return `
+        <div class="edit-line-item ${isSelected ? "selected" : ""}" data-line-id="${line.id}">
+          <span class="edit-line-time">${window.lyricsCore.formatClock(line.start, true)}</span>
+          <span class="edit-line-text">${window.lyricsCore.escapeHtml(line.text)}</span>
+        </div>
+      `;
+    }).join("");
+
+    // 선택된 라인이 없거나 유효하지 않으면 첫 번째 라인 자동 선택
+    if (!this.selectedEditLineId || !this.state.lyrics.some(l => l.id === this.selectedEditLineId)) {
+      this.selectEditLine(this.state.lyrics[0].id, false);
+    } else {
+      this.selectEditLine(this.selectedEditLineId, false);
     }
   }
 

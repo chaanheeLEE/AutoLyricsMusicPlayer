@@ -3,29 +3,40 @@
    ========================================================================== */
 .app-nav {
   position: fixed;
-  top: 24px;
+  top: 0;
   left: 0;
   right: 0;
-  height: 52px;
+  height: 44px;
   background: var(--bg);
   border-bottom: 1px solid var(--line);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
+  padding: 0 148px 0 16px; /* 우측 148px: 윈도우 네이티브 창 제어 버튼(최소화/최대화/닫기) 안전 마진 */
   z-index: 900;
   user-select: none;
+  -webkit-app-region: drag; /* 상단 바 드래그로 창 이동 */
+}
+
+.nav-brand,
+.nav-tabs,
+.nav-actions,
+.nav-btn,
+.nav-icon-btn,
+button,
+input {
+  -webkit-app-region: no-drag; /* 버튼 클릭 보장 */
 }
 
 .nav-brand {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-width: 200px;
+  min-width: 180px;
 }
 
 .brand-name {
-  font-size: 0.96rem;
+  font-size: 0.92rem;
   font-weight: 700;
   color: var(--text);
   letter-spacing: -0.02em;
@@ -37,7 +48,7 @@
   background: var(--panel-soft);
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 3px;
+  padding: 2px;
   gap: 2px;
 }
 
@@ -46,9 +57,9 @@
   border: none;
   border-radius: 6px;
   color: var(--muted);
-  font-size: 0.84rem;
+  font-size: 0.82rem;
   font-weight: 600;
-  padding: 6px 18px;
+  padding: 5px 16px;
   cursor: pointer;
   transition: all 140ms ease;
 }
@@ -67,8 +78,7 @@
 .nav-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
-  min-width: 200px;
+  gap: 8px;
   justify-content: flex-end;
 }
 
@@ -77,14 +87,14 @@
   border: 1px solid var(--line);
   border-radius: 6px;
   color: var(--text);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 600;
-  padding: 6px 14px;
+  padding: 5px 12px;
   cursor: pointer;
   transition: all 120ms ease;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .nav-btn:hover {
@@ -107,12 +117,12 @@
   border: 1px solid var(--line);
   border-radius: 6px;
   color: var(--muted);
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
+  font-size: 0.95rem;
   cursor: pointer;
   transition: all 120ms ease;
 }
@@ -127,8 +137,8 @@
   display: grid;
   grid-template-columns: minmax(360px, 0.95fr) minmax(460px, 1.25fr);
   gap: 20px;
-  height: calc(100vh - 24px - 52px - 78px);
-  margin-top: 76px;
+  height: calc(100vh - 44px - 78px);
+  margin-top: 44px;
   padding: 16px 20px;
   overflow: hidden;
 }
@@ -164,17 +174,6 @@
   gap: 12px;
   border-bottom: 1px solid var(--line);
   padding: 18px 20px;
-}
-
-.window-titlebar-drag {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 24px;
-  background: var(--bg);
-  -webkit-app-region: drag;
-  z-index: 9999;
 }
 
 .topbar {

@@ -51,7 +51,7 @@ function createMainWindow() {
     titleBarOverlay: isWindows ? {
       color: "#0b0d10",
       symbolColor: "#f4f2eb",
-      height: 40
+      height: 30
     } : false,
     webPreferences: {
       preload: path.join(__dirname, "../preload.js"),
