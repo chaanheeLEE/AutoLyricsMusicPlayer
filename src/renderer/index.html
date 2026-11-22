@@ -9,28 +9,35 @@
   <body>
     <!-- Windows native overlay drag zone -->
     <div class="window-titlebar-drag"></div>
+
+    <!-- Global App Navigation Bar (상단 내비게이션 바) -->
+    <header id="appNav" class="app-nav">
+      <div class="nav-brand">
+        <span class="brand-name">Auto Lyrics Player</span>
+      </div>
+      <div class="nav-tabs">
+        <button id="navNowPlayingBtn" class="nav-tab active" type="button">감상</button>
+        <button id="navLibraryBtn" class="nav-tab" type="button">라이브러리</button>
+      </div>
+      <div class="nav-actions">
+        <button id="navEditLyricsBtn" class="nav-btn" type="button" title="가사 편집 화면으로 전환">가사 편집</button>
+        <button id="openTrackButton" class="nav-btn primary" type="button">+ 음악 추가</button>
+        <button id="settingsButton" class="nav-icon-btn" type="button" aria-label="Settings" title="설정">⚙</button>
+      </div>
+    </header>
+
     <main class="app-shell">
       <section class="player-pane">
-        <div class="topbar">
-          <div>
-            <p class="eyebrow">Local Whisper-ready player</p>
-            <h1>Auto Lyrics Player</h1>
-          </div>
-          <div class="topbar-actions">
-            <button id="settingsButton" class="icon-button" type="button" aria-label="Settings">⚙</button>
-            <button id="openTrackButton" class="primary-button" type="button">+ Add Audio</button>
-          </div>
-        </div>
-
         <div class="now-playing">
           <div class="disc" aria-hidden="true">
             <img id="albumArt" src="" alt="Album Art" style="display: none;" />
             <div id="albumArtPlaceholder" class="disc-core">🎵</div>
           </div>
           <div class="track-copy">
-            <p class="label">Now Playing</p>
             <h2 id="trackTitle"><span>No track selected</span></h2>
-            <p id="trackStatus">Add track(s) to start playback.</p>
+            <p id="trackArtist" class="track-artist">-</p>
+            <span id="trackStatusBadge" class="track-status-badge">대기 중</span>
+            <p id="trackStatus" style="display:none;">Add track(s) to start playback.</p>
           </div>
         </div>
 
@@ -80,11 +87,16 @@
 
 
 
-        <div id="lyricsList" class="lyrics-list empty">
-          <div class="empty-state">
-            <h3>No lyrics yet</h3>
-            <p>Open a track and press Analyze to generate synchronized lyrics.</p>
+        <div class="lyrics-scroll-wrapper" style="position: relative; flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0;">
+          <div id="lyricsList" class="lyrics-list empty">
+            <div class="empty-state">
+              <h3>No lyrics yet</h3>
+              <p>Open a track and press Analyze to generate synchronized lyrics.</p>
+            </div>
           </div>
+          <button id="resumeScrollBtn" class="resume-scroll-btn" type="button" title="현재 재생 중인 가사 위치로 자동 스크롤 재개">
+            <span>↓ 현재 가사로 이동</span>
+          </button>
         </div>
 
         <div id="playlistResizer" class="playlist-resizer" title="Drag to resize playlist height"></div>

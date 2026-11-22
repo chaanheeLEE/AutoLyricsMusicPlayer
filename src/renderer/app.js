@@ -1,8 +1,15 @@
 // UI Elements for main orchestration
 const trackTitle = document.querySelector("#trackTitle");
+const trackArtist = document.querySelector("#trackArtist");
+const trackStatusBadge = document.querySelector("#trackStatusBadge");
 const trackStatus = document.querySelector("#trackStatus");
 const albumArt = document.querySelector("#albumArt");
 const albumArtPlaceholder = document.querySelector("#albumArtPlaceholder");
+
+// Global Navigation Elements
+const navNowPlayingBtn = document.querySelector("#navNowPlayingBtn");
+const navLibraryBtn = document.querySelector("#navLibraryBtn");
+const navEditLyricsBtn = document.querySelector("#navEditLyricsBtn");
 const analyzeButton = document.querySelector("#analyzeButton");
 const cancelButton = document.querySelector("#cancelButton");
 const alignButton = document.querySelector("#alignButton");
@@ -97,6 +104,28 @@ function updatePlayerBarInfo(track) {
   }
 }
 
+function updateTrackStatusBadge() {
+  if (!trackStatusBadge) return;
+  if (!state.track) {
+    trackStatusBadge.textContent = "대기 중";
+    trackStatusBadge.className = "track-status-badge";
+    return;
+  }
+  if (state.isTranscribing) {
+    trackStatusBadge.textContent = "AI 분석 중…";
+    trackStatusBadge.className = "track-status-badge analyzing";
+  } else if (state.lyrics && state.lyrics.length > 0) {
+    trackStatusBadge.textContent = `가사 준비됨 (${state.lyrics.length}줄)`;
+    trackStatusBadge.className = "track-status-badge ready";
+  } else if (state.embeddedLyricsLines && state.embeddedLyricsLines.length > 0) {
+    trackStatusBadge.textContent = `내장 가사 감지 (${state.embeddedLyricsLines.length}줄)`;
+    trackStatusBadge.className = "track-status-badge";
+  } else {
+    trackStatusBadge.textContent = "가사 미생성";
+    trackStatusBadge.className = "track-status-badge";
+  }
+}
+
 function persistLyricsSoon() {
   if (!state.track || state.lyrics.length === 0) {
     return;
@@ -176,6 +205,7 @@ const playlist = new PlaylistManager(state, {
     player.loadTrack({ url: "" }, false);
     
     trackTitle.innerHTML = "<span>No track selected</span>";
+    if (trackArtist) trackArtist.textContent = "-";
     updateTitleMarquee();
     trackStatus.textContent = "Add track(s) to start playback.";
     albumArt.src = "";
@@ -183,6 +213,7 @@ const playlist = new PlaylistManager(state, {
     albumArtPlaceholder.style.display = "flex";
     
     updatePlayerBarInfo(null);
+    updateTrackStatusBadge();
     lyricsViewer.render();
     updateAlignButtonState();
   }
@@ -322,9 +353,12 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
 
   // 오디오 소스 설정
   player.loadTrack(track, autoPlay);
-  trackTitle.innerHTML = `<span>${escapeHtml(track.title)}</span>`;
+  const { title, artist } = parseArtistTitle(track.title);
+  trackTitle.innerHTML = `<span>${escapeHtml(title)}</span>`;
+  if (trackArtist) trackArtist.textContent = artist;
   updateTitleMarquee();
   updatePlayerBarInfo(track);
+  updateTrackStatusBadge();
   updateMediaSessionMetadata(track);
 
   // 앨범 아트 설정 (비동기 지연 로드 지원)
@@ -439,6 +473,7 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
 
   lyricsViewer.render();
   lyricsViewer.updateActive(player.getCurrentTime(), player.isPlaying());
+  updateTrackStatusBadge();
   playlist.render();
   updateActionButtonsState();
   updateDeleteCacheButtonState();
@@ -900,6 +935,35 @@ function initMediaSession() {
         player.setVolume(0);
       } else {
         player.setVolume(state.savedVolume || 0.85);
+      }
+    });
+  }
+  // 상단 내비게이션 바 탭 이벤트
+  if (navNowPlayingBtn && navLibraryBtn) {
+    navNowPlayingBtn.addEventListener("click", () => {
+      navNowPlayingBtn.classList.add("active");
+      navLibraryBtn.classList.remove("active");
+      const playerPane = document.querySelector(".player-pane");
+      if (playerPane) {
+        playerPane.scrollIntoView({ behavior: "smooth" });
+      }
+    });
+
+    navLibraryBtn.addEventListener("click", () => {
+      navLibraryBtn.classList.add("active");
+      navNowPlayingBtn.classList.remove("active");
+      const playlistSection = document.querySelector(".playlist-section");
+      if (playlistSection) {
+        playlistSection.scrollIntoView({ behavior: "smooth" });
+      }
+    });
+  }
+
+  if (navEditLyricsBtn) {
+    navEditLyricsBtn.addEventListener("click", () => {
+      const editBtn = document.querySelector("#editModeButton");
+      if (editBtn) {
+        editBtn.click();
       }
     });
   }

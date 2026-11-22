@@ -5,12 +5,24 @@ class LyricsViewer {
     this.lyricsList = document.querySelector("#lyricsList");
     this.syncOffsetBadge = document.querySelector("#syncOffsetBadge");
     this.editModeButton = document.querySelector("#editModeButton");
+    this.resumeScrollBtn = document.querySelector("#resumeScrollBtn");
+
+    this.isUserScrolling = false;
+    this.scrollTimeout = null;
 
     this._initEvents();
   }
 
   _initEvents() {
     this.editModeButton.addEventListener("click", () => this.toggleEditMode());
+
+    if (this.resumeScrollBtn) {
+      this.resumeScrollBtn.addEventListener("click", () => this.resumeAutoScroll());
+    }
+
+    // 수동 스크롤 감지 (마우스 휠, 터치, 스크롤바 조작)
+    this.lyricsList.addEventListener("wheel", () => this.handleUserScroll(), { passive: true });
+    this.lyricsList.addEventListener("touchmove", () => this.handleUserScroll(), { passive: true });
 
     this.lyricsList.addEventListener("click", (event) => {
       if (this.state.editMode) return;
@@ -152,6 +164,11 @@ class LyricsViewer {
   // escapeHtml은 window.lyricsCore.escapeHtml로 일원화되었습니다.
 
   render() {
+    this.isUserScrolling = false;
+    if (this.resumeScrollBtn) {
+      this.resumeScrollBtn.classList.remove("visible");
+    }
+
     if (this.state.lyrics.length === 0) {
       this.lyricsList.className = "lyrics-list empty" + (this.state.editMode ? " edit-mode" : "");
       if (this.state.embeddedLyricsLines && this.state.embeddedLyricsLines.length > 0) {
@@ -210,6 +227,44 @@ class LyricsViewer {
       .join("");
   }
 
+  handleUserScroll() {
+    if (this.state.editMode || !this.state.lyrics || !this.state.lyrics.length) return;
+    this.isUserScrolling = true;
+    if (this.resumeScrollBtn) {
+      this.resumeScrollBtn.classList.add("visible");
+    }
+    clearTimeout(this.scrollTimeout);
+    this.scrollTimeout = setTimeout(() => {
+      this.resumeAutoScroll();
+    }, 4500);
+  }
+
+  resumeAutoScroll() {
+    this.isUserScrolling = false;
+    if (this.resumeScrollBtn) {
+      this.resumeScrollBtn.classList.remove("visible");
+    }
+    clearTimeout(this.scrollTimeout);
+    this.scrollToActiveLine(true);
+  }
+
+  scrollToActiveLine(smooth = false) {
+    if (!this.state.activeLineId) return;
+    const activeRow = this.lyricsList.querySelector(`.lyric-line[data-line-id="${this.state.activeLineId}"]`);
+    if (!activeRow) return;
+
+    const container = this.lyricsList;
+    const containerRect = container.getBoundingClientRect();
+    const activeRect = activeRow.getBoundingClientRect();
+    const relativeTop = activeRect.top - containerRect.top;
+    const targetTop = container.scrollTop + relativeTop - (container.clientHeight / 2) + (activeRow.offsetHeight / 2);
+
+    container.scrollTo({
+      top: targetTop,
+      behavior: smooth ? "smooth" : "instant"
+    });
+  }
+
   updateActive(currentTime, isPlaying) {
     const activeIndex = window.lyricsCore.getActiveLineIndex(this.state.lyrics, currentTime, this.state.syncOffset);
     const activeLine = this.state.lyrics[activeIndex] || null;
@@ -228,19 +283,8 @@ class LyricsViewer {
         const activeRow = this.lyricsList.querySelector(`.lyric-line[data-line-id="${activeLineId}"]`);
         if (activeRow) {
           activeRow.classList.add("active");
-          if (!this.state.editMode) {
-            const container = this.lyricsList;
-            if (container) {
-              const containerRect = container.getBoundingClientRect();
-              const activeRect = activeRow.getBoundingClientRect();
-              const relativeTop = activeRect.top - containerRect.top;
-              const targetTop = container.scrollTop + relativeTop - (container.clientHeight / 2) + (activeRow.offsetHeight / 2);
-
-              container.scrollTo({
-                top: targetTop,
-                behavior: "instant"
-              });
-            }
+          if (!this.state.editMode && !this.isUserScrolling) {
+            this.scrollToActiveLine(false);
           }
         }
       }
