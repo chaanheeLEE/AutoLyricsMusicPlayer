@@ -511,17 +511,53 @@ h2 {
   flex: 1;
 }
 
-.main-action-btn.primary.reanalyze-state {
-  background: var(--surface-panel);
-  color: var(--text-primary);
-  border: 1px solid var(--border-subtle);
+#mainAnalyzeButton {
+  background: var(--surface-selected);
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--border-subtle));
+  color: var(--accent-strong);
   font-weight: 600;
 }
 
-.main-action-btn.primary.reanalyze-state:hover:not(:disabled) {
+#mainAnalyzeButton:hover:not(:disabled) {
   border-color: var(--accent);
-  background: var(--surface-hover);
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  color: var(--accent-strong);
+}
+
+#mainAnalyzeButton.reanalyze-state {
+  background: rgba(255, 255, 255, 0.045);
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border-subtle));
   color: var(--text-primary);
+}
+
+#mainAnalyzeButton.reanalyze-state:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--surface-selected);
+  color: var(--accent-strong);
+}
+
+#mainAlignButton {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border-subtle));
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+#mainAlignButton.realign-state {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border-subtle));
+  color: var(--text-primary);
+}
+
+#mainAlignButton:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  background: var(--surface-selected);
+}
+
+#mainAnalyzeButton:disabled,
+#mainAlignButton:disabled {
+  opacity: 0.45;
+  color: var(--text-disabled);
 }
 
 .main-transcription-progress {
