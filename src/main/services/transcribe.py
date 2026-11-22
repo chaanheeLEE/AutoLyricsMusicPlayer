@@ -164,7 +164,6 @@ def main():
     try:
         emit({"type": "progress", "stage": "loading_model", "percent": 0.0})
         import ctranslate2
-        import inspect
         import wave
         import numpy as np
 
@@ -196,10 +195,7 @@ def main():
                     temperature=0.0,
                     without_timestamps=True,
                 )
-                try:
-                    _, probe_info = target_model.transcribe(mid_audio, vad_filter=True, **probe_kwargs)
-                except Exception:
-                    _, probe_info = target_model.transcribe(mid_audio, vad_filter=False, **probe_kwargs)
+                _, probe_info = target_model.transcribe(mid_audio, vad_filter=False, **probe_kwargs)
 
                 lang = getattr(probe_info, "language", None)
                 prob = float(getattr(probe_info, "language_probability", 0.0) or 0.0)
@@ -214,33 +210,13 @@ def main():
             line_count = 1
 
             for seg in iter_segments:
-                no_speech_prob = getattr(seg, "no_speech_prob", 0.0) or 0.0
-                avg_logprob = getattr(seg, "avg_logprob", 0.0)
-                if avg_logprob is None:
-                    avg_logprob = 0.0
-                if no_speech_prob > 0.85 and avg_logprob < -1.2:
-                    continue
-
                 words = getattr(seg, "words", None)
                 if words and len(words) > 0:
-                    non_empty_words = [w for w in words if w.word and w.word.strip()]
                     current_line_words = []
 
-                    for idx, w in enumerate(non_empty_words):
-                        w_prob = getattr(w, "probability", 1.0)
-                        if w_prob is None:
-                            w_prob = 1.0
-                        next_gap = (
-                            (non_empty_words[idx + 1].start - w.end)
-                            if idx + 1 < len(non_empty_words)
-                            else None
-                        )
-                        if (
-                            not current_line_words
-                            and w.start < 30.0
-                            and w_prob < 0.15
-                            and ((next_gap is not None and next_gap >= 2.0) or (idx == 0 and next_gap is None))
-                        ):
+                    for w in words:
+                        w_text = w.word.strip() if w.word else ""
+                        if not w_text:
                             continue
 
                         if not current_line_words:
@@ -315,52 +291,20 @@ def main():
 
             clean_prompt = args.initial_prompt.strip()[:120] if args.initial_prompt and args.initial_prompt.strip() else None
 
-            transcribe_kwargs = dict(
+            iter_segments, info_obj = target_model.transcribe(
+                args.audio_path,
                 language=resolved_language,
                 beam_size=args.beam_size,
+                vad_filter=False,  # 노래 보컬 누락 방지를 위해 vad_filter=False 고정
                 word_timestamps=True,  # 단어 단위 precise timestamp 추출
                 condition_on_previous_text=False,
                 temperature=(0.0, 0.2, 0.4, 0.6),
-                compression_ratio_threshold=2.0,
+                compression_ratio_threshold=2.4,
                 log_prob_threshold=-1.0,
-                no_speech_threshold=0.6,
+                no_speech_threshold=0.85,
                 initial_prompt=clean_prompt,
             )
-            supported_params = inspect.signature(target_model.transcribe).parameters
-            if "hallucination_silence_threshold" in supported_params:
-                transcribe_kwargs["hallucination_silence_threshold"] = 1.5
-
-            vad_params = dict(
-                threshold=0.25,
-                min_speech_duration_ms=150,
-                min_silence_duration_ms=1500,
-                speech_pad_ms=600,
-            )
-
-            output_lines = []
-            info_obj = None
-            try:
-                iter_segments, info_obj = target_model.transcribe(
-                    args.audio_path,
-                    vad_filter=True,
-                    vad_parameters=vad_params,
-                    **transcribe_kwargs,
-                )
-                output_lines = collect_segments(iter_segments)
-            except Exception as vad_exc:
-                emit({
-                    "type": "info",
-                    "message": f"Relaxed music VAD fallback triggered ({str(vad_exc)}). Retrying with vad_filter=False."
-                })
-                output_lines = []
-
-            if len(output_lines) == 0:
-                iter_segments, info_obj = target_model.transcribe(
-                    args.audio_path,
-                    vad_filter=False,
-                    **transcribe_kwargs,
-                )
-                output_lines = collect_segments(iter_segments)
+            output_lines = collect_segments(iter_segments)
 
             return output_lines, info_obj
 

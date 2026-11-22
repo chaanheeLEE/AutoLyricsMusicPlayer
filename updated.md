@@ -7,10 +7,8 @@
 ## 2026-11-22 — 로컬 STT(Whisper) 초반 1분 및 음악 가사 분석 정확도 개선
 - **초반 30초 `initial_prompt` 오염 제거 (`lyrics-job-manager.js`, `transcribe.py`)**:
   - 내장 가사 전체나 메타데이터 지시문(`"제목 - 가수 가사: "`)을 `initial_prompt`로 넘겨 224토큰 뒷부분(아웃트로) 절단 및 전주 환각이 발생하던 문제를 해결하고, 도입부 4줄(최대 120자) 힌트만 안전하게 전달하도록 수정했습니다.
-- **FFmpeg 보컬 대역 필터링 및 다이내믹 노멀라이징 (`transcription-worker.js`)**:
-  - 16kHz 모노 WAV 변환 시 `highpass=f=85,lowpass=f=7600,dynaudnorm=f=150:g=11:p=0.9:m=5.0` 필터 체인을 적용해 킥·서브베이스 마스킹을 줄이고 조용한 1절(첫 1분) 보컬 에너지를 끌어올렸으며, 필터 오류 시 무필터 변환으로 자동 폴백하도록 구현했습니다.
-- **곡 중반부 언어 자동 감지 및 음악용 Whisper 디코딩 최적화 (`transcribe.py`)**:
-  - 언어 `자동 감지` 시 첫 30초 전주 대신 곡 중반부 30초 구간에서 먼저 보컬 언어를 탐지하도록 개선하고, 다단계 `temperature=(0.0, 0.2, 0.4, 0.6)`, `hallucination_silence_threshold=1.5`(버전 가드 포함), 완화된 음악용 Silero VAD(`threshold=0.25`, `speech_pad_ms=600`, 자동 `vad_filter=False` 폴백) 및 초반 30초 저신뢰 전주 환각 토큰 필터링을 적용했습니다.
+- **곡 중반부 언어 자동 감지 및 음악용 Whisper 디코딩 파라미터 조정 (`transcribe.py`)**:
+  - 언어 `자동 감지` 시 첫 30초 전주 대신 곡 중반부 30초 구간에서 먼저 보컬 언어를 탐지하도록 개선하고, 가사 누락 방지를 위해 `vad_filter=False`, 다단계 `temperature=(0.0, 0.2, 0.4, 0.6)`, `compression_ratio_threshold=2.4`, `no_speech_threshold=0.85`를 적용했습니다.
 - **개발 모드 Python/FFmpeg 탐색 경로 보강 (`transcription-worker.js`, `model-manager.js`)**:
   - Conda `lyrics_player` 및 Windows Python 경로 탐색 시 `faster_whisper` 설치 여부를 검증하고, 개발 모드에서 `bin/win32/ffmpeg.exe` 및 `transcribe.exe` 폴백을 지원하도록 보강했습니다.
 

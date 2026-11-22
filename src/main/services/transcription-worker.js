@@ -72,8 +72,6 @@ function resolveFfmpeg() {
   }
 }
 
-const VOCAL_FILTER = "highpass=f=85,lowpass=f=7600,dynaudnorm=f=150:g=11:p=0.9:m=5.0";
-
 function hasFasterWhisper(pythonCmd) {
   try {
     execFileSync(pythonCmd, ["-c", "import faster_whisper"], { stdio: "ignore" });
@@ -149,40 +147,22 @@ function runFfmpeg(ffmpegBin, args) {
 }
 
 /**
- * Convert audio to vocal-filtered 16kHz mono WAV using ffmpeg, falling back to raw conversion on filter error.
+ * Convert audio to 16kHz mono WAV using ffmpeg.
  * @param {string} inputPath
  * @param {string} outputPath
  * @returns {Promise<void>}
  */
 async function convertAudio(inputPath, outputPath) {
   const ffmpegBin = resolveFfmpeg();
-  const filteredArgs = [
+  await runFfmpeg(ffmpegBin, [
     "-y",
     "-i", inputPath,
     "-vn",
-    "-af", VOCAL_FILTER,
     "-ar", "16000",
     "-ac", "1",
     "-f", "wav",
     outputPath,
-  ];
-  try {
-    await runFfmpeg(ffmpegBin, filteredArgs);
-  } catch (err) {
-    if (err.exitCode === undefined) {
-      throw err;
-    }
-    console.warn("[Transcription Worker] FFmpeg vocal filter failed, retrying raw conversion:", err.message);
-    await runFfmpeg(ffmpegBin, [
-      "-y",
-      "-i", inputPath,
-      "-vn",
-      "-ar", "16000",
-      "-ac", "1",
-      "-f", "wav",
-      outputPath,
-    ]);
-  }
+  ]);
 }
 
 /**
