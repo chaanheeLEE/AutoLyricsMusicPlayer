@@ -5,6 +5,7 @@ class SettingsView {
     
     this.settingsButton = document.querySelector("#settingsButton");
     this.settingsDialog = document.querySelector("#settingsDialog");
+    this.closeSettingsBtn = document.querySelector("#closeSettingsBtn");
     this.saveSettingsButton = document.querySelector("#saveSettingsButton");
     
     this.tabGeneralBtn = document.querySelector("#tabGeneralBtn");
@@ -78,33 +79,22 @@ class SettingsView {
 
   _initEvents() {
     this.settingsButton.addEventListener("click", () => this.open());
-    
-    this.tabGeneralBtn.addEventListener("click", () => {
-      this.tabGeneralBtn.classList.add("active");
-      this.tabFloatingBtn.classList.remove("active");
-      this.tabShortcutsBtn.classList.remove("active");
-      this.tabGeneralContent.classList.add("active");
-      this.tabFloatingContent.classList.remove("active");
-      this.tabShortcutsContent.classList.remove("active");
-    });
-    
-    this.tabFloatingBtn.addEventListener("click", () => {
-      this.tabFloatingBtn.classList.add("active");
-      this.tabGeneralBtn.classList.remove("active");
-      this.tabShortcutsBtn.classList.remove("active");
-      this.tabFloatingContent.classList.add("active");
-      this.tabGeneralContent.classList.remove("active");
-      this.tabShortcutsContent.classList.remove("active");
-    });
 
-    this.tabShortcutsBtn.addEventListener("click", () => {
-      this.tabShortcutsBtn.classList.add("active");
-      this.tabGeneralBtn.classList.remove("active");
-      this.tabFloatingBtn.classList.remove("active");
-      this.tabShortcutsContent.classList.add("active");
-      this.tabGeneralContent.classList.remove("active");
-      this.tabFloatingContent.classList.remove("active");
-    });
+    if (this.closeSettingsBtn) {
+      this.closeSettingsBtn.addEventListener("click", () => this.close());
+    }
+
+    if (this.settingsDialog) {
+      this.settingsDialog.addEventListener("click", (e) => {
+        if (e.target === this.settingsDialog) {
+          this.close();
+        }
+      });
+    }
+
+    this.tabGeneralBtn.addEventListener("click", () => this.switchTab("general"));
+    this.tabFloatingBtn.addEventListener("click", () => this.switchTab("floating"));
+    this.tabShortcutsBtn.addEventListener("click", () => this.switchTab("shortcuts"));
 
     this.settingFloatingFontSize.addEventListener("input", () => {
       this.valFloatingFontSize.textContent = this.settingFloatingFontSize.value;
@@ -142,7 +132,7 @@ class SettingsView {
         const action = btn.dataset.action;
         this.capturingAction = action;
         btn.classList.add("capturing");
-        btn.textContent = "Press any key...";
+        btn.textContent = "키 입력 대기 중...";
       });
     });
 
@@ -173,6 +163,24 @@ class SettingsView {
       }
       this.capturingAction = null;
     }, true);
+  }
+
+  switchTab(activeTab) {
+    const tabs = [
+      { key: "general", btn: this.tabGeneralBtn, content: this.tabGeneralContent },
+      { key: "floating", btn: this.tabFloatingBtn, content: this.tabFloatingContent },
+      { key: "shortcuts", btn: this.tabShortcutsBtn, content: this.tabShortcutsContent },
+    ];
+    tabs.forEach(({ key, btn, content }) => {
+      const isActive = key === activeTab;
+      if (btn) {
+        btn.classList.toggle("active", isActive);
+        btn.setAttribute("aria-selected", String(isActive));
+      }
+      if (content) {
+        content.classList.toggle("active", isActive);
+      }
+    });
   }
 
   open() {
@@ -251,8 +259,8 @@ class SettingsView {
   async clearCache() {
     const result = await window.lyricsPlayer.clearCache();
     if (result?.ok) {
-      this.clearCacheButton.textContent = `Cleared (${result.cleared} files)`;
-      setTimeout(() => { this.clearCacheButton.textContent = "Clear Cache"; }, 2500);
+      this.clearCacheButton.textContent = `정리 완료 (${result.cleared}개)`;
+      setTimeout(() => { this.clearCacheButton.textContent = "캐시 비우기"; }, 2500);
     }
   }
 
@@ -373,22 +381,22 @@ class SettingsView {
       card.dataset.modelId = m.id;
 
       let badgeHtml = "";
-      if (m.badge === "최신 추천") badgeHtml = `<span class="model-badge badge-recommend">🚀 최신 추천</span>`;
-      else if (m.badge === "기본값") badgeHtml = `<span class="model-badge badge-default">⚡ 기본</span>`;
+      if (m.badge === "최신 추천") badgeHtml = `<span class="model-badge badge-recommend">최신 추천</span>`;
+      else if (m.badge === "기본값") badgeHtml = `<span class="model-badge badge-default">기본</span>`;
 
       const statusHtml = m.downloaded
-        ? `<span class="model-status-installed">✓ 설치됨 (${m.diskSizeFormatted})</span>`
+        ? `<span class="model-status-installed">설치됨 (${m.diskSizeFormatted})</span>`
         : `<span class="model-status-not-installed">미설치 (${m.sizeLabel})</span>`;
 
       let actionsHtml = "";
       if (isDownloading) {
-        actionsHtml = `<button type="button" class="btn-model-action" disabled>⏳ 다운로드 중...</button>`;
+        actionsHtml = `<button type="button" class="btn-model-action" disabled>다운로드 중...</button>`;
       } else if (m.downloaded) {
         actionsHtml = `
           <button type="button" class="btn-model-action btn-delete" data-action="delete" data-model="${m.id}"${isActive ? " title=\"현재 선택된 모델입니다\"" : ""}>삭제</button>
         `;
       } else {
-        actionsHtml = `<button type="button" class="btn-model-action btn-download" data-action="download" data-model="${m.id}">⬇ 다운로드</button>`;
+        actionsHtml = `<button type="button" class="btn-model-action btn-download" data-action="download" data-model="${m.id}">다운로드</button>`;
       }
 
       card.innerHTML = `
@@ -396,7 +404,7 @@ class SettingsView {
           <div class="model-card-name-row">
             <span class="model-card-name">${m.label}</span>
             ${badgeHtml}
-            ${isActive ? `<span class="model-badge badge-primary">✓ 사용 중</span>` : ""}
+            ${isActive ? `<span class="model-badge badge-primary">사용 중</span>` : ""}
           </div>
           <div class="model-card-desc">${m.description}</div>
           <div class="model-card-meta">${statusHtml}</div>
@@ -449,7 +457,7 @@ class SettingsView {
     if (!actionArea) return;
 
     const pct = msg.percent != null ? Math.round(msg.percent * 100) : null;
-    const label = pct != null ? `⏳ ${pct}%` : "⏳ 다운로드 중...";
+    const label = pct != null ? `${pct}%` : "다운로드 중...";
     actionArea.innerHTML = `<button type="button" class="btn-model-action" disabled>${label}</button>`;
 
     if (msg.stage === "done") {
@@ -492,7 +500,7 @@ class SettingsView {
 
     if (status.installed) {
       this.cudaStatusBadge.classList.add("installed");
-      this.cudaStatusBadge.textContent = "✓ GPU 가속 준비 완료 (CUDA)";
+      this.cudaStatusBadge.textContent = "GPU 가속 준비 완료 (CUDA)";
       const gpuInfo = status.gpuName ? `[${status.gpuName}] ` : "";
       this.cudaStatusDesc.textContent = `${gpuInfo}NVIDIA CUDA 가속 환경이 준비되어 고속 Whisper 전사를 지원합니다.`;
       
@@ -505,7 +513,7 @@ class SettingsView {
         const reinstallBtn = document.createElement("button");
         reinstallBtn.type = "button";
         reinstallBtn.className = "btn-cuda-action btn-reinstall";
-        reinstallBtn.textContent = "🔄 재설치";
+        reinstallBtn.textContent = "재설치";
         reinstallBtn.disabled = this.isCudaDownloading;
         reinstallBtn.addEventListener("click", () => this.reinstallCudaPack());
 
@@ -513,7 +521,7 @@ class SettingsView {
         const deleteBtn = document.createElement("button");
         deleteBtn.type = "button";
         deleteBtn.className = "btn-cuda-action btn-delete";
-        deleteBtn.textContent = "🗑 삭제";
+        deleteBtn.textContent = "삭제";
         deleteBtn.disabled = this.isCudaDownloading;
         deleteBtn.addEventListener("click", () => this.deleteCudaPack());
 
@@ -540,7 +548,7 @@ class SettingsView {
       const installBtn = document.createElement("button");
       installBtn.type = "button";
       installBtn.className = "btn-cuda-action btn-download";
-      installBtn.textContent = "⬇ GPU 가속 팩 설치";
+      installBtn.textContent = "GPU 가속 팩 설치";
       installBtn.disabled = this.isCudaDownloading;
       installBtn.addEventListener("click", () => this.installCudaPack());
 

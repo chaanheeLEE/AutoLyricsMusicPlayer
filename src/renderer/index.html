@@ -19,7 +19,9 @@
       <div class="nav-actions">
         <button id="navEditLyricsBtn" class="nav-btn" type="button" title="가사 편집 화면으로 전환">가사 편집</button>
         <button id="openTrackButton" class="nav-btn primary" type="button">+ 음악 추가</button>
-        <button id="settingsButton" class="nav-icon-btn" type="button" aria-label="Settings" title="설정">⚙</button>
+        <button id="settingsButton" class="nav-icon-btn" type="button" aria-label="Settings" title="설정">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
       </div>
     </header>
 
@@ -64,27 +66,6 @@
             <button id="resumeScrollBtn" class="resume-scroll-btn" type="button" title="현재 재생 중인 가사 위치로 자동 스크롤 재개">
               <span>↓ 현재 가사로 이동</span>
             </button>
-          </div>
-
-          <div id="playlistResizer" class="playlist-resizer" title="Drag to resize playlist height"></div>
-
-          <div class="playlist-section">
-            <div class="playlist-header-row">
-              <h3>Playlist <span id="playlistCount" style="font-size: 0.74rem; color: var(--muted); font-weight: 500; text-transform: none; margin-left: 6px;"></span></h3>
-              <div class="playlist-sort-actions">
-                <select id="playlistSortSelect" class="sort-select-box" title="플레이리스트 정렬">
-                  <option value="" disabled selected hidden>Sort</option>
-                  <option value="az">Sort A-Z</option>
-                  <option value="reset">Original Order</option>
-                </select>
-                <button id="playlistSearchButton" class="sort-action-btn" type="button" title="재생 목록 검색">🔍</button>
-                <button id="playlistClearButton" class="sort-action-btn danger-action-btn" type="button" title="재생 목록 비우기">Clear</button>
-              </div>
-            </div>
-            <input id="playlistSearchInput" class="playlist-search-input" type="text" placeholder="Search track title..." style="display:none;" aria-label="Search track title" />
-            <div id="playlistList" class="playlist-list">
-              <!-- Playlist items will be dynamic -->
-            </div>
           </div>
         </section>
       </div>
@@ -216,7 +197,80 @@
           </div>
         </div>
       </div>
+
+      <!-- 3. 독립된 음악 라이브러리 화면 (Library View) -->
+      <div id="libraryView" class="app-view library-view">
+        <div class="library-toolbar">
+          <div class="library-toolbar-left">
+            <h2 class="library-title">음악 라이브러리</h2>
+            <span id="libraryTrackCount" class="library-count-badge">총 0곡</span>
+          </div>
+          <div class="library-toolbar-right">
+            <div class="library-search-box">
+              <span class="search-icon" aria-hidden="true">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              </span>
+              <input id="librarySearchInput" type="text" placeholder="제목 또는 아티스트 검색…" />
+            </div>
+            <select id="librarySortSelect" class="library-sort-select" title="정렬 기준">
+              <option value="az">제목 오름차순 (A-Z)</option>
+              <option value="artist">아티스트순</option>
+              <option value="reset">추가된 순서</option>
+            </select>
+            <button id="libraryAddTrackBtn" class="edit-btn primary" type="button">+ 음악 추가</button>
+            <button id="libraryClearBtn" class="edit-btn danger" type="button">비우기</button>
+          </div>
+        </div>
+
+        <div class="library-table-container">
+          <table class="library-table">
+            <thead>
+              <tr>
+                <th class="col-num">#</th>
+                <th class="col-title">곡 제목</th>
+                <th class="col-artist">아티스트</th>
+                <th class="col-status">가사 상태</th>
+                <th class="col-actions">작업</th>
+              </tr>
+            </thead>
+            <tbody id="libraryTableBody">
+              <!-- 동적 트랙 목록 렌더링 -->
+            </tbody>
+          </table>
+        </div>
+      </div>
     </main>
+
+    <!-- 우측 슬라이드 서랍형 재생 대기열 (Queue Drawer) -->
+    <aside id="queueDrawer" class="queue-drawer">
+      <div class="queue-header">
+        <div class="queue-header-title-wrap">
+          <h3 class="queue-header-title">재생 대기열</h3>
+          <span id="playlistCount" class="queue-count-badge">0곡</span>
+        </div>
+        <div class="queue-header-actions">
+          <button id="queueCloseBtn" class="queue-close-btn" type="button" title="대기열 닫기">✕</button>
+        </div>
+      </div>
+
+      <div class="queue-tools-row">
+        <select id="playlistSortSelect" class="sort-select-box" title="대기열 정렬">
+          <option value="" disabled selected hidden>정렬</option>
+          <option value="az">이름순 (A-Z)</option>
+          <option value="reset">원래 순서</option>
+        </select>
+        <button id="playlistSearchButton" class="sort-action-btn" type="button" title="대기열 내 검색" aria-label="대기열 내 검색">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </button>
+        <button id="playlistClearButton" class="sort-action-btn danger-action-btn" type="button" title="대기열 비우기">Clear</button>
+      </div>
+
+      <input id="playlistSearchInput" class="playlist-search-input" type="text" placeholder="대기열 곡 검색…" style="display: none;" aria-label="대기열 곡 검색" />
+
+      <div id="playlistList" class="playlist-list">
+        <!-- 대기열 아이템 동적 렌더링 -->
+      </div>
+    </aside>
 
     <!-- Persistent Bottom Player Bar (하단 공통 재생바) -->
     <footer id="playerBar" class="player-bar">
@@ -241,17 +295,29 @@
         <!-- 중앙: 핵심 재생 컨트롤 + 시간 표시 -->
         <div class="player-bar-controls-wrap">
           <div class="player-bar-controls">
-            <button id="shuffleButton" class="bar-btn" type="button" disabled title="셔플: OFF">
-              <span class="btn-icon">🔀</span>
+            <button id="shuffleButton" class="bar-btn" type="button" disabled title="셔플: OFF" aria-label="셔플">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="16 3 21 3 21 8"/>
+                <line x1="4" y1="20" x2="21" y2="3"/>
+                <polyline points="21 16 21 21 16 21"/>
+                <line x1="15" y1="15" x2="21" y2="21"/>
+                <line x1="4" y1="4" x2="9" y2="9"/>
+              </svg>
             </button>
-            <button id="prevButton" class="bar-btn" type="button" disabled title="이전 곡 (Ctrl+Left)">
-              <span class="btn-icon">⏮</span>
+            <button id="prevButton" class="bar-btn" type="button" disabled title="이전 곡 (Ctrl+Left)" aria-label="이전 곡">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/>
+              </svg>
             </button>
-            <button id="playButton" class="bar-btn bar-btn-play" type="button" disabled title="재생 / 일시정지 (Space)">
-              <span class="btn-icon">▶</span>
+            <button id="playButton" class="bar-btn bar-btn-play" type="button" disabled title="재생 / 일시정지 (Space)" aria-label="재생 또는 일시정지">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M7 5.5v13l11-6.5-11-6.5z"/>
+              </svg>
             </button>
-            <button id="nextButton" class="bar-btn" type="button" disabled title="다음 곡 (Ctrl+Right)">
-              <span class="btn-icon">⏭</span>
+            <button id="nextButton" class="bar-btn" type="button" disabled title="다음 곡 (Ctrl+Right)" aria-label="다음 곡">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M16 6h2v12h-2zm-10 0v12l8.5-6z"/>
+              </svg>
             </button>
           </div>
           <div class="player-bar-time">
@@ -262,13 +328,32 @@
         <!-- 우측: 볼륨, 플로팅 가사창, 대기열 토글 -->
         <div class="player-bar-actions">
           <div class="volume-box">
-            <span id="volumeIcon" style="font-size:0.85rem; opacity:0.75;" title="볼륨">🔊</span>
+            <span id="volumeIcon" class="volume-icon-btn" title="음소거" role="button" tabindex="0" aria-label="음소거 토글">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+              </svg>
+            </span>
             <input id="volumeBar" type="range" min="0" max="1" step="0.01" value="0.85" title="볼륨 조절" />
           </div>
           <button id="floatingButton" class="bar-pill-btn" type="button" disabled title="외부 투명 플로팅 가사창 열기">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="14" rx="2"/>
+              <path d="M7 10h6"/>
+              <path d="M7 14h10"/>
+            </svg>
             <span>가사 창</span>
           </button>
           <button id="queueToggleButton" class="bar-pill-btn" type="button" title="재생 대기열 열기/닫기">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="8" y1="6" x2="21" y2="6"/>
+              <line x1="8" y1="12" x2="21" y2="12"/>
+              <line x1="8" y1="18" x2="21" y2="18"/>
+              <line x1="3" y1="6" x2="3.01" y2="6"/>
+              <line x1="3" y1="12" x2="3.01" y2="12"/>
+              <line x1="3" y1="18" x2="3.01" y2="18"/>
+            </svg>
             <span>대기열</span>
           </button>
         </div>
@@ -276,14 +361,27 @@
     </footer>
 
     <!-- Settings dialog (native <dialog>) -->
-    <dialog id="settingsDialog" class="settings-dialog">
-      <form method="dialog" class="settings-form">
-        <h2>Settings</h2>
+    <dialog id="settingsDialog" class="settings-dialog settings-modal">
+      <form method="dialog" class="settings-form settings-modal-layout">
+        <header class="settings-header">
+          <div class="settings-title-group">
+            <h2>환경 설정</h2>
+            <p class="settings-subtitle">AI 분석 엔진, 플로팅 가사창, 단축키를 관리합니다.</p>
+          </div>
+          <button id="closeSettingsBtn" class="settings-close-btn" type="button" title="닫기" aria-label="닫기">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </header>
 
-        <div class="settings-tabs">
-          <button id="tabGeneralBtn" class="settings-tab-button active" type="button">STT & AI</button>
-          <button id="tabFloatingBtn" class="settings-tab-button" type="button">Floating Lyrics</button>
-          <button id="tabShortcutsBtn" class="settings-tab-button" type="button">Shortcuts</button>
+        <div class="settings-tabs-bar">
+          <div class="settings-tabs" role="tablist">
+            <button id="tabGeneralBtn" class="settings-tab-button active" type="button" role="tab" aria-selected="true">AI 및 음성 분석</button>
+            <button id="tabFloatingBtn" class="settings-tab-button" type="button" role="tab" aria-selected="false">플로팅 가사창</button>
+            <button id="tabShortcutsBtn" class="settings-tab-button" type="button" role="tab" aria-selected="false">단축키</button>
+          </div>
         </div>
 
         <!-- 1. General Settings Tab Content -->
@@ -436,16 +534,16 @@
             <div class="settings-item">
               <div class="settings-info">
                 <label>디스크 캐시 경로</label>
-                <p id="cachePathLabel" style="word-break: break-all; margin-top: 4px; color: var(--muted); font-size: 0.74rem;">—</p>
+                <p id="cachePathLabel" class="settings-cache-path">—</p>
               </div>
               <div class="settings-control">
-                <button id="clearCacheButton" type="button" style="width: 100%;">Clear Cache</button>
+                <button id="clearCacheButton" type="button" class="edit-btn secondary">캐시 비우기</button>
               </div>
             </div>
           </div>
           
           <p class="settings-privacy">
-            🔒 로컬 분석(Whisper)은 외부로 어떠한 오디오도 전송하지 않습니다. Gemini API 선택 시 오디오 데이터가 Google Cloud 서버로 전송됩니다.
+            로컬 분석(Whisper)은 외부로 어떠한 오디오도 전송하지 않습니다. Gemini API 선택 시 오디오 데이터가 Google Cloud 서버로 전송됩니다.
           </p>
         </div>
 
@@ -456,7 +554,7 @@
 
             <div class="settings-item">
               <div class="settings-info">
-                <label for="settingFloatingFontSize">폰트 크기 (<span id="valFloatingFontSize">18</span>px)</label>
+                <label for="settingFloatingFontSize">폰트 크기 <span class="settings-value-pill"><span id="valFloatingFontSize">18</span>px</span></label>
                 <p>바탕 화면 가사 글꼴 크기입니다.</p>
               </div>
               <div class="settings-control">
@@ -466,8 +564,8 @@
 
             <div class="settings-item">
               <div class="settings-info">
-                <label for="settingFloatingOpacity">배경 투명도 (<span id="valFloatingOpacity">0.85</span>)</label>
-                <p>플로팅 윈도우의 검은색 배경 불투명도입니다.</p>
+                <label for="settingFloatingOpacity">배경 투명도 <span class="settings-value-pill" id="valFloatingOpacity">0.85</span></label>
+                <p>플로팅 윈도우의 배경 불투명도입니다.</p>
               </div>
               <div class="settings-control">
                 <input type="range" id="settingFloatingOpacity" min="0.0" max="1.0" step="0.05" value="0.85" />
@@ -515,7 +613,7 @@
           <div class="settings-card settings-shortcut-card">
             <div class="settings-card-header settings-shortcut-header">플레이어 단축키 설정</div>
             <p class="settings-shortcut-desc">
-              키 지정을 하려면 해당 단축키 버튼을 마우스로 클릭하고 새로운 키를 입력하십시오. (Esc 입력 시 초기화/취소)
+              키 지정을 하려면 해당 단축키 버튼을 클릭하고 새로운 키를 입력하십시오. (Esc 입력 시 취소)
             </p>
 
             <div class="shortcut-list-container">
@@ -596,8 +694,8 @@
         </div>
 
         <div class="settings-footer">
-          <button value="cancel" type="submit">Close</button>
-          <button id="saveSettingsButton" type="button" class="primary-button">Save</button>
+          <button value="cancel" type="submit" class="edit-btn secondary">취소</button>
+          <button id="saveSettingsButton" type="button" class="edit-btn primary">설정 저장</button>
         </div>
       </form>
     </dialog>
@@ -605,7 +703,7 @@
     <!-- Embed Lyrics Modal -->
     <dialog id="embedModal" class="settings-dialog embed-modal">
       <form method="dialog" class="settings-form">
-        <h2>💾 Embed Lyrics to Audio</h2>
+        <h2>음원에 가사 내장 (Embed)</h2>
         <p class="embed-desc">음원 파일 메타데이터 태그에 내장할 가사 출처를 선택하세요.</p>
 
         <div class="embed-options">
@@ -632,8 +730,8 @@
         </div>
 
         <div class="settings-footer">
-          <button id="closeEmbedModalBtn" type="button">Cancel</button>
-          <button id="confirmEmbedBtn" type="button" class="primary-button">Embed to File</button>
+          <button id="closeEmbedModalBtn" type="button" class="edit-btn secondary">취소</button>
+          <button id="confirmEmbedBtn" type="button" class="edit-btn primary">음원에 내장하기</button>
         </div>
       </form>
     </dialog>

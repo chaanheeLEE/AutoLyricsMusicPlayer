@@ -14,9 +14,15 @@
         <p id="nextLine" class="floating-context">Open a track and start playback.</p>
       </div>
       <div class="floating-controls">
-        <button id="floatingPrev" type="button" title="Previous Track">|◀</button>
-        <button id="floatingPlayPause" type="button" title="Play/Pause">▶</button>
-        <button id="floatingNext" type="button" title="Next Track">▶|</button>
+        <button id="floatingPrev" type="button" title="Previous Track" aria-label="Previous Track">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+        </button>
+        <button id="floatingPlayPause" type="button" title="Play/Pause" aria-label="Play or Pause">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5.5v13l11-6.5-11-6.5z"/></svg>
+        </button>
+        <button id="floatingNext" type="button" title="Next Track" aria-label="Next Track">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 6h2v12h-2zm-10 0v12l8.5-6z"/></svg>
+        </button>
         <button id="floatingLock" type="button" title="Toggle Window Lock">Lock</button>
         <button id="floatingHide" type="button" title="Hide Floating Lyrics">Hide</button>
       </div>

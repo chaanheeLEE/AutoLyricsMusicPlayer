@@ -94,9 +94,17 @@
   background: rgba(28, 32, 42, 0.9);
   color: #fff;
   font-size: 0.66rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   opacity: 0;
   transition: opacity 160ms ease;
+}
+
+.floating-controls button svg {
+  display: block;
+  pointer-events: none;
 }
 
 .floating-card.mouse-over .floating-controls button {

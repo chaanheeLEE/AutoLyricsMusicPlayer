@@ -100,7 +100,6 @@ class LyricsViewer {
     if (this.editLineDec1) this.editLineDec1.addEventListener("click", () => this.adjustSelectedLine(-0.1));
     if (this.editLineInc1) this.editLineInc1.addEventListener("click", () => this.adjustSelectedLine(0.1));
     if (this.editLineInc5) this.editLineInc5.addEventListener("click", () => this.adjustSelectedLine(0.5));
-  }
 
     // 편집 모드에서의 시간 조절 클릭 이벤트 핸들러
     this.lyricsList.addEventListener("click", (event) => {

@@ -10,25 +10,75 @@ class PlaylistManager {
     this.playlistClearButton = document.querySelector("#playlistClearButton");
     this.openTrackButton = document.querySelector("#openTrackButton");
 
+    // 라이브러리 뷰 요소들
+    this.libraryTrackCount = document.querySelector("#libraryTrackCount");
+    this.libraryTableBody = document.querySelector("#libraryTableBody");
+    this.librarySearchInput = document.querySelector("#librarySearchInput");
+    this.librarySortSelect = document.querySelector("#librarySortSelect");
+    this.libraryAddTrackBtn = document.querySelector("#libraryAddTrackBtn");
+    this.libraryClearBtn = document.querySelector("#libraryClearBtn");
+
     this.dragSourceIndex = null;
     this._initEvents();
   }
 
   _initEvents() {
-    this.openTrackButton.addEventListener("click", () => this.openAddTracks());
-    this.playlistClearButton.addEventListener("click", () => this.clearPlaylist());
-    this.playlistSearchButton.addEventListener("click", () => this.toggleSearch());
-    this.playlistSearchInput.addEventListener("input", () => this.filterPlaylist());
+    if (this.openTrackButton) this.openTrackButton.addEventListener("click", () => this.openAddTracks());
+    if (this.playlistClearButton) this.playlistClearButton.addEventListener("click", () => this.clearPlaylist());
+    if (this.playlistSearchButton) this.playlistSearchButton.addEventListener("click", () => this.toggleSearch());
+    if (this.playlistSearchInput) this.playlistSearchInput.addEventListener("input", () => this.filterPlaylist());
+
+    // 라이브러리 툴바 이벤트
+    if (this.libraryAddTrackBtn) this.libraryAddTrackBtn.addEventListener("click", () => this.openAddTracks());
+    if (this.libraryClearBtn) this.libraryClearBtn.addEventListener("click", () => this.clearPlaylist());
+    if (this.librarySearchInput) this.librarySearchInput.addEventListener("input", () => this.renderLibraryTable());
     
-    this.playlistSortSelect.addEventListener("change", () => {
-      const val = this.playlistSortSelect.value;
-      if (val === "az") {
-        this.sort((a, b) => a.title.localeCompare(b.title));
-      } else if (val === "reset") {
-        this.sort((a, b) => a.originalOrder - b.originalOrder);
-      }
-      this.playlistSortSelect.value = "";
-    });
+    if (this.librarySortSelect) {
+      this.librarySortSelect.addEventListener("change", () => {
+        const val = this.librarySortSelect.value;
+        if (val === "az") {
+          this.sort((a, b) => a.title.localeCompare(b.title));
+        } else if (val === "artist") {
+          this.sort((a, b) => {
+            const artA = a.title.includes(" - ") ? a.title.split(" - ")[0].trim() : "";
+            const artB = b.title.includes(" - ") ? b.title.split(" - ")[0].trim() : "";
+            return artA.localeCompare(artB) || a.title.localeCompare(b.title);
+          });
+        } else if (val === "reset") {
+          this.sort((a, b) => a.originalOrder - b.originalOrder);
+        }
+      });
+    }
+
+    if (this.libraryTableBody) {
+      this.libraryTableBody.addEventListener("click", (event) => {
+        const removeBtn = event.target.closest(".library-item-remove");
+        if (removeBtn) {
+          event.stopPropagation();
+          const indexToRemove = parseInt(removeBtn.dataset.index, 10);
+          this.removeTrack(indexToRemove);
+          return;
+        }
+
+        const row = event.target.closest(".library-row");
+        if (row) {
+          const idx = parseInt(row.dataset.index, 10);
+          this.callbacks.onSelectTrack(idx);
+        }
+      });
+    }
+
+    if (this.playlistSortSelect) {
+      this.playlistSortSelect.addEventListener("change", () => {
+        const val = this.playlistSortSelect.value;
+        if (val === "az") {
+          this.sort((a, b) => a.title.localeCompare(b.title));
+        } else if (val === "reset") {
+          this.sort((a, b) => a.originalOrder - b.originalOrder);
+        }
+        this.playlistSortSelect.value = "";
+      });
+    }
 
     this.playlistList.addEventListener("click", (event) => {
       const removeBtn = event.target.closest(".playlist-item-remove");
@@ -50,7 +100,81 @@ class PlaylistManager {
   updateHeader() {
     const total = this.state.playlist.length;
     const currentNum = this.state.currentIndex >= 0 ? this.state.currentIndex + 1 : 0;
-    this.playlistCount.textContent = total > 0 ? `(${currentNum}/${total})` : "";
+    if (this.playlistCount) {
+      this.playlistCount.textContent = total > 0 ? `${currentNum}/${total}곡` : "0곡";
+    }
+    if (this.libraryTrackCount) {
+      this.libraryTrackCount.textContent = `총 ${total}곡`;
+    }
+  }
+
+  renderLibraryTable() {
+    if (!this.libraryTableBody) return;
+
+    if (this.state.playlist.length === 0) {
+      this.libraryTableBody.innerHTML = `
+        <tr>
+          <td colspan="5" style="text-align: center; padding: 48px 0; color: var(--muted);">
+            라이브러리에 등록된 음악이 없습니다. 우측 상단의 '+ 음악 추가' 버튼을 눌러 곡을 추가하세요.
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    const query = (this.librarySearchInput?.value || "").trim().toLowerCase();
+    let renderedCount = 0;
+    let html = "";
+
+    this.state.playlist.forEach((track, index) => {
+      const clean = (track.title || "").replace(/\.(mp3|flac|m4a|wav|ogg|aac)$/i, "").trim();
+      let artist = "-";
+      let title = clean;
+      if (clean.includes(" - ")) {
+        const parts = clean.split(" - ");
+        artist = parts[0].trim();
+        title = parts.slice(1).join(" - ").trim() || clean;
+      }
+
+      if (query && !title.toLowerCase().includes(query) && !artist.toLowerCase().includes(query)) {
+        return;
+      }
+
+      renderedCount++;
+      const isPlaying = index === this.state.currentIndex;
+      const rowClass = isPlaying ? "library-row playing" : "library-row";
+      const numDisplay = isPlaying ? "▶" : String(index + 1);
+
+      html += `
+        <tr class="${rowClass}" data-index="${index}">
+          <td class="col-num">${numDisplay}</td>
+          <td class="col-title" title="${window.lyricsCore.escapeHtml(title)}">
+            <strong style="font-weight: 600;">${window.lyricsCore.escapeHtml(title)}</strong>
+          </td>
+          <td class="col-artist" title="${window.lyricsCore.escapeHtml(artist)}">${window.lyricsCore.escapeHtml(artist)}</td>
+          <td class="col-status">
+            <span class="status-chip ${isPlaying && this.state.lyrics?.length > 0 ? "ready" : ""}">
+              ${isPlaying && this.state.lyrics?.length > 0 ? `가사 있음 (${this.state.lyrics.length}줄)` : "대기"}
+            </span>
+          </td>
+          <td class="col-actions">
+            <button class="sort-action-btn danger-action-btn library-item-remove" data-index="${index}" type="button" title="라이브러리에서 제거">삭제</button>
+          </td>
+        </tr>
+      `;
+    });
+
+    if (renderedCount === 0) {
+      this.libraryTableBody.innerHTML = `
+        <tr>
+          <td colspan="5" style="text-align: center; padding: 32px 0; color: var(--muted);">
+            검색 결과와 일치하는 음악이 없습니다.
+          </td>
+        </tr>
+      `;
+    } else {
+      this.libraryTableBody.innerHTML = html;
+    }
   }
 
   bindDragEvents() {
@@ -138,6 +262,7 @@ class PlaylistManager {
     if (this.state.playlist.length === 0) {
       this.playlistList.innerHTML = `<div class="settings-note" style="text-align: center; padding: 12px 0;">No tracks added</div>`;
       this.updateHeader();
+      this.renderLibraryTable();
       return;
     }
 
@@ -154,7 +279,7 @@ class PlaylistManager {
       html += `
         <div class="playlist-item ${activeClass}" data-index="${index}" draggable="true">
           <span class="playlist-item-title">${index + 1}. ${window.lyricsCore.escapeHtml(item.title)}</span>
-          <button class="playlist-item-remove" data-index="${index}" type="button" title="Remove track">✕</button>
+          <button class="playlist-item-remove" data-index="${index}" type="button" title="대기열에서 제외">✕</button>
         </div>
       `;
     });
@@ -167,6 +292,7 @@ class PlaylistManager {
     }
 
     this.updateHeader();
+    this.renderLibraryTable();
   }
 
   saveCache() {
@@ -307,7 +433,8 @@ class PlaylistManager {
   }
 
   setEnabled(enabled) {
-    this.playlistClearButton.disabled = !enabled;
+    if (this.playlistClearButton) this.playlistClearButton.disabled = !enabled;
+    if (this.libraryClearBtn) this.libraryClearBtn.disabled = !enabled;
   }
 }
 

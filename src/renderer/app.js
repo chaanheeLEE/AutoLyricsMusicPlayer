@@ -36,6 +36,9 @@ const queueToggleButton = document.querySelector("#queueToggleButton");
 // Views & Edit Toolbar Elements
 const nowPlayingView = document.querySelector("#nowPlayingView");
 const lyricsEditView = document.querySelector("#lyricsEditView");
+const libraryView = document.querySelector("#libraryView");
+const queueDrawer = document.querySelector("#queueDrawer");
+const queueCloseBtn = document.querySelector("#queueCloseBtn");
 const editTrackTitle = document.querySelector("#editTrackTitle");
 const exitEditModeBtn = document.querySelector("#exitEditModeBtn");
 const saveEditBtn = document.querySelector("#saveEditBtn");
@@ -257,16 +260,26 @@ const lyricsViewer = new LyricsViewer(state, {
 });
 
 function switchView(viewName) {
+  if (nowPlayingView) nowPlayingView.classList.remove("active");
+  if (lyricsEditView) lyricsEditView.classList.remove("active");
+  if (libraryView) libraryView.classList.remove("active");
+
   if (viewName === "lyrics-edit") {
-    if (nowPlayingView) nowPlayingView.classList.remove("active");
     if (lyricsEditView) lyricsEditView.classList.add("active");
     if (editTrackTitle) {
       editTrackTitle.textContent = state.track?.title ? parseArtistTitle(state.track.title).title : "선택된 곡 없음";
     }
     if (lyricsViewer) lyricsViewer.renderEditView();
+  } else if (viewName === "library") {
+    if (libraryView) libraryView.classList.add("active");
+    if (navLibraryBtn) navLibraryBtn.classList.add("active");
+    if (navNowPlayingBtn) navNowPlayingBtn.classList.remove("active");
+    if (state.editMode) {
+      state.editMode = false;
+    }
+    if (playlist) playlist.renderLibraryTable();
   } else {
-    // now-playing view
-    if (lyricsEditView) lyricsEditView.classList.remove("active");
+    // "now-playing"
     if (nowPlayingView) nowPlayingView.classList.add("active");
     if (navNowPlayingBtn) navNowPlayingBtn.classList.add("active");
     if (navLibraryBtn) navLibraryBtn.classList.remove("active");
@@ -598,12 +611,21 @@ function setControlsEnabled(enabled) {
 
 // showProgress, hideProgress, align, analyze, cancel 관련 로직은 LyricsJobManager가 관리하므로 제거합니다.
 
+function updateFloatingButtonUI(visible) {
+  if (!floatingButton) return;
+  floatingButton.classList.toggle("active", visible);
+  floatingButton.title = visible ? "외부 플로팅 가사창 닫기" : "외부 투명 플로팅 가사창 열기";
+  const labelSpan = floatingButton.querySelector("span");
+  if (labelSpan) {
+    labelSpan.textContent = visible ? "가사 창 닫기" : "가사 창";
+  }
+}
+
 floatingButton.addEventListener("click", async () => {
   state.floatingVisible = !state.floatingVisible;
   const visible = await window.lyricsPlayer.toggleFloating(state.floatingVisible);
   state.floatingVisible = visible;
-  floatingButton.textContent = visible ? "Hide Floating Lyrics" : "Show Floating Lyrics";
-  floatingButton.classList.toggle("active", visible);
+  updateFloatingButtonUI(visible);
   lyricsViewer.updateActive(player.getCurrentTime(), player.isPlaying());
   localStorage.setItem("floating_visible", String(visible));
 });
@@ -653,8 +675,7 @@ exportVttButton.addEventListener("click", () => {
 
 window.lyricsPlayer.onFloatingClosed(() => {
   state.floatingVisible = false;
-  floatingButton.textContent = "Show Floating Lyrics";
-  floatingButton.classList.remove("active");
+  updateFloatingButtonUI(false);
   localStorage.setItem("floating_visible", "false");
 });
 
@@ -754,8 +775,10 @@ function initMediaSession() {
   const savedShuffle = localStorage.getItem("shuffle") === "true";
   state.shuffle = savedShuffle;
   const shuffleButton = document.querySelector("#shuffleButton");
-  shuffleButton.textContent = `Shuffle: ${state.shuffle ? "ON" : "OFF"}`;
-  shuffleButton.classList.toggle("active", state.shuffle);
+  if (shuffleButton) {
+    shuffleButton.title = `셔플: ${state.shuffle ? "ON" : "OFF"}`;
+    shuffleButton.classList.toggle("active", state.shuffle);
+  }
 
   // Restore playlist from localStorage
   try {
@@ -798,20 +821,13 @@ function initMediaSession() {
     await selectPlaylistItem(lastIndex, false);
   }
   
-  // Restore playlist size from cache
-  const cachedHeight = localStorage.getItem("playlist_height");
-  if (cachedHeight) {
-    document.querySelector(".playlist-section").style.height = cachedHeight;
-  }
-
   // Restore floating visibility
   const savedFloating = localStorage.getItem("floating_visible") === "true";
   if (savedFloating) {
     state.floatingVisible = true;
     const visible = await window.lyricsPlayer.toggleFloating(true);
     state.floatingVisible = visible;
-    floatingButton.textContent = visible ? "Hide Floating Lyrics" : "Show Floating Lyrics";
-    floatingButton.classList.toggle("active", visible);
+    updateFloatingButtonUI(visible);
     lyricsViewer.updateActive(player.getCurrentTime(), player.isPlaying());
   }
 
@@ -825,46 +841,8 @@ function initMediaSession() {
   }
 })();
 
-// --- Playlist Height Resizer ---
+// --- Shortcuts & Global UI Controls ---
 (() => {
-  const playlistResizer = document.querySelector("#playlistResizer");
-  const playlistSection = document.querySelector(".playlist-section");
-
-  if (!playlistResizer || !playlistSection) return;
-
-  let isResizing = false;
-  let startY = 0;
-  let startHeight = 0;
-
-  playlistResizer.addEventListener("mousedown", (e) => {
-    isResizing = true;
-    startY = e.clientY;
-    startHeight = playlistSection.offsetHeight;
-    playlistResizer.classList.add("resizing");
-    document.body.style.cursor = "ns-resize";
-    document.body.style.userSelect = "none";
-  });
-
-  document.addEventListener("mousemove", (e) => {
-    if (!isResizing) return;
-    const dy = e.clientY - startY;
-    const newHeight = startHeight - dy;
-
-    if (newHeight >= 60 && newHeight <= 450) {
-      playlistSection.style.height = `${newHeight}px`;
-    }
-  });
-
-  document.addEventListener("mouseup", () => {
-    if (isResizing) {
-      isResizing = false;
-      playlistResizer.classList.remove("resizing");
-      document.body.style.removeProperty("cursor");
-      document.body.style.removeProperty("user-select");
-      localStorage.setItem("playlist_height", playlistSection.style.height);
-    }
-  });
-
   // -------------------------------------------------------------
   // 단축키 제어 (Keyboard Shortcuts)
   // -------------------------------------------------------------
@@ -945,13 +923,18 @@ function initMediaSession() {
     }
   });
 
-  // 하단 바 대기열 토글 버튼 핸들러
-  if (queueToggleButton) {
+  // 하단 바 대기열 토글 버튼 및 닫기 버튼 핸들러 (Queue Drawer)
+  if (queueToggleButton && queueDrawer) {
     queueToggleButton.addEventListener("click", () => {
-      const playlistSection = document.querySelector(".playlist-section");
-      if (playlistSection) {
-        playlistSection.scrollIntoView({ behavior: "smooth" });
-      }
+      const isOpen = queueDrawer.classList.toggle("open");
+      queueToggleButton.classList.toggle("active", isOpen);
+    });
+  }
+
+  if (queueCloseBtn && queueDrawer) {
+    queueCloseBtn.addEventListener("click", () => {
+      queueDrawer.classList.remove("open");
+      if (queueToggleButton) queueToggleButton.classList.remove("active");
     });
   }
 
@@ -971,21 +954,15 @@ function initMediaSession() {
   // 상단 내비게이션 바 탭 이벤트
   if (navNowPlayingBtn && navLibraryBtn) {
     navNowPlayingBtn.addEventListener("click", () => {
-      navNowPlayingBtn.classList.add("active");
-      navLibraryBtn.classList.remove("active");
-      const playerPane = document.querySelector(".player-pane");
-      if (playerPane) {
-        playerPane.scrollIntoView({ behavior: "smooth" });
+      if (state.editMode) {
+        lyricsViewer.toggleEditMode(false);
+      } else {
+        switchView("now-playing");
       }
     });
 
     navLibraryBtn.addEventListener("click", () => {
-      navLibraryBtn.classList.add("active");
-      navNowPlayingBtn.classList.remove("active");
-      const playlistSection = document.querySelector(".playlist-section");
-      if (playlistSection) {
-        playlistSection.scrollIntoView({ behavior: "smooth" });
-      }
+      switchView("library");
     });
   }
 

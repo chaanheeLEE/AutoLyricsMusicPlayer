@@ -77,7 +77,7 @@
 
 .lyrics-list:not(.edit-mode) .lyric-line:hover {
   opacity: 0.85;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--surface-hover);
 }
 
 .lyrics-list:not(.edit-mode) .lyric-line:hover .lyric-seek strong {
@@ -131,7 +131,7 @@
 
 .resume-scroll-btn:hover {
   background: var(--accent);
-  color: #0b0d10;
+  color: var(--surface-app);
   transform: translateX(-50%) translateY(-2px);
   box-shadow: 0 6px 20px rgba(66, 211, 146, 0.35);
 }
@@ -148,7 +148,7 @@
 }
 
 .lyric-timestamp {
-  color: var(--muted);
+  color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
   font-size: 0.8rem;
   width: 44px;
@@ -177,7 +177,7 @@
   font-size: 0.96rem;
   line-height: 1.4;
   font-weight: 500;
-  color: #a0a6b5;
+  color: var(--text-secondary);
   transition: none;
 }
 
@@ -185,7 +185,7 @@
   flex: 1;
   border: none;
   background: transparent;
-  color: #dfe2e8;
+  color: var(--text-primary);
   font-size: 0.96rem;
   line-height: 1.4;
   font-weight: 500;
@@ -203,7 +203,7 @@
 
 .lyric-line.active {
   border-color: var(--accent);
-  background: rgba(66, 211, 146, 0.18);
+  background: var(--surface-selected);
   box-shadow: none;
 }
 

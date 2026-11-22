@@ -8,6 +8,9 @@ const floatingNext = document.querySelector("#floatingNext");
 const floatingLock = document.querySelector("#floatingLock");
 const floatingHide = document.querySelector("#floatingHide");
 
+const ICON_PLAY = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5.5v13l11-6.5-11-6.5z"/></svg>`;
+const ICON_PAUSE = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6V5zm8 0h4v14h-4V5z"/></svg>`;
+
 let locked = false;
 let currentIgnoreState = null;
 
@@ -22,7 +25,7 @@ window.lyricsPlayer.onFloatingLine((payload) => {
   previousLine.textContent = payload.previous || "";
   currentLine.textContent = payload.current || "No lyric line";
   nextLine.textContent = payload.next || "";
-  floatingPlayPause.textContent = payload.isPlaying ? "❚❚" : "▶";
+  floatingPlayPause.innerHTML = payload.isPlaying ? ICON_PAUSE : ICON_PLAY;
 });
 
 window.lyricsPlayer.onFloatingLocked((nextLocked) => {
