@@ -1,0 +1,298 @@
+/* ==========================================================================
+   Persistent Bottom Player Bar (하단 공통 재생바)
+   ========================================================================== */
+
+.player-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 78px;
+  background: rgba(18, 21, 28, 0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  user-select: none;
+}
+
+/* 1. 상단 얇은 탐색 진행 막대 (Seek Bar) */
+.player-bar-progress {
+  position: absolute;
+  top: -7px;
+  left: 0;
+  right: 0;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.player-bar-seek {
+  width: 100%;
+  height: 4px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(255, 255, 255, 0.12);
+  outline: none;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: height 120ms ease, background 120ms ease;
+  margin: 0;
+  padding: 0;
+}
+
+.player-bar-progress:hover .player-bar-seek {
+  height: 6px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.player-bar-seek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  transition: width 120ms ease, height 120ms ease;
+  cursor: pointer;
+}
+
+.player-bar-progress:hover .player-bar-seek::-webkit-slider-thumb {
+  width: 12px;
+  height: 12px;
+}
+
+/* 2. 메인 바 내용 (3구역 분할: 좌측 정보 / 중앙 컨트롤 / 우측 액션) */
+.player-bar-body {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  gap: 20px;
+}
+
+/* 2.1 좌측 트랙 정보 */
+.player-bar-track {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 200px;
+  max-width: 320px;
+  flex: 1 1 0;
+}
+
+.player-bar-art-wrap {
+  width: 46px;
+  height: 46px;
+  min-width: 46px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.player-bar-art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: none;
+}
+
+.player-bar-art-placeholder {
+  font-size: 1.2rem;
+  opacity: 0.6;
+}
+
+.player-bar-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.player-bar-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.25;
+}
+
+.player-bar-artist {
+  font-size: 0.76rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+/* 2.2 중앙 컨트롤 */
+.player-bar-controls-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.player-bar-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.bar-btn {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  opacity: 0.85;
+  cursor: pointer;
+  padding: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: opacity 120ms ease, transform 100ms ease, background 120ms ease, color 120ms ease;
+  user-select: none;
+}
+
+.bar-btn:hover:not(:disabled) {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.08);
+  transform: scale(1.06);
+}
+
+.bar-btn:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.bar-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.bar-btn.active {
+  color: var(--accent);
+  opacity: 1;
+  background: rgba(66, 211, 146, 0.12);
+}
+
+/* 주요 재생/일시정지 버튼 강조 */
+.bar-btn-play {
+  width: 44px;
+  height: 44px;
+  background: var(--accent) !important;
+  color: #0b0d10 !important;
+  opacity: 1 !important;
+  font-size: 1.1rem;
+  font-weight: bold;
+  box-shadow: 0 2px 10px rgba(66, 211, 146, 0.3);
+}
+
+.bar-btn-play:hover:not(:disabled) {
+  transform: scale(1.08) !important;
+  box-shadow: 0 4px 14px rgba(66, 211, 146, 0.45);
+}
+
+.bar-btn-play:active:not(:disabled) {
+  transform: scale(0.96) !important;
+}
+
+.player-bar-time {
+  font-size: 0.72rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  letter-spacing: 0.02em;
+}
+
+/* 2.3 우측 액션 (볼륨, 플로팅 가사창, 대기열) */
+.player-bar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: 200px;
+  flex: 1 1 0;
+}
+
+.volume-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.volume-box input[type="range"] {
+  width: 86px;
+  height: 4px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: rgba(255, 255, 255, 0.2);
+  outline: none;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.volume-box input[type="range"]:hover {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.volume-box input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--text);
+  cursor: pointer;
+  transition: transform 100ms ease;
+}
+
+.volume-box input[type="range"]:hover::-webkit-slider-thumb {
+  transform: scale(1.2);
+  background: var(--accent);
+}
+
+.bar-pill-btn {
+  border: 1px solid var(--line);
+  background: var(--panel-soft);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.bar-pill-btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.bar-pill-btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.bar-pill-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--panel-active);
+}

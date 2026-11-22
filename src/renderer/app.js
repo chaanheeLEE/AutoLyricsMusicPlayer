@@ -18,6 +18,14 @@ const deleteCacheButton = document.querySelector("#deleteCacheButton");
 const syncOffsetBadge = document.querySelector("#syncOffsetBadge");
 const playlistList = document.querySelector("#playlistList");
 
+// Persistent Player Bar Elements
+const playerBar = document.querySelector("#playerBar");
+const playerBarTitle = document.querySelector("#playerBarTitle");
+const playerBarArtist = document.querySelector("#playerBarArtist");
+const playerBarArt = document.querySelector("#playerBarArt");
+const playerBarPlaceholder = document.querySelector("#playerBarPlaceholder");
+const queueToggleButton = document.querySelector("#queueToggleButton");
+
 const { formatClock, escapeHtml } = window.lyricsCore;
 
 // Global State
@@ -42,6 +50,52 @@ const state = {
 let saveTimer = null;
 
 // escapeHtml은 window.lyricsCore.escapeHtml로 일원화되었습니다.
+
+function parseArtistTitle(rawTitle) {
+  if (!rawTitle) return { title: "No track selected", artist: "-" };
+  const clean = rawTitle.replace(/\.(mp3|flac|m4a|wav|ogg|aac)$/i, "").trim();
+  if (clean.includes(" - ")) {
+    const parts = clean.split(" - ");
+    const artist = parts[0].trim();
+    const title = parts.slice(1).join(" - ").trim();
+    return { title: title || clean, artist: artist || "Unknown Artist" };
+  }
+  return { title: clean, artist: "Unknown Artist" };
+}
+
+function updatePlayerBarInfo(track) {
+  if (!playerBarTitle || !playerBarArtist) return;
+  if (!track) {
+    playerBarTitle.textContent = "No track selected";
+    playerBarTitle.title = "선택된 트랙 없음";
+    playerBarArtist.textContent = "-";
+    playerBarArtist.title = "";
+    if (playerBarArt) {
+      playerBarArt.src = "";
+      playerBarArt.style.display = "none";
+    }
+    if (playerBarPlaceholder) playerBarPlaceholder.style.display = "flex";
+    return;
+  }
+
+  const { title, artist } = parseArtistTitle(track.title);
+  playerBarTitle.textContent = title;
+  playerBarTitle.title = title;
+  playerBarArtist.textContent = artist;
+  playerBarArtist.title = artist;
+
+  if (track.albumArt && playerBarArt) {
+    playerBarArt.src = track.albumArt;
+    playerBarArt.style.display = "block";
+    if (playerBarPlaceholder) playerBarPlaceholder.style.display = "none";
+  } else {
+    if (playerBarArt) {
+      playerBarArt.src = "";
+      playerBarArt.style.display = "none";
+    }
+    if (playerBarPlaceholder) playerBarPlaceholder.style.display = "flex";
+  }
+}
 
 function persistLyricsSoon() {
   if (!state.track || state.lyrics.length === 0) {
@@ -128,6 +182,7 @@ const playlist = new PlaylistManager(state, {
     albumArt.style.display = "none";
     albumArtPlaceholder.style.display = "flex";
     
+    updatePlayerBarInfo(null);
     lyricsViewer.render();
     updateAlignButtonState();
   }
@@ -269,6 +324,7 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
   player.loadTrack(track, autoPlay);
   trackTitle.innerHTML = `<span>${escapeHtml(track.title)}</span>`;
   updateTitleMarquee();
+  updatePlayerBarInfo(track);
   updateMediaSessionMetadata(track);
 
   // 앨범 아트 설정 (비동기 지연 로드 지원)
@@ -276,10 +332,20 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
     albumArt.src = track.albumArt;
     albumArt.style.display = "block";
     albumArtPlaceholder.style.display = "none";
+    if (playerBarArt) {
+      playerBarArt.src = track.albumArt;
+      playerBarArt.style.display = "block";
+    }
+    if (playerBarPlaceholder) playerBarPlaceholder.style.display = "none";
   } else {
     albumArt.src = "";
     albumArt.style.display = "none";
     albumArtPlaceholder.style.display = "flex";
+    if (playerBarArt) {
+      playerBarArt.src = "";
+      playerBarArt.style.display = "none";
+    }
+    if (playerBarPlaceholder) playerBarPlaceholder.style.display = "flex";
 
     // 앨범 아트 비동기 Lazy Extraction
     if (track.path) {
@@ -289,6 +355,11 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
           albumArt.src = art;
           albumArt.style.display = "block";
           albumArtPlaceholder.style.display = "none";
+          if (playerBarArt) {
+            playerBarArt.src = art;
+            playerBarArt.style.display = "block";
+          }
+          if (playerBarPlaceholder) playerBarPlaceholder.style.display = "none";
         }
       }).catch(() => {});
     }
@@ -808,4 +879,28 @@ function initMediaSession() {
         break;
     }
   });
+
+  // 하단 바 대기열 토글 버튼 핸들러
+  if (queueToggleButton) {
+    queueToggleButton.addEventListener("click", () => {
+      const playlistSection = document.querySelector(".playlist-section");
+      if (playlistSection) {
+        playlistSection.scrollIntoView({ behavior: "smooth" });
+      }
+    });
+  }
+
+  // 하단 바 볼륨 아이콘 클릭 시 음소거 토글
+  const volumeIcon = document.querySelector("#volumeIcon");
+  if (volumeIcon) {
+    volumeIcon.style.cursor = "pointer";
+    volumeIcon.addEventListener("click", () => {
+      if (player.audio.volume > 0) {
+        state.savedVolume = player.audio.volume;
+        player.setVolume(0);
+      } else {
+        player.setVolume(state.savedVolume || 0.85);
+      }
+    });
+  }
 })();
