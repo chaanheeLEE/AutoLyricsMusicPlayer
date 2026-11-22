@@ -110,6 +110,7 @@ def separate_vocals_onnx(
     model_path: str,
     device: str = "auto",
     on_progress=None,
+    on_provider=None,
 ):
     """
     Separate vocals from a 44.1kHz stereo WAV using an MDX-Net ONNX model (e.g. UVR-MDX-NET-Voc_FT.onnx).
@@ -138,7 +139,19 @@ def separate_vocals_onnx(
         sess_options.enable_mem_pattern = False
         sess_options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
 
-    session = ort.InferenceSession(model_path, sess_options=sess_options, providers=providers)
+    try:
+        session = ort.InferenceSession(model_path, sess_options=sess_options, providers=providers)
+    except Exception:
+        if providers == ["CPUExecutionProvider"]:
+            raise
+        cpu_opts = ort.SessionOptions()
+        cpu_opts.intra_op_num_threads = min(os.cpu_count() or 4, 8)
+        cpu_opts.inter_op_num_threads = 1
+        session = ort.InferenceSession(model_path, sess_options=cpu_opts, providers=["CPUExecutionProvider"])
+
+    active_providers = session.get_providers()
+    if on_provider is not None and active_providers:
+        on_provider(active_providers[0])
     input_meta = session.get_inputs()[0]
     input_name = input_meta.name
     output_name = session.get_outputs()[0].name

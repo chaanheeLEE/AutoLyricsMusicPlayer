@@ -298,24 +298,51 @@ def main():
         def run_transcription(target_model):
             nonlocal prepared_vocal_audio, vocal_separation_attempted
 
+            def format_ort_provider(provider_name):
+                if provider_name == "DmlExecutionProvider":
+                    return "GPU · DirectML"
+                if provider_name == "CUDAExecutionProvider":
+                    return "GPU · CUDA"
+                return "CPU"
+
             if args.vocal_model and os.path.exists(args.vocal_model) and not vocal_separation_attempted:
                 vocal_separation_attempted = True
+                vocal_device_label = None
                 emit({"type": "progress", "stage": "isolating_vocals", "percent": 0.05})
                 last_pct = 0.05
+
+                def on_sep_provider(provider_name):
+                    nonlocal vocal_device_label
+                    vocal_device_label = format_ort_provider(provider_name)
+                    emit({"type": "info", "message": f"Vocal separation provider: {provider_name} ({vocal_device_label})"})
+                    emit({
+                        "type": "progress",
+                        "stage": "isolating_vocals",
+                        "percent": round(last_pct, 3),
+                        "deviceLabel": vocal_device_label,
+                    })
 
                 def on_sep_progress(p):
                     nonlocal last_pct
                     mapped = 0.05 + 0.50 * max(0.0, min(1.0, p))
                     if mapped - last_pct >= 0.04 or p >= 1.0:
                         last_pct = mapped
-                        emit({"type": "progress", "stage": "isolating_vocals", "percent": round(mapped, 3)})
+                        payload = {
+                            "type": "progress",
+                            "stage": "isolating_vocals",
+                            "percent": round(mapped, 3),
+                        }
+                        if vocal_device_label:
+                            payload["deviceLabel"] = vocal_device_label
+                        emit(payload)
 
                 try:
                     separated = separate_vocals_onnx(
                         args.audio_path,
                         args.vocal_model,
-                        device=resolved_device,
+                        device=args.device,
                         on_progress=on_sep_progress,
+                        on_provider=on_sep_provider,
                     )
                     if separated is not None:
                         prepared_vocal_audio = separated
@@ -326,10 +353,12 @@ def main():
                     emit({"type": "info", "message": f"Vocal separation failed ({str(sep_exc)}); falling back to original audio."})
 
             audio_input = prepared_vocal_audio if prepared_vocal_audio is not None else args.audio_path
+            whisper_device_label = "GPU · CUDA" if resolved_device == "cuda" else "CPU"
             emit({
                 "type": "progress",
                 "stage": "transcribing",
                 "percent": 0.6 if prepared_vocal_audio is not None else 0.1,
+                "deviceLabel": whisper_device_label,
             })
 
             resolved_language = args.language

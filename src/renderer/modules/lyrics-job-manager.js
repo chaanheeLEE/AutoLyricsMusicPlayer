@@ -49,7 +49,8 @@ class LyricsJobManager {
       };
 
       if (msg.type === "progress") {
-        const label = STAGE_LABELS[msg.stage] || "작업 진행 중…";
+        const baseLabel = STAGE_LABELS[msg.stage] || "작업 진행 중…";
+        const label = msg.deviceLabel ? `${baseLabel} [${msg.deviceLabel}]` : baseLabel;
         const percent = msg.percent !== undefined ? msg.percent : 0;
         this.showProgress(label, percent);
       } else if (msg.type === "segment") {
