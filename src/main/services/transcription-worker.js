@@ -81,15 +81,9 @@ function hasFasterWhisper(pythonCmd) {
   }
 }
 
-/** Resolve python binary — PATH first, then common conda/venv locations. */
+/** Resolve python binary — dedicated lyrics_player conda env first, then PATH, then common conda/venv locations. */
 function resolvePython() {
   const { existsSync } = require("node:fs");
-  for (const cmd of ["python", "python3"]) {
-    if (hasFasterWhisper(cmd)) {
-      return cmd;
-    }
-  }
-  // Common conda/venv and Windows Python locations
   const condaRoots = [
     path.join(os.homedir(), "miniconda3"),
     path.join(os.homedir(), "anaconda3"),
@@ -100,8 +94,18 @@ function resolvePython() {
     path.join("C:\\", "ProgramData", "miniconda3"),
     path.join("C:\\", "ProgramData", "anaconda3"),
   ];
+  const dedicatedEnvs = condaRoots.map((root) => path.join(root, "envs", "lyrics_player", "python.exe"));
+  for (const envPy of dedicatedEnvs) {
+    if (existsSync(envPy) && hasFasterWhisper(envPy)) {
+      return envPy;
+    }
+  }
+  for (const cmd of ["python", "python3"]) {
+    if (hasFasterWhisper(cmd)) {
+      return cmd;
+    }
+  }
   const candidates = [
-    ...condaRoots.map((root) => path.join(root, "envs", "lyrics_player", "python.exe")),
     ...condaRoots.map((root) => path.join(root, "python.exe")),
     path.join(os.homedir(), "AppData", "Local", "Programs", "Python", "Python312", "python.exe"),
     path.join(os.homedir(), "AppData", "Local", "Programs", "Python", "Python311", "python.exe"),

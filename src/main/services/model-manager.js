@@ -175,14 +175,9 @@ function hasFasterWhisper(pythonCmd) {
 }
 
 /**
- * Python 실행 파일 위치 탐색
+ * Python 실행 파일 위치 탐색 (전용 lyrics_player 환경 우선 → PATH → 일반 경로)
  */
 function resolvePython() {
-  for (const cmd of ["python", "python3"]) {
-    if (hasFasterWhisper(cmd)) {
-      return cmd;
-    }
-  }
   const condaRoots = [
     path.join(os.homedir(), "miniconda3"),
     path.join(os.homedir(), "anaconda3"),
@@ -193,8 +188,18 @@ function resolvePython() {
     path.join("C:\\", "ProgramData", "miniconda3"),
     path.join("C:\\", "ProgramData", "anaconda3"),
   ];
+  const dedicatedEnvs = condaRoots.map((root) => path.join(root, "envs", "lyrics_player", "python.exe"));
+  for (const envPy of dedicatedEnvs) {
+    if (fsSync.existsSync(envPy) && hasFasterWhisper(envPy)) {
+      return envPy;
+    }
+  }
+  for (const cmd of ["python", "python3"]) {
+    if (hasFasterWhisper(cmd)) {
+      return cmd;
+    }
+  }
   const candidates = [
-    ...condaRoots.map((root) => path.join(root, "envs", "lyrics_player", "python.exe")),
     ...condaRoots.map((root) => path.join(root, "python.exe")),
     path.join(os.homedir(), "AppData", "Local", "Programs", "Python", "Python312", "python.exe"),
     path.join(os.homedir(), "AppData", "Local", "Programs", "Python", "Python311", "python.exe"),
