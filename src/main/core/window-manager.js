@@ -56,6 +56,28 @@ function createMainWindow() {
 
   mainWindow.loadFile(path.join(__dirname, "../../renderer/index.html"));
 
+  if (process.argv.includes("--dev")) {
+    mainWindow.webContents.on("before-input-event", (event, input) => {
+      if (input.type !== "keyDown") return;
+
+      const key = input.key.toLowerCase();
+      const isDevToolsKey =
+        input.key === "F12" ||
+        ((input.control || input.meta) && input.shift && key === "i");
+      const isReloadKey =
+        input.key === "F5" ||
+        ((input.control || input.meta) && !input.shift && !input.alt && key === "r");
+
+      if (isDevToolsKey) {
+        event.preventDefault();
+        mainWindow.webContents.toggleDevTools();
+      } else if (isReloadKey) {
+        event.preventDefault();
+        mainWindow.webContents.reload();
+      }
+    });
+  }
+
   mainWindow.on("maximize", () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send("window:maximized-changed", true);
