@@ -127,14 +127,7 @@ class PlaylistManager {
     let html = "";
 
     this.state.playlist.forEach((track, index) => {
-      const clean = (track.title || "").replace(/\.(mp3|flac|m4a|wav|ogg|aac)$/i, "").trim();
-      let artist = "-";
-      let title = clean;
-      if (clean.includes(" - ")) {
-        const parts = clean.split(" - ");
-        artist = parts[0].trim();
-        title = parts.slice(1).join(" - ").trim() || clean;
-      }
+      const { title, artist } = this._splitTrackMeta(track.title);
 
       if (query && !title.toLowerCase().includes(query) && !artist.toLowerCase().includes(query)) {
         return;
@@ -258,6 +251,35 @@ class PlaylistManager {
 
   // escapeHtml은 window.lyricsCore.escapeHtml로 일원화되었습니다.
 
+  _splitTrackMeta(rawTitle) {
+    const clean = (rawTitle || "").replace(/\.(mp3|flac|m4a|wav|ogg|aac|opus)$/i, "").trim();
+    if (clean.includes(" - ")) {
+      const parts = clean.split(" - ");
+      const artist = parts[0].trim() || "-";
+      const title = parts.slice(1).join(" - ").trim() || clean;
+      return { title, artist };
+    }
+    return { title: clean || "Unknown Track", artist: "-" };
+  }
+
+  _lazyLoadQueueArtwork(items) {
+    if (!window.lyricsPlayer?.getTrackAlbumArt) return;
+    items.forEach((item, index) => {
+      if (item.albumArt || item._artRequested || !item.path) return;
+      item._artRequested = true;
+      window.lyricsPlayer.getTrackAlbumArt(item).then((art) => {
+        if (!art) return;
+        item.albumArt = art;
+        const row = this.playlistList?.querySelector(`.playlist-item[data-index="${index}"]`);
+        if (!row) return;
+        const wrap = row.querySelector(".playlist-item-art-wrap");
+        if (wrap) {
+          wrap.innerHTML = `<img class="playlist-item-art" src="${art}" alt="" />`;
+        }
+      }).catch(() => {});
+    });
+  }
+
   render() {
     if (this.state.playlist.length === 0) {
       this.playlistList.innerHTML = `<div class="settings-note" style="text-align: center; padding: 12px 0;">No tracks added</div>`;
@@ -276,9 +298,18 @@ class PlaylistManager {
       }
       renderedCount++;
       const activeClass = index === this.state.currentIndex ? "active" : "";
+      const { title, artist } = this._splitTrackMeta(item.title);
+      const artHtml = item.albumArt
+        ? `<img class="playlist-item-art" src="${item.albumArt}" alt="" />`
+        : `<span class="playlist-item-art-placeholder">♪</span>`;
+
       html += `
         <div class="playlist-item ${activeClass}" data-index="${index}" draggable="true">
-          <span class="playlist-item-title">${index + 1}. ${window.lyricsCore.escapeHtml(item.title)}</span>
+          <div class="playlist-item-art-wrap">${artHtml}</div>
+          <div class="playlist-item-meta">
+            <span class="playlist-item-title">${window.lyricsCore.escapeHtml(title)}</span>
+            <span class="playlist-item-artist">${window.lyricsCore.escapeHtml(artist)}</span>
+          </div>
           <button class="playlist-item-remove" data-index="${index}" type="button" title="대기열에서 제외">✕</button>
         </div>
       `;
@@ -289,6 +320,7 @@ class PlaylistManager {
     } else {
       this.playlistList.innerHTML = html;
       this.bindDragEvents();
+      this._lazyLoadQueueArtwork(this.state.playlist);
     }
 
     this.updateHeader();

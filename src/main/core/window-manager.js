@@ -36,7 +36,6 @@ function applyVisualsToFloating(settings) {
 function createMainWindow() {
   Menu.setApplicationMenu(null);
   
-  const isWindows = process.platform === "win32";
   const iconPath = path.join(__dirname, "../../assets/icon.png");
 
   mainWindow = new BrowserWindow({
@@ -44,15 +43,10 @@ function createMainWindow() {
     height: 700,
     minWidth: 940,
     minHeight: 620,
-    title: "Auto Lyrics Player",
+    title: "ALP — Auto Lyrics Player",
     icon: iconPath,
-    backgroundColor: "#101216",
-    titleBarStyle: "hidden",
-    titleBarOverlay: isWindows ? {
-      color: "#0b0d10",
-      symbolColor: "#f4f2eb",
-      height: 30
-    } : false,
+    backgroundColor: "#1b1b21",
+    frame: false,
     webPreferences: {
       preload: path.join(__dirname, "../preload.js"),
       contextIsolation: true,
@@ -61,6 +55,18 @@ function createMainWindow() {
   });
 
   mainWindow.loadFile(path.join(__dirname, "../../renderer/index.html"));
+
+  mainWindow.on("maximize", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("window:maximized-changed", true);
+    }
+  });
+
+  mainWindow.on("unmaximize", () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("window:maximized-changed", false);
+    }
+  });
 
   mainWindow.on("closed", () => {
     mainWindow = null;

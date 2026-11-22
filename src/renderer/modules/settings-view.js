@@ -15,6 +15,7 @@ class SettingsView {
     this.tabFloatingContent = document.querySelector("#tabFloatingContent");
     this.tabShortcutsContent = document.querySelector("#tabShortcutsContent");
     
+    this.settingTheme = document.querySelector("#settingTheme");
     this.settingEngine = document.querySelector("#settingEngine");
     this.settingModel = document.querySelector("#settingModel");
     this.settingWhisperDevice = document.querySelector("#settingWhisperDevice");
@@ -90,6 +91,13 @@ class SettingsView {
           this.close();
         }
       });
+      this.settingsDialog.addEventListener("close", () => {
+        const savedTheme = this.state.settings?.theme || "lyra";
+        document.documentElement.dataset.theme = savedTheme;
+        if (this.settingTheme) {
+          this.settingTheme.value = savedTheme;
+        }
+      });
     }
 
     this.tabGeneralBtn.addEventListener("click", () => this.switchTab("general"));
@@ -103,6 +111,12 @@ class SettingsView {
     this.settingFloatingOpacity.addEventListener("input", () => {
       this.valFloatingOpacity.textContent = this.settingFloatingOpacity.value;
     });
+
+    if (this.settingTheme) {
+      this.settingTheme.addEventListener("change", () => {
+        document.documentElement.dataset.theme = this.settingTheme.value;
+      });
+    }
 
     this.settingGeminiKey.addEventListener("input", () => {
       this.updateAutoAnalyzeDropdownState();
@@ -236,6 +250,7 @@ class SettingsView {
     }
 
     const next = {
+      theme: this.settingTheme?.value || "lyra",
       sttEngine: this.settingEngine.value,
       model: this.settingModel.value,
       whisperDevice: this.settingWhisperDevice.value,
@@ -252,6 +267,10 @@ class SettingsView {
     };
     const saved = await window.lyricsPlayer.saveSettings(next);
     this.state.settings = saved;
+    if (saved.theme) {
+      document.documentElement.dataset.theme = saved.theme;
+      localStorage.setItem("theme", saved.theme);
+    }
     this.close();
     this.callbacks.onSave(saved);
   }
@@ -265,6 +284,13 @@ class SettingsView {
   }
 
   bindConfigValues(settings, dataPath) {
+    const theme = settings.theme || "lyra";
+    if (this.settingTheme) {
+      this.settingTheme.value = theme;
+    }
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("theme", theme);
+
     this.settingEngine.value = settings.sttEngine || "whisper";
     this.settingModel.value = settings.model;
     this.settingWhisperDevice.value = settings.whisperDevice || "auto";

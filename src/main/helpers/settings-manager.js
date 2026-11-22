@@ -3,6 +3,7 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 
 const DEFAULT_SETTINGS = {
+  theme: "lyra",
   sttEngine: "whisper",
   model: "base",
   whisperDevice: "auto",
@@ -71,6 +72,7 @@ async function saveSettings(settings) {
   const opacityVal = Number(settings.floatingOpacity);
 
   const safe = {
+    theme: settings.theme === "emerald" ? "emerald" : "lyra",
     sttEngine: settings.sttEngine || DEFAULT_SETTINGS.sttEngine,
     model: settings.model || DEFAULT_SETTINGS.model,
     whisperDevice: settings.whisperDevice || DEFAULT_SETTINGS.whisperDevice,

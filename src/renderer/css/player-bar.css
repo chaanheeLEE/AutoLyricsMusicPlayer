@@ -7,46 +7,58 @@
   bottom: 0;
   left: 0;
   right: 0;
-  height: 78px;
-  background: rgba(18, 21, 28, 0.96);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border-top: 1px solid var(--line);
+  height: 92px;
+  background: var(--surface-panel);
+  border-top: 1px solid var(--border-subtle);
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
   z-index: 1000;
   user-select: none;
 }
 
-/* 1. 상단 얇은 탐색 진행 막대 (Seek Bar) */
-.player-bar-progress {
-  position: absolute;
-  top: -7px;
-  left: 0;
-  right: 0;
-  height: 14px;
+/* 1. 상단 타임라인 행 (현재 시간 + 채움 시크바 + 총 시간) */
+.player-bar-timeline {
   display: flex;
   align-items: center;
-  cursor: pointer;
+  gap: 12px;
+  padding: 10px 24px 0;
+}
+
+.bar-time-label {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  min-width: 36px;
+  letter-spacing: 0.02em;
+}
+
+.bar-time-label:last-child {
+  text-align: right;
 }
 
 .player-bar-seek {
-  width: 100%;
+  flex: 1;
   height: 4px;
   appearance: none;
   -webkit-appearance: none;
-  background: rgba(255, 255, 255, 0.12);
+  background: linear-gradient(
+    to right,
+    var(--accent) 0%,
+    var(--accent) var(--seek-pct, 0%),
+    rgba(255, 255, 255, 0.14) var(--seek-pct, 0%),
+    rgba(255, 255, 255, 0.14) 100%
+  );
   outline: none;
-  border-radius: 2px;
+  border-radius: 999px;
   cursor: pointer;
-  transition: height 120ms ease, background 120ms ease;
   margin: 0;
   padding: 0;
+  transition: height 120ms ease;
 }
 
-.player-bar-progress:hover .player-bar-seek {
-  height: 6px;
-  background: rgba(255, 255, 255, 0.2);
+.player-bar-timeline:hover .player-bar-seek {
+  height: 5px;
 }
 
 .player-bar-seek::-webkit-slider-thumb {
@@ -55,23 +67,23 @@
   height: 0;
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
   transition: width 120ms ease, height 120ms ease;
   cursor: pointer;
 }
 
-.player-bar-progress:hover .player-bar-seek::-webkit-slider-thumb {
+.player-bar-timeline:hover .player-bar-seek::-webkit-slider-thumb {
   width: 12px;
   height: 12px;
 }
 
-/* 2. 메인 바 내용 (3구역 분할: 좌측 정보 / 중앙 컨트롤 / 우측 액션) */
+/* 2. 메인 바 내용 (3구역 분할: 좌측 정보 / 중앙 5버튼 컨트롤 / 우측 볼륨·도구) */
 .player-bar-body {
-  height: 100%;
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px;
+  padding: 0 24px 6px;
   gap: 20px;
 }
 
@@ -86,13 +98,13 @@
 }
 
 .player-bar-art-wrap {
-  width: 46px;
-  height: 46px;
-  min-width: 46px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
   border-radius: 6px;
   overflow: hidden;
-  background: var(--panel-soft);
-  border: 1px solid var(--line);
+  background: var(--surface-hover);
+  border: 1px solid var(--border-subtle);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -107,8 +119,9 @@
 }
 
 .player-bar-art-placeholder {
-  font-size: 1.2rem;
-  opacity: 0.6;
+  font-size: 1.15rem;
+  opacity: 0.45;
+  color: var(--text-secondary);
 }
 
 .player-bar-meta {
@@ -120,9 +133,9 @@
 }
 
 .player-bar-title {
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 600;
-  color: var(--text);
+  color: var(--text-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -130,26 +143,25 @@
 }
 
 .player-bar-artist {
-  font-size: 0.76rem;
-  color: var(--muted);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   line-height: 1.2;
 }
 
-/* 2.2 중앙 컨트롤 */
+/* 2.2 중앙 5버튼 대칭 컨트롤 */
 .player-bar-controls-wrap {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
 }
 
 .player-bar-controls {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 16px;
 }
 
 .bar-btn {
@@ -157,7 +169,7 @@
   height: 36px;
   background: transparent;
   border: none;
-  color: var(--text);
+  color: var(--text-primary);
   opacity: 0.85;
   cursor: pointer;
   padding: 0;
@@ -180,6 +192,7 @@
   opacity: 1;
   background: rgba(255, 255, 255, 0.08);
   transform: scale(1.06);
+  border: none;
 }
 
 .bar-btn:active:not(:disabled) {
@@ -195,7 +208,8 @@
 .bar-btn.active {
   color: var(--accent);
   opacity: 1;
-  background: rgba(66, 211, 146, 0.12);
+  background: var(--surface-selected);
+  border: none;
 }
 
 /* 주요 재생/일시정지 버튼 강조 */
@@ -207,34 +221,25 @@
   opacity: 1 !important;
   font-size: 1.1rem;
   font-weight: bold;
-  box-shadow: 0 2px 10px rgba(66, 211, 146, 0.3);
+  box-shadow: 0 2px 12px var(--accent-glow);
 }
 
 .bar-btn-play:hover:not(:disabled) {
+  background: var(--accent-hover) !important;
   transform: scale(1.08) !important;
-  box-shadow: 0 4px 14px rgba(66, 211, 146, 0.45);
+  box-shadow: 0 4px 16px var(--accent-glow);
 }
 
 .bar-btn-play:active:not(:disabled) {
   transform: scale(0.96) !important;
 }
 
-.player-bar-time {
-  font-size: 0.72rem;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  letter-spacing: 0.02em;
-}
-
-/* 2.3 우측 액션 (볼륨, 플로팅 가사창, 대기열) */
+/* 2.3 우측 액션 (채움 볼륨 슬라이더, 플로팅 가사창, 대기열) */
 .player-bar-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 12px;
+  gap: 10px;
   min-width: 200px;
   flex: 1 1 0;
 }
@@ -263,47 +268,49 @@
 }
 
 .volume-box input[type="range"] {
-  width: 86px;
+  width: 88px;
   height: 4px;
   appearance: none;
   -webkit-appearance: none;
-  background: rgba(255, 255, 255, 0.2);
+  background: linear-gradient(
+    to right,
+    var(--accent) 0%,
+    var(--accent) var(--vol-pct, 85%),
+    rgba(255, 255, 255, 0.16) var(--vol-pct, 85%),
+    rgba(255, 255, 255, 0.16) 100%
+  );
   outline: none;
-  border-radius: 2px;
+  border-radius: 999px;
   cursor: pointer;
-  transition: background 120ms ease;
-}
-
-.volume-box input[type="range"]:hover {
-  background: rgba(255, 255, 255, 0.35);
 }
 
 .volume-box input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
-  background: var(--text);
+  background: var(--accent);
   cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
   transition: transform 100ms ease;
 }
 
 .volume-box input[type="range"]:hover::-webkit-slider-thumb {
-  transform: scale(1.2);
-  background: var(--accent);
+  transform: scale(1.18);
 }
 
 .bar-pill-btn {
-  border: 1px solid var(--line);
-  background: var(--panel-soft);
-  color: var(--text);
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 0.78rem;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-hover);
+  color: var(--text-primary);
+  border-radius: var(--radius-sm);
+  height: 30px;
+  padding: 0 10px;
+  font-size: 0.76rem;
   font-weight: 500;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   cursor: pointer;
   transition: all 120ms ease;
 }
@@ -320,5 +327,5 @@
 .bar-pill-btn.active {
   border-color: var(--accent);
   color: var(--accent);
-  background: var(--panel-active);
+  background: var(--surface-selected);
 }

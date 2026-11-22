@@ -516,7 +516,9 @@ class LyricsViewer {
   }
 
   setEnabled(enabled) {
-    this.editModeButton.disabled = !enabled;
+    if (this.editModeButton) {
+      this.editModeButton.disabled = !enabled;
+    }
   }
 }
 

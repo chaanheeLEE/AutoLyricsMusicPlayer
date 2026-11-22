@@ -3,22 +3,32 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Auto Lyrics Player</title>
+    <title>ALP — Auto Lyrics Player</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <!-- Global App Navigation Bar (상단 내비게이션 바) -->
     <header id="appNav" class="app-nav">
       <div class="nav-brand">
-        <span class="brand-name">Auto Lyrics Player</span>
+        <span class="brand-name" title="ALP — Auto Lyrics Player">ALP</span>
       </div>
       <div class="nav-tabs">
         <button id="navNowPlayingBtn" class="nav-tab active" type="button">감상</button>
         <button id="navLibraryBtn" class="nav-tab" type="button">라이브러리</button>
       </div>
       <div class="nav-actions">
-        <button id="navEditLyricsBtn" class="nav-btn" type="button" title="가사 편집 화면으로 전환">가사 편집</button>
-        <button id="openTrackButton" class="nav-btn primary" type="button">+ 음악 추가</button>
+        <button id="navEditLyricsBtn" class="nav-btn accent-pill" type="button" title="가사 편집 화면으로 전환">가사 편집</button>
+        <button id="openTrackButton" class="nav-btn" type="button">+ 음악 추가</button>
+        <button id="navQueueToggleBtn" class="nav-icon-btn active" type="button" aria-label="재생 대기열" title="재생 대기열 (Up next)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="8" y1="6" x2="21" y2="6"/>
+            <line x1="8" y1="12" x2="21" y2="12"/>
+            <line x1="8" y1="18" x2="15" y2="18"/>
+            <line x1="3" y1="6" x2="3.01" y2="6"/>
+            <line x1="3" y1="12" x2="3.01" y2="12"/>
+            <line x1="3" y1="18" x2="3.01" y2="18"/>
+          </svg>
+        </button>
         <button id="settingsButton" class="nav-icon-btn" type="button" aria-label="Settings" title="설정">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
@@ -26,13 +36,15 @@
     </header>
 
     <main class="app-shell">
+      <div class="app-views-container">
       <!-- 1. 감상 화면 (Now Playing View) -->
       <div id="nowPlayingView" class="app-view active">
         <section class="player-pane">
+          <div class="view-section-title">LISTENING</div>
           <div class="now-playing">
             <div class="disc" aria-hidden="true">
               <img id="albumArt" src="" alt="Album Art" style="display: none;" />
-              <div id="albumArtPlaceholder" class="disc-core">🎵</div>
+              <div id="albumArtPlaceholder" class="disc-core">♪</div>
             </div>
             <div class="track-copy">
               <h2 id="trackTitle"><span>No track selected</span></h2>
@@ -46,16 +58,6 @@
         </section>
 
         <section class="lyrics-pane">
-          <div class="lyrics-header">
-            <div>
-              <p class="eyebrow">Synchronized Lyrics</p>
-              <h2>Lyrics Timeline</h2>
-            </div>
-            <div class="lyrics-header-actions">
-              <button id="editModeButton" type="button" class="nav-btn" style="padding: 6px 14px;" title="전용 가사 편집 모드로 전환">가사 편집</button>
-            </div>
-          </div>
-
           <div class="lyrics-scroll-wrapper" style="position: relative; flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0;">
             <div id="lyricsList" class="lyrics-list empty">
               <div class="empty-state">
@@ -75,15 +77,20 @@
         <!-- 상단 툴바 -->
         <div class="edit-toolbar">
           <div class="edit-toolbar-left">
-            <button id="exitEditModeBtn" class="edit-btn secondary" type="button" title="감상 화면으로 돌아가기">
+            <button id="exitEditModeBtn" class="edit-back-btn" type="button" title="감상 화면으로 돌아가기">
               <span>← 감상으로 돌아가기</span>
             </button>
-            <div class="edit-track-info">
-              <span class="edit-eyebrow">가사 편집 모드</span>
-              <h2 id="editTrackTitle" class="edit-title">곡 제목</h2>
+          </div>
+          <div class="edit-toolbar-center">
+            <div class="edit-track-art-wrap">
+              <img id="editTrackArt" class="edit-track-art" src="" alt="" style="display: none;" />
+              <div id="editTrackArtPlaceholder" class="edit-track-art-placeholder">♪</div>
             </div>
+            <h2 id="editTrackTitle" class="edit-title">곡 제목</h2>
           </div>
           <div class="edit-toolbar-right">
+            <button id="deleteCacheButton" class="edit-btn danger" type="button" style="display:none;" title="현재 곡의 가사 캐시 삭제">캐시 삭제</button>
+            <button id="saveEditBtn" class="edit-btn primary" type="button" title="편집 내용 저장 및 감상으로 복귀">저장</button>
             <!-- 내보내기 드롭다운 -->
             <div class="dropdown-wrap">
               <button id="exportDropdownBtn" class="edit-btn secondary" type="button">
@@ -95,17 +102,20 @@
                 <button id="embedAudioButton" type="button" disabled title="음원 파일 메타데이터 태그에 가사 직접 내장">음원에 가사 태그 내장 (Embed)</button>
               </div>
             </div>
-            <button id="deleteCacheButton" class="edit-btn danger" type="button" style="display:none;" title="현재 곡의 가사 캐시 삭제">캐시 삭제</button>
-            <button id="saveEditBtn" class="edit-btn primary" type="button" title="편집 내용 저장 및 감상으로 복귀">완료 및 저장</button>
           </div>
         </div>
+
+        <div class="view-section-title edit-section-title">LYRICS EDITOR</div>
 
         <!-- 본문 2컬럼 레이아웃 (좌: 가사 라인 목록, 우: 편집 및 싱크 도구) -->
         <div class="edit-body">
           <!-- 좌측: 가사 라인 목록 -->
           <div class="edit-lyrics-column">
             <div class="edit-column-header">
-              <h3>가사 타임라인 목록</h3>
+              <div class="edit-col-labels">
+                <span class="col-start">START</span>
+                <span class="col-lyrics">LYRICS</span>
+              </div>
               <span id="editLineCount" class="edit-subtext">총 0줄</span>
             </div>
             <div id="editLyricsList" class="edit-lyrics-list">
@@ -115,85 +125,77 @@
 
           <!-- 우측: 편집 및 도구 패널 -->
           <div class="edit-tools-column">
-            <!-- 카드 1: 선택한 줄 편집 -->
-            <div class="edit-card">
-              <div class="edit-card-header">
-                <span class="edit-card-badge">선택 줄</span>
+            <!-- 섹션 1: 선택한 줄 편집 -->
+            <div class="edit-section">
+              <div class="edit-section-header">
                 <h4>선택한 줄 편집</h4>
               </div>
-              <p class="edit-card-desc">왼쪽 목록에서 줄을 선택하여 내용과 시작 시간을 수정합니다.</p>
               
               <div class="edit-field-group">
-                <label for="editLineTextInput">가사 텍스트</label>
+                <label for="editLineTextInput">가사 내용</label>
                 <input id="editLineTextInput" class="edit-input" type="text" placeholder="선택된 가사 없음" disabled />
               </div>
 
-              <div class="edit-field-row">
-                <div class="edit-field-group" style="flex: 1;">
-                  <label for="editLineTimeInput">시작 시간 (초 / mm:ss.xx)</label>
-                  <input id="editLineTimeInput" class="edit-input" type="text" placeholder="00:00.00" disabled />
+              <div class="edit-field-group">
+                <label for="editLineTimeInput">시작 시각</label>
+                <div class="edit-field-row">
+                  <input id="editLineTimeInput" class="edit-input" type="text" placeholder="00:00.00" disabled style="flex: 1;" />
+                  <button id="editLineDec1" class="edit-btn small" type="button" disabled title="0.1초 앞당기기" style="flex: 0 0 auto;">-0.1s</button>
+                  <button id="editLineInc1" class="edit-btn small" type="button" disabled title="0.1초 늦추기" style="flex: 0 0 auto;">+0.1s</button>
                 </div>
-                <button id="editSyncCurrentBtn" class="edit-btn accent" type="button" disabled title="현재 음악 재생 시점으로 이 줄의 싱크를 맞춥니다.">
-                  🎯 현재 시점으로 (Sync)
-                </button>
               </div>
 
-              <div class="edit-field-group">
-                <label>선택한 줄 미세 시간 조정</label>
-                <div class="edit-btn-row">
-                  <button id="editLineDec5" class="edit-btn small" type="button" disabled title="0.5초 앞당기기">« -0.5s</button>
-                  <button id="editLineDec1" class="edit-btn small" type="button" disabled title="0.1초 앞당기기">- -0.1s</button>
-                  <button id="editLineInc1" class="edit-btn small" type="button" disabled title="0.1초 늦추기">+ +0.1s</button>
-                  <button id="editLineInc5" class="edit-btn small" type="button" disabled title="0.5초 늦추기">» +0.5s</button>
-                </div>
+              <div class="edit-btn-row">
+                <button id="editLineDec5" class="edit-btn small" type="button" disabled title="0.5초 앞당기기">-0.5s</button>
+                <button id="editSyncCurrentBtn" class="edit-btn accent" type="button" disabled title="현재 음악 재생 시점으로 이 줄의 싱크를 맞춥니다." style="flex: 1.5;">
+                  현재 시점 Sync
+                </button>
+                <button id="editLineInc5" class="edit-btn small" type="button" disabled title="0.5초 늦추기">+0.5s</button>
               </div>
             </div>
 
-            <!-- 카드 2: 곡 전체 싱크 조정 -->
-            <div class="edit-card">
-              <div class="edit-card-header">
-                <span class="edit-card-badge">곡 전체</span>
-                <h4>곡 전체 싱크 조정 (Offset)</h4>
+            <!-- 섹션 2: 곡 전체 싱크 조정 -->
+            <div class="edit-section">
+              <div class="edit-section-header">
+                <h4>곡 전체 싱크 조정</h4>
                 <span id="syncOffsetBadge" class="sync-offset-pill">Offset 0.0s</span>
               </div>
-              <p class="edit-card-desc">노래 전체 가사의 싱크가 일괄적으로 어긋났을 때 앞당기거나 늦춥니다.</p>
+              <p class="edit-section-desc">노래 전체 가사의 싱크가 일괄적으로 어긋났을 때 앞당기거나 늦춥니다.</p>
               
               <div class="edit-btn-row">
                 <button id="syncBackButton" class="edit-btn small" type="button" disabled>-0.5s</button>
                 <button id="syncFineBackButton" class="edit-btn small" type="button" disabled>-0.1s</button>
-                <button id="resetSyncButton" class="edit-btn small reset" type="button" disabled>리셋 (0.0s)</button>
+                <button id="resetSyncButton" class="edit-btn small reset" type="button" disabled>리셋</button>
                 <button id="syncFineForwardButton" class="edit-btn small" type="button" disabled>+0.1s</button>
                 <button id="syncForwardButton" class="edit-btn small" type="button" disabled>+0.5s</button>
               </div>
             </div>
 
-            <!-- 카드 3: AI 분석 도구 -->
-            <div class="edit-card">
-              <div class="edit-card-header">
-                <span class="edit-card-badge">AI 도구</span>
-                <h4>AI 음성 분석 및 정렬</h4>
-              </div>
-              <p class="edit-card-desc">음성 인식(Whisper/Gemini)으로 타임스탬프를 추출하거나 공식 가사와 대조 정렬합니다.</p>
-              
-              <div class="edit-btn-row" style="margin-bottom: 6px;">
-                <button id="analyzeButton" class="edit-btn primary" type="button" disabled style="flex: 1;">
-                  AI 가사 분석 (Analyze)
-                </button>
-                <button id="cancelButton" class="edit-btn danger" type="button" disabled style="display: none;">
-                  취소 (Cancel)
-                </button>
-                <button id="alignButton" class="edit-btn accent" type="button" disabled style="flex: 1;">
-                  AI 정밀 정합 (AI Align)
-                </button>
-              </div>
-
-              <div id="transcriptionProgress" class="transcription-progress" style="display: none;">
-                <div class="progress-bar-wrap">
-                  <div id="progressBar" class="progress-bar" style="width: 0%;"></div>
+            <!-- 섹션 3: 접이식 AI 분석 도구 -->
+            <details id="editAnalysisDetails" class="edit-analysis-details" open>
+              <summary class="edit-section-summary">AI 분석 및 정렬 도구 (Analysis tools)</summary>
+              <div class="edit-analysis-body">
+                <p class="edit-section-desc">음성 인식(Whisper/Gemini)으로 타임스탬프를 추출하거나 공식 가사와 대조 정렬합니다.</p>
+                <div class="edit-btn-row">
+                  <button id="analyzeButton" class="edit-btn primary" type="button" disabled style="flex: 1;">
+                    AI 가사 분석 (Analyze)
+                  </button>
+                  <button id="cancelButton" class="edit-btn danger" type="button" disabled style="display: none;">
+                    취소 (Cancel)
+                  </button>
+                  <button id="alignButton" class="edit-btn accent" type="button" disabled style="flex: 1;">
+                    AI 정밀 정합 (AI Align)
+                  </button>
                 </div>
-                <p id="progressLabel" class="progress-label">준비 중…</p>
+
+                <div id="transcriptionProgress" class="transcription-progress" style="display: none;">
+                  <div class="progress-bar-wrap">
+                    <div id="progressBar" class="progress-bar" style="width: 0%;"></div>
+                  </div>
+                  <p id="progressLabel" class="progress-label">준비 중…</p>
+                </div>
               </div>
-            </div>
+            </details>
           </div>
         </div>
       </div>
@@ -239,44 +241,47 @@
           </table>
         </div>
       </div>
+      </div>
+
+      <!-- 우측 인라인 도킹 재생 대기열 (Up next) -->
+      <aside id="queueDrawer" class="queue-drawer open">
+        <div class="queue-header">
+          <div class="queue-header-title-wrap">
+            <h3 class="queue-header-title">Up next</h3>
+            <span id="playlistCount" class="queue-count-badge">0곡</span>
+          </div>
+          <div class="queue-header-actions">
+            <button id="queueCloseBtn" class="queue-close-btn" type="button" title="대기열 닫기" aria-label="대기열 닫기">✕</button>
+          </div>
+        </div>
+
+        <div class="queue-tools-row">
+          <select id="playlistSortSelect" class="sort-select-box" title="대기열 정렬">
+            <option value="" disabled selected hidden>정렬</option>
+            <option value="az">이름순 (A-Z)</option>
+            <option value="reset">원래 순서</option>
+          </select>
+          <button id="playlistSearchButton" class="sort-action-btn" type="button" title="대기열 내 검색" aria-label="대기열 내 검색">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </button>
+          <button id="playlistClearButton" class="sort-action-btn danger-action-btn" type="button" title="대기열 비우기">Clear</button>
+        </div>
+
+        <input id="playlistSearchInput" class="playlist-search-input" type="text" placeholder="대기열 곡 검색…" style="display: none;" aria-label="대기열 곡 검색" />
+
+        <div id="playlistList" class="playlist-list">
+          <!-- 대기열 아이템 동적 렌더링 -->
+        </div>
+      </aside>
     </main>
-
-    <!-- 우측 슬라이드 서랍형 재생 대기열 (Queue Drawer) -->
-    <aside id="queueDrawer" class="queue-drawer">
-      <div class="queue-header">
-        <div class="queue-header-title-wrap">
-          <h3 class="queue-header-title">재생 대기열</h3>
-          <span id="playlistCount" class="queue-count-badge">0곡</span>
-        </div>
-        <div class="queue-header-actions">
-          <button id="queueCloseBtn" class="queue-close-btn" type="button" title="대기열 닫기">✕</button>
-        </div>
-      </div>
-
-      <div class="queue-tools-row">
-        <select id="playlistSortSelect" class="sort-select-box" title="대기열 정렬">
-          <option value="" disabled selected hidden>정렬</option>
-          <option value="az">이름순 (A-Z)</option>
-          <option value="reset">원래 순서</option>
-        </select>
-        <button id="playlistSearchButton" class="sort-action-btn" type="button" title="대기열 내 검색" aria-label="대기열 내 검색">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        </button>
-        <button id="playlistClearButton" class="sort-action-btn danger-action-btn" type="button" title="대기열 비우기">Clear</button>
-      </div>
-
-      <input id="playlistSearchInput" class="playlist-search-input" type="text" placeholder="대기열 곡 검색…" style="display: none;" aria-label="대기열 곡 검색" />
-
-      <div id="playlistList" class="playlist-list">
-        <!-- 대기열 아이템 동적 렌더링 -->
-      </div>
-    </aside>
 
     <!-- Persistent Bottom Player Bar (하단 공통 재생바) -->
     <footer id="playerBar" class="player-bar">
-      <!-- 상단 얇은 탐색 진행 막대 -->
-      <div class="player-bar-progress">
+      <!-- 상단 인라인 타임라인 (현재 시간 + 시크바 + 총 시간) -->
+      <div class="player-bar-timeline">
+        <span id="currentTime" class="bar-time-label">0:00</span>
         <input id="seekBar" class="player-bar-seek" type="range" min="0" max="1000" value="0" disabled title="탐색" />
+        <span id="duration" class="bar-time-label">0:00</span>
       </div>
 
       <div class="player-bar-body">
@@ -284,7 +289,7 @@
         <div class="player-bar-track">
           <div class="player-bar-art-wrap">
             <img id="playerBarArt" class="player-bar-art" src="" alt="" />
-            <div id="playerBarPlaceholder" class="player-bar-art-placeholder">🎵</div>
+            <div id="playerBarPlaceholder" class="player-bar-art-placeholder">♪</div>
           </div>
           <div class="player-bar-meta">
             <div id="playerBarTitle" class="player-bar-title" title="선택된 트랙 없음">No track selected</div>
@@ -292,7 +297,7 @@
           </div>
         </div>
 
-        <!-- 중앙: 핵심 재생 컨트롤 + 시간 표시 -->
+        <!-- 중앙: 5버튼 대칭 재생 컨트롤 -->
         <div class="player-bar-controls-wrap">
           <div class="player-bar-controls">
             <button id="shuffleButton" class="bar-btn" type="button" disabled title="셔플: OFF" aria-label="셔플">
@@ -319,9 +324,14 @@
                 <path d="M16 6h2v12h-2zm-10 0v12l8.5-6z"/>
               </svg>
             </button>
-          </div>
-          <div class="player-bar-time">
-            <span id="currentTime">0:00</span> / <span id="duration">0:00</span>
+            <button id="repeatButton" class="bar-btn active" type="button" disabled title="반복: 전체 반복" aria-label="반복 재생">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="17 1 21 5 17 9"/>
+                <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                <polyline points="7 23 3 19 7 15"/>
+                <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+              </svg>
+            </button>
           </div>
         </div>
 
@@ -345,7 +355,7 @@
             </svg>
             <span>가사 창</span>
           </button>
-          <button id="queueToggleButton" class="bar-pill-btn" type="button" title="재생 대기열 열기/닫기">
+          <button id="queueToggleButton" class="bar-pill-btn active" type="button" title="재생 대기열 열기/닫기">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <line x1="8" y1="6" x2="21" y2="6"/>
               <line x1="8" y1="12" x2="21" y2="12"/>
@@ -386,6 +396,24 @@
 
         <!-- 1. General Settings Tab Content -->
         <div id="tabGeneralContent" class="tab-content active">
+          <!-- Card 0: Theme Settings -->
+          <div class="settings-card">
+            <div class="settings-card-header">화면 및 테마 설정</div>
+
+            <div class="settings-item">
+              <div class="settings-info">
+                <label for="settingTheme">컬러 테마</label>
+                <p>플레이어 전체 인터페이스에 적용할 색상 테마를 선택합니다.</p>
+              </div>
+              <div class="settings-control">
+                <select id="settingTheme" name="theme">
+                  <option value="lyra" selected>Lyra Lavender (라벤더 다크)</option>
+                  <option value="emerald">Emerald Dark (에메랄드 다크)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           <!-- Card 1: STT Engine & Device Options -->
           <div class="settings-card">
             <div class="settings-card-header">STT 엔진 및 가속 설정</div>
@@ -740,8 +768,8 @@
     <dialog id="onboardingDialog" class="settings-dialog onboarding-dialog">
       <div class="onboarding-form">
         <div class="onboarding-header">
-          <div class="onboarding-badge-icon">🎵</div>
-          <h2>Auto Lyrics Player에 오신 것을 환영합니다!</h2>
+          <div class="onboarding-badge-icon">♪</div>
+          <h2>ALP에 오신 것을 환영합니다!</h2>
           <p class="onboarding-desc">
             노래의 보컬 음성을 분석하여 실시간 가사 싱크를 생성하기 위해 사용할 <strong>AI 모델</strong>을 선택해주세요.
           </p>

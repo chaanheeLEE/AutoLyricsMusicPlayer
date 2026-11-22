@@ -1,27 +1,30 @@
-:root {
+:root,
+:root[data-theme="lyra"] {
   color-scheme: dark;
 
-  /* 의미 기반 표면(Surface) 토큰 */
-  --surface-app: #0b0d10;
-  --surface-panel: #14171d;
-  --surface-hover: #1c202a;
-  --surface-selected: rgba(66, 211, 146, 0.1);
+  /* Lyra Lavender 테마 (기본값) */
+  --surface-app: #1b1b21;
+  --surface-panel: #22222a;
+  --surface-hover: #2c2c37;
+  --surface-selected: rgba(184, 158, 255, 0.16);
 
   /* 의미 기반 텍스트(Text) 토큰 */
-  --text-primary: #f4f2eb;
-  --text-secondary: #8d96a6;
-  --text-disabled: #555d6b;
+  --text-primary: #f5f4fa;
+  --text-secondary: #9292a6;
+  --text-disabled: #5a5a6e;
 
   /* 테두리 및 포커스 토큰 */
-  --border-subtle: #2a303c;
-  --accent: #42d392;
-  --accent-strong: #31b9d9;
-  --focus-ring: rgba(66, 211, 146, 0.45);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --accent: #b89eff;
+  --accent-hover: #c9b5ff;
+  --accent-strong: #9b7aff;
+  --accent-glow: rgba(184, 158, 255, 0.25);
+  --focus-ring: rgba(184, 158, 255, 0.45);
 
   /* 상태(Status) 토큰 */
-  --status-success: #42d392;
+  --status-success: #7ee2b8;
   --status-warning: #f0b35a;
-  --status-error: #ff5c5c;
+  --status-error: #ff6b7a;
 
   /* 공통 간격 및 크기 토큰 (8px 그리드 기준) */
   --space-xs: 8px;
@@ -43,6 +46,31 @@
   --line: var(--border-subtle);
   --warning: var(--status-warning);
   --panel-active: var(--surface-selected);
+}
+
+:root[data-theme="emerald"] {
+  color-scheme: dark;
+
+  /* Emerald Dark 테마 */
+  --surface-app: #0b0d10;
+  --surface-panel: #14171d;
+  --surface-hover: #1c202a;
+  --surface-selected: rgba(66, 211, 146, 0.12);
+
+  --text-primary: #f4f2eb;
+  --text-secondary: #8d96a6;
+  --text-disabled: #555d6b;
+
+  --border-subtle: #2a303c;
+  --accent: #42d392;
+  --accent-hover: #50e4a3;
+  --accent-strong: #31b9d9;
+  --accent-glow: rgba(66, 211, 146, 0.25);
+  --focus-ring: rgba(66, 211, 146, 0.45);
+
+  --status-success: #42d392;
+  --status-warning: #f0b35a;
+  --status-error: #ff5c5c;
 }
 
 * {
@@ -91,7 +119,7 @@ button.active {
 
 button:hover:not(:disabled) {
   border-color: var(--accent);
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 button:active:not(:disabled) {
@@ -114,10 +142,10 @@ button:disabled {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--line);
+  background: var(--border-subtle);
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--muted);
+  background: var(--text-secondary);
 }

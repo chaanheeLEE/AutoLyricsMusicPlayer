@@ -39,7 +39,10 @@ const lyricsEditView = document.querySelector("#lyricsEditView");
 const libraryView = document.querySelector("#libraryView");
 const queueDrawer = document.querySelector("#queueDrawer");
 const queueCloseBtn = document.querySelector("#queueCloseBtn");
+const navQueueToggleBtn = document.querySelector("#navQueueToggleBtn");
 const editTrackTitle = document.querySelector("#editTrackTitle");
+const editTrackArt = document.querySelector("#editTrackArt");
+const editTrackArtPlaceholder = document.querySelector("#editTrackArtPlaceholder");
 const exitEditModeBtn = document.querySelector("#exitEditModeBtn");
 const saveEditBtn = document.querySelector("#saveEditBtn");
 const exportDropdownBtn = document.querySelector("#exportDropdownBtn");
@@ -57,9 +60,10 @@ const state = {
   syncOffset: 0,
   floatingVisible: false,
   isTranscribing: false,
-  settings: { model: "base", language: null, geminiApiKey: "", autoAnalyzeMode: "off" },
+  settings: { theme: "lyra", model: "base", language: null, geminiApiKey: "", autoAnalyzeMode: "off" },
   editMode: false,
   shuffle: false,
+  repeatMode: "all",
   isAutoAnalyzing: false,
   embeddedLyricsLines: null,
   history: [],
@@ -127,14 +131,31 @@ function updateTrackStatusBadge() {
     trackStatusBadge.textContent = "AI 분석 중…";
     trackStatusBadge.className = "track-status-badge analyzing";
   } else if (state.lyrics && state.lyrics.length > 0) {
-    trackStatusBadge.textContent = `가사 준비됨 (${state.lyrics.length}줄)`;
+    trackStatusBadge.textContent = `가사 동기화됨 (${state.lyrics.length}줄)`;
     trackStatusBadge.className = "track-status-badge ready";
   } else if (state.embeddedLyricsLines && state.embeddedLyricsLines.length > 0) {
-    trackStatusBadge.textContent = `내장 가사 감지 (${state.embeddedLyricsLines.length}줄)`;
+    trackStatusBadge.textContent = `내장 가사 감지됨 (${state.embeddedLyricsLines.length}줄)`;
     trackStatusBadge.className = "track-status-badge";
   } else {
     trackStatusBadge.textContent = "가사 미생성";
     trackStatusBadge.className = "track-status-badge";
+  }
+}
+
+function updateEditHeaderInfo(track) {
+  if (editTrackTitle) {
+    editTrackTitle.textContent = track?.title ? parseArtistTitle(track.title).title : "선택된 곡 없음";
+  }
+  if (editTrackArt && editTrackArtPlaceholder) {
+    if (track?.albumArt) {
+      editTrackArt.src = track.albumArt;
+      editTrackArt.style.display = "block";
+      editTrackArtPlaceholder.style.display = "none";
+    } else {
+      editTrackArt.src = "";
+      editTrackArt.style.display = "none";
+      editTrackArtPlaceholder.style.display = "flex";
+    }
   }
 }
 
@@ -183,9 +204,11 @@ const player = new PlayerController(state, {
     lyricsViewer.updateActive(player.getCurrentTime(), player.isPlaying());
   },
   onEnded: () => {
-    if (state.playlist.length > 0) {
-      selectPlaylistItem(getNextIndex());
+    if (state.playlist.length === 0) return;
+    if (state.repeatMode === "off" && !state.shuffle && state.currentIndex === state.playlist.length - 1) {
+      return;
     }
+    selectPlaylistItem(getNextIndex());
   },
   onPrev: () => {
     if (state.playlist.length === 0) return;
@@ -225,6 +248,7 @@ const playlist = new PlaylistManager(state, {
     albumArtPlaceholder.style.display = "flex";
     
     updatePlayerBarInfo(null);
+    updateEditHeaderInfo(null);
     updateTrackStatusBadge();
     lyricsViewer.render();
     updateAlignButtonState();
@@ -266,9 +290,7 @@ function switchView(viewName) {
 
   if (viewName === "lyrics-edit") {
     if (lyricsEditView) lyricsEditView.classList.add("active");
-    if (editTrackTitle) {
-      editTrackTitle.textContent = state.track?.title ? parseArtistTitle(state.track.title).title : "선택된 곡 없음";
-    }
+    updateEditHeaderInfo(state.track);
     if (lyricsViewer) lyricsViewer.renderEditView();
   } else if (viewName === "library") {
     if (libraryView) libraryView.classList.add("active");
@@ -362,12 +384,12 @@ function updateMediaSessionMetadata(track) {
     });
   }
 
-  const cleanTitle = track.title.replace(/\.[^/.]+$/, "");
+  const { title, artist } = parseArtistTitle(track.title);
 
   navigator.mediaSession.metadata = new MediaMetadata({
-    title: cleanTitle,
-    artist: "Local Track",
-    album: "Auto Lyrics Player",
+    title,
+    artist: artist === "-" ? "Local Track" : artist,
+    album: "ALP",
     artwork: artwork
   });
 }
@@ -401,6 +423,7 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
   if (trackArtist) trackArtist.textContent = artist;
   updateTitleMarquee();
   updatePlayerBarInfo(track);
+  updateEditHeaderInfo(track);
   updateTrackStatusBadge();
   updateMediaSessionMetadata(track);
 
@@ -437,6 +460,8 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
             playerBarArt.style.display = "block";
           }
           if (playerBarPlaceholder) playerBarPlaceholder.style.display = "none";
+          updateEditHeaderInfo(track);
+          playlist.render();
         }
       }).catch(() => {});
     }
@@ -771,7 +796,10 @@ function initMediaSession() {
 (async () => {
   initMediaSession();
 
-  // Restore shuffle state
+  // 초기 테마 즉시 적용 (깜빡임 방지)
+  document.documentElement.dataset.theme = localStorage.getItem("theme") || "lyra";
+
+  // Restore shuffle & repeat state
   const savedShuffle = localStorage.getItem("shuffle") === "true";
   state.shuffle = savedShuffle;
   const shuffleButton = document.querySelector("#shuffleButton");
@@ -779,6 +807,8 @@ function initMediaSession() {
     shuffleButton.title = `셔플: ${state.shuffle ? "ON" : "OFF"}`;
     shuffleButton.classList.toggle("active", state.shuffle);
   }
+  state.repeatMode = localStorage.getItem("repeat_mode") || "all";
+  player.updateRepeatUI();
 
   // Restore playlist from localStorage
   try {
@@ -923,18 +953,29 @@ function initMediaSession() {
     }
   });
 
-  // 하단 바 대기열 토글 버튼 및 닫기 버튼 핸들러 (Queue Drawer)
+  // 재생 대기열 토글 및 닫기 버튼 핸들러 (상단 nav + 하단 바 + 닫기 버튼 동기화)
+  function setQueueDrawerOpen(open) {
+    if (!queueDrawer) return;
+    queueDrawer.classList.toggle("open", open);
+    if (queueToggleButton) queueToggleButton.classList.toggle("active", open);
+    if (navQueueToggleBtn) navQueueToggleBtn.classList.toggle("active", open);
+  }
+
   if (queueToggleButton && queueDrawer) {
     queueToggleButton.addEventListener("click", () => {
-      const isOpen = queueDrawer.classList.toggle("open");
-      queueToggleButton.classList.toggle("active", isOpen);
+      setQueueDrawerOpen(!queueDrawer.classList.contains("open"));
+    });
+  }
+
+  if (navQueueToggleBtn && queueDrawer) {
+    navQueueToggleBtn.addEventListener("click", () => {
+      setQueueDrawerOpen(!queueDrawer.classList.contains("open"));
     });
   }
 
   if (queueCloseBtn && queueDrawer) {
     queueCloseBtn.addEventListener("click", () => {
-      queueDrawer.classList.remove("open");
-      if (queueToggleButton) queueToggleButton.classList.remove("active");
+      setQueueDrawerOpen(false);
     });
   }
 
