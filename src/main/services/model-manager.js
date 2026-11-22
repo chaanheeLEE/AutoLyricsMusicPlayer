@@ -4,12 +4,13 @@ const fsSync = require("node:fs");
 const os = require("node:os");
 const { spawn, execFileSync } = require("node:child_process");
 
-// 크기 오름차순 정렬 (tiny → base → small → medium → large-v3-turbo → large-v3)
+// 크기 오름차순 정렬 (tiny → base → small → large-v3-turbo)
 const SUPPORTED_MODELS = [
   {
     id: "tiny",
     name: "tiny",
     label: "tiny",
+    repoId: "Systran/faster-whisper-tiny",
     sizeLabel: "약 75 MB",
     estimatedBytes: 75 * 1024 * 1024,
     description: "가장 가볍고 빠르지만, 가사 인식률이 다소 낮음",
@@ -19,6 +20,7 @@ const SUPPORTED_MODELS = [
     id: "base",
     name: "base",
     label: "base",
+    repoId: "Systran/faster-whisper-base",
     sizeLabel: "약 145 MB",
     estimatedBytes: 145 * 1024 * 1024,
     description: "빠른 시작 및 저사양 PC에 적합한 표준 모델",
@@ -29,37 +31,20 @@ const SUPPORTED_MODELS = [
     id: "small",
     name: "small",
     label: "small",
+    repoId: "Systran/faster-whisper-small",
     sizeLabel: "약 480 MB",
     estimatedBytes: 480 * 1024 * 1024,
     description: "일반 대화 및 노래에 적당한 품질과 속도",
     recommended: false
   },
   {
-    id: "medium",
-    name: "medium",
-    label: "medium",
-    sizeLabel: "약 1.5 GB",
-    estimatedBytes: 1.5 * 1024 * 1024 * 1024,
-    description: "높은 정확도를 제공하나 리소스 사용량이 큼",
-    recommended: false
-  },
-  {
     id: "large-v3-turbo",
     name: "large-v3-turbo",
     label: "large-v3-turbo",
+    repoId: "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
     sizeLabel: "약 1.6 GB",
     estimatedBytes: 1.6 * 1024 * 1024 * 1024,
-    description: "large-v3급 최고 정확도 + 6배 빠른 고속 연산 (보컬 싱크 최적, 추천)",
-    recommended: true,
-    badge: "최신 추천"
-  },
-  {
-    id: "large-v3",
-    name: "large-v3",
-    label: "large-v3",
-    sizeLabel: "약 3.1 GB",
-    estimatedBytes: 3.1 * 1024 * 1024 * 1024,
-    description: "최고의 정확도이나 다운로드 용량이 크고 무거움",
+    description: "높은 정확도와 빠른 연산 속도를 제공하는 대용량 모델",
     recommended: false
   }
 ];
@@ -106,7 +91,9 @@ async function getDirectorySize(dirPath) {
  */
 function getModelDir(modelId) {
   const hubDir = getHubCacheDir();
-  return path.join(hubDir, `models--Systran--faster-whisper-${modelId}`);
+  const matched = SUPPORTED_MODELS.find((m) => m.id === modelId);
+  const repoId = matched?.repoId || `Systran/faster-whisper-${modelId}`;
+  return path.join(hubDir, `models--${repoId.replace(/\//g, "--")}`);
 }
 
 /**
