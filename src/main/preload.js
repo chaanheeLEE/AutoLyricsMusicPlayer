@@ -61,6 +61,16 @@ contextBridge.exposeInMainWorld("lyricsPlayer", {
   removeCudaDownloadProgressListener: () => {
     ipcRenderer.removeAllListeners("cuda:download-progress");
   },
+  getVocalModelStatus: () => ipcRenderer.invoke("vocal-model:status"),
+  downloadVocalModel: () => ipcRenderer.invoke("vocal-model:download"),
+  cancelVocalModelDownload: () => ipcRenderer.invoke("vocal-model:cancel-download"),
+  deleteVocalModel: () => ipcRenderer.invoke("vocal-model:delete"),
+  onVocalModelDownloadProgress: (callback) => {
+    ipcRenderer.on("vocal-model:download-progress", (_event, msg) => callback(msg));
+  },
+  removeVocalModelDownloadProgressListener: () => {
+    ipcRenderer.removeAllListeners("vocal-model:download-progress");
+  },
   minimizeWindow: () => ipcRenderer.invoke("window:minimize"),
   toggleMaximizeWindow: () => ipcRenderer.invoke("window:toggle-maximize"),
   closeWindow: () => ipcRenderer.invoke("window:close"),

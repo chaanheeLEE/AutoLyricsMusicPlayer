@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-11-22 — 경량 ONNX 보컬 분리(Vocal Separation) 전처리 & DirectML GPU 가속
+- **순수 `numpy` + `onnxruntime-directml` 보컬 분리 모듈 (`src/main/services/vocal_separator.py`, `transcribe.py`)**:
+  - PyTorch/Demucs 없이 `onnxruntime-directml`(`+11.13 MB`) 기반 `CUDA → DirectML(NVIDIA·AMD·Intel GPU) → CPU` 자동 가속 파이프라인을 구축해 `UVR-MDX-NET-Voc_FT.onnx`로 44.1kHz 스테레오 보컬 스템을 추출하고 `16kHz float32` 파형으로 Whisper에 전달합니다.
+  - 청크 오버랩 마진을 `dim_t // 12`로 최적화해 중복 추론량을 줄였으며, 연주곡(무음 보컬) 또는 추론 오류 시 원곡으로 자동 폴백합니다.
+- **메인·편집 화면 빠른 제어 및 설정 UI (`vocal-model-manager.js`, `ipc-router.js`, `preload.js`, `settings-view.js`, `lyrics-job-manager.js`)**:
+  - 메인 감상 화면에 `[AI 가사 분석 / 재분석]`, `[AI 정합]` 버튼과 미니 진행률 바를 추가하고, 진행 단계 라벨을 한글 + 퍼센트(`보컬 분리 중… (35%)`) 표시로 통일했습니다.
+  - 환경 설정 `AI 및 음성 분석` 탭에 **분석 전 보컬 분리(기본 OFF)** 설정과 약 64 MB ONNX 모델 설치/취소/삭제 UI를 추가했으며, 모델 설치 시 메인·편집 화면에 빠른 `보컬 분리: OFF / ON` 토글 칩이 연동됩니다.
+
+---
+
 ## 2026-11-22 — 로컬 STT(Whisper) 초반 1분 및 음악 가사 분석 정확도 개선
 - **초반 30초 `initial_prompt` 오염 제거 (`lyrics-job-manager.js`, `transcribe.py`)**:
   - 내장 가사 전체나 메타데이터 지시문(`"제목 - 가수 가사: "`)을 `initial_prompt`로 넘겨 224토큰 뒷부분(아웃트로) 절단 및 전주 환각이 발생하던 문제를 해결하고, 도입부 4줄(최대 120자) 힌트만 안전하게 전달하도록 수정했습니다.

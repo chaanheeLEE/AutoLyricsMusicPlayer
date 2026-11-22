@@ -13,6 +13,7 @@ const lyricsAligner = require("../helpers/lyrics-aligner");
 const lyricsTagger = require("../services/lyrics-tagger");
 const modelManager = require("../services/model-manager");
 const cudaManager = require("../services/cuda-manager");
+const vocalModelManager = require("../services/vocal-model-manager");
 
 let activeJob = null;
 
@@ -286,8 +287,18 @@ function registerIpcHandlers(windowManager) {
       }
     }
 
+    const workerOptions = { ...options };
+    if (workerOptions.vocalIsolation) {
+      const vocalStatus = await vocalModelManager.getVocalModelStatus();
+      if (vocalStatus.installed) {
+        workerOptions.vocalModelPath = vocalStatus.modelPath;
+      } else {
+        workerOptions.vocalIsolation = false;
+      }
+    }
+
     return new Promise((resolve) => {
-      const job = startTranscription(track, options, (msg) => {
+      const job = startTranscription(track, workerOptions, (msg) => {
         if (mainWindow && !mainWindow.isDestroyed()) {
           mainWindow.webContents.send("transcription:progress", msg);
         }
@@ -381,6 +392,28 @@ function registerIpcHandlers(windowManager) {
 
   ipcMain.handle("cuda:delete", async () => {
     return await cudaManager.deleteCudaPack();
+  });
+
+  // ONNX 보컬 분리 모델 관리 IPC
+  ipcMain.handle("vocal-model:status", async () => {
+    return await vocalModelManager.getVocalModelStatus();
+  });
+
+  ipcMain.handle("vocal-model:download", async () => {
+    const mainWindow = windowManager.getMainWindow();
+    return await vocalModelManager.downloadVocalModel((msg) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("vocal-model:download-progress", msg);
+      }
+    });
+  });
+
+  ipcMain.handle("vocal-model:cancel-download", () => {
+    return vocalModelManager.cancelVocalModelDownload();
+  });
+
+  ipcMain.handle("vocal-model:delete", async () => {
+    return await vocalModelManager.deleteVocalModel();
   });
 
   // 커스텀 윈도우 제어 IPC

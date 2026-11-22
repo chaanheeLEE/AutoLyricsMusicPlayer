@@ -62,6 +62,17 @@ class SettingsView {
     this.cudaProgressText = document.querySelector("#cudaProgressText");
     this.isCudaDownloading = false;
 
+    // ONNX 보컬 분리 모델 관리 UI
+    this.vocalIsolationGroup = document.querySelector("#vocalIsolationGroup");
+    this.settingVocalIsolation = document.querySelector("#settingVocalIsolation");
+    this.vocalModelStatusBadge = document.querySelector("#vocalModelStatusBadge");
+    this.vocalModelSizeLabel = document.querySelector("#vocalModelSizeLabel");
+    this.vocalModelProgressArea = document.querySelector("#vocalModelProgressArea");
+    this.vocalModelProgressFill = document.querySelector("#vocalModelProgressFill");
+    this.vocalModelProgressText = document.querySelector("#vocalModelProgressText");
+    this.vocalModelActionsArea = document.querySelector("#vocalModelActionsArea");
+    this.isVocalModelDownloading = false;
+
     this.tempShortcuts = {};
     this.capturingAction = null;
     this.shortcutBtns = document.querySelectorAll(".shortcut-capture-btn");
@@ -77,6 +88,12 @@ class SettingsView {
     if (window.lyricsPlayer?.onCudaDownloadProgress) {
       window.lyricsPlayer.onCudaDownloadProgress((msg) => {
         this.handleCudaProgress(msg);
+      });
+    }
+
+    if (window.lyricsPlayer?.onVocalModelDownloadProgress) {
+      window.lyricsPlayer.onVocalModelDownloadProgress((msg) => {
+        this.handleVocalModelProgress(msg);
       });
     }
   }
@@ -209,6 +226,7 @@ class SettingsView {
     this.updateSTTEngineUI();
     this._toggleAccordion(false);
     this.refreshCudaStatus();
+    this.refreshVocalModelStatus();
     this.capturingAction = null;
     this.settingsDialog.showModal();
   }
@@ -231,6 +249,7 @@ class SettingsView {
     this.toggleVisibility(this.modelManagerAccordion, !isGemini);
     this.toggleVisibility(this.settingWhisperDeviceGroup, !isGemini);
     this.toggleVisibility(this.cudaPackManagerGroup, !isGemini);
+    this.toggleVisibility(this.vocalIsolationGroup, !isGemini);
     this.toggleVisibility(this.settingGeminiModelGroup, true);
     this.updateAutoAnalyzeDropdownState();
   }
@@ -259,6 +278,7 @@ class SettingsView {
       sttEngine: this.settingEngine.value,
       model: this.settingModel.value,
       whisperDevice: this.settingWhisperDevice.value,
+      vocalIsolation: this.settingVocalIsolation ? this.settingVocalIsolation.value === "on" : false,
       geminiModel: this.settingGeminiModel.value,
       language: this.settingLanguage.value || null,
       geminiApiKey: this.settingGeminiKey.value || "",
@@ -299,6 +319,9 @@ class SettingsView {
     this.settingEngine.value = settings.sttEngine || "whisper";
     this.settingModel.value = settings.model;
     this.settingWhisperDevice.value = settings.whisperDevice || "auto";
+    if (this.settingVocalIsolation) {
+      this.settingVocalIsolation.value = settings.vocalIsolation ? "on" : "off";
+    }
     this.settingGeminiModel.value = settings.geminiModel || "gemini-3.5-flash-lite";
     this.settingLanguage.value = settings.language || "";
     this.settingGeminiKey.value = settings.geminiApiKey || "";
@@ -325,9 +348,10 @@ class SettingsView {
 
     this.cachePathLabel.textContent = dataPath;
 
-    // 모델 목록 및 CUDA 상태 비동기 갱신
+    // 모델 목록 및 CUDA / 보컬 분리 모델 상태 비동기 갱신
     this.refreshModelList();
     this.refreshCudaStatus();
+    this.refreshVocalModelStatus();
   }
 
   _toggleAccordion(forceState) {
@@ -659,6 +683,148 @@ class SettingsView {
       await this.installCudaPack();
     } catch (err) {
       alert(`재설치 중 오류 발생: ${err.message}`);
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────
+  // 경량 ONNX 보컬 분리 모델 관리 기능
+  // ─────────────────────────────────────────────────────────────────────
+  async refreshVocalModelStatus() {
+    if (!window.lyricsPlayer?.getVocalModelStatus || !this.vocalModelStatusBadge) return;
+    try {
+      const status = await window.lyricsPlayer.getVocalModelStatus();
+      this.renderVocalModelStatus(status);
+    } catch (err) {
+      console.error("[SettingsView] Failed to check vocal model status:", err);
+    }
+  }
+
+  renderVocalModelStatus(status) {
+    if (!this.vocalModelStatusBadge || !this.vocalModelActionsArea || !status) return;
+
+    if (this.settingVocalIsolation) {
+      const onOption = this.settingVocalIsolation.querySelector('option[value="on"]');
+      if (onOption) {
+        onOption.disabled = !status.installed;
+        onOption.textContent = status.installed
+          ? "사용 (보컬 분리 후 분석)"
+          : "사용 (모델 설치 필요)";
+      }
+      if (!status.installed && this.settingVocalIsolation.value === "on") {
+        this.settingVocalIsolation.value = "off";
+      }
+    }
+
+    if (this.callbacks?.onVocalModelStatusChange) {
+      this.callbacks.onVocalModelStatusChange(status);
+    }
+
+    this.vocalModelStatusBadge.className = "cuda-status-badge";
+    this.vocalModelActionsArea.innerHTML = "";
+    if (this.vocalModelSizeLabel) {
+      this.vocalModelSizeLabel.textContent = status.diskSizeFormatted ? `(${status.diskSizeFormatted})` : "";
+    }
+
+    if (this.isVocalModelDownloading) {
+      this.vocalModelStatusBadge.classList.add("not-installed");
+      this.vocalModelStatusBadge.textContent = "다운로드 중";
+
+      const cancelBtn = document.createElement("button");
+      cancelBtn.type = "button";
+      cancelBtn.className = "btn-cuda-action btn-delete";
+      cancelBtn.textContent = "다운로드 취소";
+      cancelBtn.addEventListener("click", () => this.cancelVocalModelDownload());
+      this.vocalModelActionsArea.appendChild(cancelBtn);
+    } else if (status.installed) {
+      this.vocalModelStatusBadge.classList.add("installed");
+      this.vocalModelStatusBadge.textContent = "모델 설치됨";
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.type = "button";
+      deleteBtn.className = "btn-cuda-action btn-delete";
+      deleteBtn.textContent = "모델 삭제";
+      deleteBtn.addEventListener("click", () => this.deleteVocalModel());
+      this.vocalModelActionsArea.appendChild(deleteBtn);
+    } else {
+      this.vocalModelStatusBadge.classList.add("not-installed");
+      this.vocalModelStatusBadge.textContent = "모델 미설치";
+
+      const downloadBtn = document.createElement("button");
+      downloadBtn.type = "button";
+      downloadBtn.className = "btn-cuda-action btn-download";
+      downloadBtn.textContent = "보컬 분리 모델 설치";
+      downloadBtn.addEventListener("click", () => this.installVocalModel());
+      this.vocalModelActionsArea.appendChild(downloadBtn);
+    }
+  }
+
+  async cancelVocalModelDownload() {
+    if (!window.lyricsPlayer?.cancelVocalModelDownload) return;
+    try {
+      await window.lyricsPlayer.cancelVocalModelDownload();
+    } catch (err) {
+      console.error("[SettingsView] Failed to cancel vocal model download:", err);
+    }
+  }
+
+  async installVocalModel() {
+    if (this.isVocalModelDownloading) return;
+    this.isVocalModelDownloading = true;
+    if (this.vocalModelProgressArea) {
+      this.vocalModelProgressArea.style.display = "flex";
+      this.vocalModelProgressFill.style.width = "0%";
+      this.vocalModelProgressText.textContent = "보컬 분리 모델 다운로드 준비 중...";
+    }
+    await this.refreshVocalModelStatus();
+
+    try {
+      const res = await window.lyricsPlayer.downloadVocalModel();
+      if (res?.ok) {
+        await this.refreshVocalModelStatus();
+      }
+    } catch (err) {
+      console.error("[SettingsView] Vocal model download failed:", err);
+      alert(`보컬 분리 모델 다운로드 실패: ${err.message || err}`);
+    } finally {
+      this.isVocalModelDownloading = false;
+      if (this.vocalModelProgressArea) {
+        this.vocalModelProgressArea.style.display = "none";
+      }
+      await this.refreshVocalModelStatus();
+    }
+  }
+
+  handleVocalModelProgress(msg) {
+    if (!this.vocalModelProgressArea) return;
+    this.vocalModelProgressArea.style.display = "flex";
+
+    if (msg.percent != null) {
+      const pct = Math.round(msg.percent * 100);
+      this.vocalModelProgressFill.style.width = `${pct}%`;
+    }
+    if (msg.message) {
+      this.vocalModelProgressText.textContent = msg.message;
+    }
+    if (msg.stage === "done" || msg.stage === "cancelled") {
+      this.isVocalModelDownloading = false;
+      this.vocalModelProgressArea.style.display = "none";
+      this.refreshVocalModelStatus();
+    }
+  }
+
+  async deleteVocalModel() {
+    const ok = confirm("보컬 분리 ONNX 모델을 디스크에서 삭제하시겠습니까?\n삭제 시 보컬 분리 옵션은 자동으로 꺼집니다.");
+    if (!ok) return;
+
+    try {
+      const res = await window.lyricsPlayer.deleteVocalModel();
+      if (!res?.ok) {
+        alert(`삭제 실패: ${res?.error || "알 수 없는 오류"}`);
+      }
+    } catch (err) {
+      alert(`삭제 처리 중 오류 발생: ${err.message}`);
+    } finally {
+      await this.refreshVocalModelStatus();
     }
   }
   // ─────────────────────────────────────────────────────────────────────

@@ -191,6 +191,7 @@ if (process.platform === "win32") {
 
 // 3. Compile transcribe.py into transcribe.exe using PyInstaller
 const transcribeSource = path.join(__dirname, "..", "src", "main", "services", "transcribe.py");
+const vocalSeparatorSource = path.join(__dirname, "..", "src", "main", "services", "vocal_separator.py");
 const transcribeDest = path.join(binDir, "transcribe.exe");
 
 let shouldBuild = !fs.existsSync(transcribeDest);
@@ -202,6 +203,9 @@ if (fs.existsSync(transcribeDest) && fs.existsSync(transcribeSource)) {
 
   if (sourceStat.mtime > destStat.mtime) {
     console.log("transcribe.py is newer than transcribe.exe. Rebuilding...");
+    shouldBuild = true;
+  } else if (fs.existsSync(vocalSeparatorSource) && fs.statSync(vocalSeparatorSource).mtime > destStat.mtime) {
+    console.log("vocal_separator.py is newer than transcribe.exe. Rebuilding...");
     shouldBuild = true;
   } else if (scriptStat.mtime > destStat.mtime) {
     console.log("setup-binaries.js is newer than transcribe.exe. Rebuilding...");

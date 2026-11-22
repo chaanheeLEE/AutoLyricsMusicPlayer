@@ -38,19 +38,25 @@ class LyricsJobManager {
     // 백엔드 진행 상태 리스너 연동
     window.lyricsPlayer.onTranscriptionProgress((msg) => {
       const STAGE_LABELS = {
-        loading_model: "Loading model…",
-        converting: "Converting audio…",
-        transcribing: "Transcribing…",
-        gemini_uploading: "Uploading audio to Gemini…",
-        gemini_transcribing: "Analyzing audio with Gemini…",
-        saving: "Saving…",
-        cancelled: "Cancelled.",
+        loading_model: "모델 불러오는 중…",
+        converting: "오디오 변환 중…",
+        isolating_vocals: "보컬 분리 중…",
+        transcribing: "AI 가사 분석 중…",
+        gemini_uploading: "Gemini에 음원 업로드 중…",
+        gemini_transcribing: "Gemini 가사 분석 중…",
+        saving: "저장 중…",
+        cancelled: "취소됨",
       };
 
       if (msg.type === "progress") {
-        const label = STAGE_LABELS[msg.stage] || "Working…";
+        const label = STAGE_LABELS[msg.stage] || "작업 진행 중…";
         const percent = msg.percent !== undefined ? msg.percent : 0;
         this.showProgress(label, percent);
+      } else if (msg.type === "segment") {
+        this.showProgress(`가사 수신 중… (${msg.id})`, 0.9);
+      } else if (msg.type === "error") {
+        this.hideProgress();
+        this.trackStatus.textContent = `오류: ${msg.message}`;
       }
     });
   }
@@ -96,18 +102,23 @@ class LyricsJobManager {
       if (this.callbacks.updateAlignButtonState) this.callbacks.updateAlignButtonState();
     }
 
+    if (this.callbacks.updateVocalIsolationChipUI) this.callbacks.updateVocalIsolationChipUI();
     if (this.callbacks.updateTrackStatusBadge) this.callbacks.updateTrackStatusBadge();
   }
 
   showProgress(label, percent) {
-    const widthPct = `${Math.min(Math.max(percent * 100, 0), 100)}%`;
+    const clamped = Math.min(Math.max(percent || 0, 0), 1);
+    const widthPct = `${clamped * 100}%`;
+    const pctNum = Math.round(clamped * 100);
+    const displayText = pctNum > 0 && pctNum < 100 ? `${label} (${pctNum}%)` : label;
+
     const panels = [
       [this.transcriptionProgress, this.progressLabel, this.progressBar],
       [this.mainTranscriptionProgress, this.mainProgressLabel, this.mainProgressBar],
     ];
     for (const [wrap, labelEl, barEl] of panels) {
       if (wrap) wrap.style.display = "block";
-      if (labelEl) labelEl.textContent = label;
+      if (labelEl) labelEl.textContent = displayText;
       if (barEl) barEl.style.width = widthPct;
     }
   }
@@ -146,10 +157,10 @@ class LyricsJobManager {
     const options = { ...(this.state.settings || {}) };
     
     if (options.sttEngine === "gemini") {
-      this.showProgress("Uploading audio to Gemini…", 0.1);
+      this.showProgress("Gemini에 음원 업로드 중…", 0.1);
       this.trackStatus.textContent = "Uploading & Analyzing…";
     } else {
-      this.showProgress("Converting audio…", 0);
+      this.showProgress("오디오 변환 중…", 0);
       this.trackStatus.textContent = "Analyzing…";
     }
     if (this.state.embeddedLyricsLines && this.state.embeddedLyricsLines.length > 0) {
@@ -238,7 +249,7 @@ class LyricsJobManager {
 
     this.state.isTranscribing = true;
     this._setTranscribingUI(true, true);
-    this.showProgress("Searching & alignment in progress…", 0.5);
+    this.showProgress("AI 정밀 가사 정합 중…", 0.5);
     this.trackStatus.textContent = "AI Alignment in progress…";
 
     try {

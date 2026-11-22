@@ -32,6 +32,7 @@ def main():
     parser.add_argument("--language", default=None)
     parser.add_argument("--initial_prompt", default=None)
     parser.add_argument("--beam_size", type=int, default=5)
+    parser.add_argument("--vocal_model", default=None, help="Optional ONNX MDX-Net vocal separation model path")
     args = parser.parse_args()
 
     # Windows 환경에서 pip 설치된 nvidia 패키지 DLL 경로 동적 추가
@@ -167,25 +168,43 @@ def main():
         import wave
         import numpy as np
 
-        def detect_vocal_language(target_model, wav_path):
+        _service_dir = os.path.dirname(os.path.abspath(__file__))
+        if _service_dir not in sys.path:
+            sys.path.insert(0, _service_dir)
+        from vocal_separator import separate_vocals_onnx
+
+        prepared_vocal_audio = None
+        vocal_separation_attempted = False
+
+        def detect_vocal_language(target_model, audio_input):
             """Auto-detect language from a vocal-active mid-track slice to avoid intro/ad-lib misdetection."""
             try:
-                with wave.open(wav_path, "rb") as wf:
-                    if wf.getsampwidth() != 2 or wf.getnchannels() != 1 or wf.getframerate() <= 0:
-                        return None, 0.0
-                    framerate = wf.getframerate()
-                    nframes = wf.getnframes()
+                if isinstance(audio_input, np.ndarray):
+                    framerate = 16000
+                    nframes = audio_input.shape[0]
                     duration = nframes / float(framerate)
                     if duration < 45.0:
                         return None, 0.0
-                    start_sec = min(45.0, duration * 0.25)
-                    start_frame = int(start_sec * framerate)
-                    slice_frames = min(int(30.0 * framerate), nframes - start_frame)
-                    if slice_frames <= 0:
-                        return None, 0.0
-                    wf.setpos(start_frame)
-                    pcm_bytes = wf.readframes(slice_frames)
-                mid_audio = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+                    start_frame = int(min(45.0, duration * 0.25) * framerate)
+                    end_frame = min(nframes, start_frame + int(30.0 * framerate))
+                    mid_audio = audio_input[start_frame:end_frame]
+                else:
+                    with wave.open(audio_input, "rb") as wf:
+                        if wf.getsampwidth() != 2 or wf.getnchannels() != 1 or wf.getframerate() <= 0:
+                            return None, 0.0
+                        framerate = wf.getframerate()
+                        nframes = wf.getnframes()
+                        duration = nframes / float(framerate)
+                        if duration < 45.0:
+                            return None, 0.0
+                        start_sec = min(45.0, duration * 0.25)
+                        start_frame = int(start_sec * framerate)
+                        slice_frames = min(int(30.0 * framerate), nframes - start_frame)
+                        if slice_frames <= 0:
+                            return None, 0.0
+                        wf.setpos(start_frame)
+                        pcm_bytes = wf.readframes(slice_frames)
+                    mid_audio = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
                 if mid_audio.size == 0:
                     return None, 0.0
 
@@ -277,11 +296,45 @@ def main():
 
         # Helper function to execute transcription and collect lines
         def run_transcription(target_model):
-            emit({"type": "progress", "stage": "transcribing", "percent": 0.1})
+            nonlocal prepared_vocal_audio, vocal_separation_attempted
+
+            if args.vocal_model and os.path.exists(args.vocal_model) and not vocal_separation_attempted:
+                vocal_separation_attempted = True
+                emit({"type": "progress", "stage": "isolating_vocals", "percent": 0.05})
+                last_pct = 0.05
+
+                def on_sep_progress(p):
+                    nonlocal last_pct
+                    mapped = 0.05 + 0.50 * max(0.0, min(1.0, p))
+                    if mapped - last_pct >= 0.04 or p >= 1.0:
+                        last_pct = mapped
+                        emit({"type": "progress", "stage": "isolating_vocals", "percent": round(mapped, 3)})
+
+                try:
+                    separated = separate_vocals_onnx(
+                        args.audio_path,
+                        args.vocal_model,
+                        device=resolved_device,
+                        on_progress=on_sep_progress,
+                    )
+                    if separated is not None:
+                        prepared_vocal_audio = separated
+                        emit({"type": "info", "message": "ONNX vocal separation completed."})
+                    else:
+                        emit({"type": "info", "message": "Vocal stem near-silent; falling back to original audio."})
+                except Exception as sep_exc:
+                    emit({"type": "info", "message": f"Vocal separation failed ({str(sep_exc)}); falling back to original audio."})
+
+            audio_input = prepared_vocal_audio if prepared_vocal_audio is not None else args.audio_path
+            emit({
+                "type": "progress",
+                "stage": "transcribing",
+                "percent": 0.6 if prepared_vocal_audio is not None else 0.1,
+            })
 
             resolved_language = args.language
             if not resolved_language:
-                probed_lang, probed_prob = detect_vocal_language(target_model, args.audio_path)
+                probed_lang, probed_prob = detect_vocal_language(target_model, audio_input)
                 if probed_lang:
                     resolved_language = probed_lang
                     emit({
@@ -292,7 +345,7 @@ def main():
             clean_prompt = args.initial_prompt.strip()[:120] if args.initial_prompt and args.initial_prompt.strip() else None
 
             iter_segments, info_obj = target_model.transcribe(
-                args.audio_path,
+                audio_input,
                 language=resolved_language,
                 beam_size=args.beam_size,
                 vad_filter=False,  # 노래 보컬 누락 방지를 위해 vad_filter=False 고정

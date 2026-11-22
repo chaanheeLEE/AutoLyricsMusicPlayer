@@ -560,6 +560,53 @@ h2 {
   color: var(--text-disabled);
 }
 
+.vocal-isolation-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-secondary);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
+}
+
+.vocal-isolation-chip:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border-subtle));
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+
+.vocal-isolation-chip.active {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border-subtle));
+  background: var(--surface-selected);
+  color: var(--accent-strong);
+}
+
+.vocal-chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-disabled);
+  flex-shrink: 0;
+  transition: background 140ms ease, box-shadow 140ms ease;
+}
+
+.vocal-isolation-chip.active .vocal-chip-dot {
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent-glow);
+}
+
+.vocal-isolation-chip:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .main-transcription-progress {
   width: 100%;
   max-width: 240px;

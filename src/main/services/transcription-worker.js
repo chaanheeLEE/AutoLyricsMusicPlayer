@@ -152,14 +152,16 @@ function runFfmpeg(ffmpegBin, args) {
  * @param {string} outputPath
  * @returns {Promise<void>}
  */
-async function convertAudio(inputPath, outputPath) {
+async function convertAudio(inputPath, outputPath, stereo44k = false) {
   const ffmpegBin = resolveFfmpeg();
+  const sampleRate = stereo44k ? "44100" : "16000";
+  const channels = stereo44k ? "2" : "1";
   await runFfmpeg(ffmpegBin, [
     "-y",
     "-i", inputPath,
     "-vn",
-    "-ar", "16000",
-    "-ac", "1",
+    "-ar", sampleRate,
+    "-ac", channels,
     "-f", "wav",
     outputPath,
   ]);
@@ -174,11 +176,16 @@ async function convertAudio(inputPath, outputPath) {
  * @returns {{ cancel: () => void, promise: Promise<Array> }}
  */
 function startTranscription(track, options, onProgress) {
+  const { existsSync } = require("node:fs");
   const model = options?.model || "base";
   const whisperDevice = options?.whisperDevice || "auto";
   const language = options?.language || null;
   const initialPrompt = options?.initialPrompt || null;
   const beamSize = options?.beamSize !== undefined ? options.beamSize : 2;
+  const vocalModelPath = options?.vocalModelPath || null;
+  const useVocalIsolation = Boolean(
+    options?.vocalIsolation && vocalModelPath && existsSync(vocalModelPath)
+  );
   const tmpId = crypto.randomBytes(6).toString("hex");
   const tmpWav = path.join(os.tmpdir(), `alp_${tmpId}.wav`);
 
@@ -194,7 +201,7 @@ function startTranscription(track, options, onProgress) {
     onProgress({ type: "progress", stage: "converting", percent: 0 });
 
     try {
-      await convertAudio(track.path, tmpWav);
+      await convertAudio(track.path, tmpWav, useVocalIsolation);
     } catch (err) {
       if (cancelled) {
         onProgress({ type: "progress", stage: "cancelled" });
@@ -216,7 +223,6 @@ function startTranscription(track, options, onProgress) {
     const lines = [];
 
     await new Promise((resolve, reject) => {
-      const { existsSync } = require("node:fs");
       const packedTranscribe = process.resourcesPath
         ? path.join(process.resourcesPath, "bin", "transcribe.exe")
         : "";
@@ -244,6 +250,7 @@ function startTranscription(track, options, onProgress) {
       if (language) args.push("--language", language);
       if (initialPrompt) args.push("--initial_prompt", initialPrompt);
       if (beamSize) args.push("--beam_size", String(beamSize));
+      if (useVocalIsolation) args.push("--vocal_model", vocalModelPath);
 
       const proc = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
       activeProc = proc;

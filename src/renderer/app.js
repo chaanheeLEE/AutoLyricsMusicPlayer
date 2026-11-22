@@ -17,6 +17,8 @@ const alignButton = document.querySelector("#alignButton");
 const mainAnalyzeButton = document.querySelector("#mainAnalyzeButton");
 const mainCancelButton = document.querySelector("#mainCancelButton");
 const mainAlignButton = document.querySelector("#mainAlignButton");
+const mainVocalIsolationToggle = document.querySelector("#mainVocalIsolationToggle");
+const editVocalIsolationToggle = document.querySelector("#editVocalIsolationToggle");
 const floatingButton = document.querySelector("#floatingButton");
 const syncBackButton = document.querySelector("#syncBackButton");
 const syncFineBackButton = document.querySelector("#syncFineBackButton");
@@ -64,7 +66,8 @@ const state = {
   syncOffset: 0,
   floatingVisible: false,
   isTranscribing: false,
-  settings: { theme: "lyra", model: "base", language: null, geminiApiKey: "", autoAnalyzeMode: "off" },
+  vocalModelInstalled: false,
+  settings: { theme: "lyra", model: "base", language: null, geminiApiKey: "", autoAnalyzeMode: "off", vocalIsolation: false },
   editMode: false,
   shuffle: false,
   repeatMode: "all",
@@ -353,11 +356,16 @@ const settingsView = new SettingsView(state, {
     const engineText = savedSettings.sttEngine === "gemini" ? `Gemini API (${savedSettings.geminiModel || "gemini-3.1-flash-lite"})` : `Local Whisper (${savedSettings.model})`;
     trackStatus.textContent = `Settings saved. Engine: ${engineText}, Language: ${savedSettings.language || "auto"}.`;
     updateAlignButtonState();
+    updateVocalIsolationChipUI();
 
     if (state.settings.autoAnalyzeMode !== "off" && state.track && state.lyrics.length === 0 && !state.isTranscribing) {
       state.isAutoAnalyzing = true;
       lyricsJobManager.handleAnalyzeClick();
     }
+  },
+  onVocalModelStatusChange: (status) => {
+    state.vocalModelInstalled = Boolean(status?.installed);
+    updateVocalIsolationChipUI();
   }
 });
 
@@ -365,6 +373,7 @@ const lyricsJobManager = new LyricsJobManager(state, player, lyricsViewer, setti
   persistLyricsSoon,
   updateAlignButtonState,
   updateAnalyzeButtonState,
+  updateVocalIsolationChipUI,
   updateTrackStatusBadge
 });
 
@@ -676,7 +685,49 @@ function updateAlignButtonState() {
 function updateActionButtonsState() {
   updateAnalyzeButtonState();
   updateAlignButtonState();
+  updateVocalIsolationChipUI();
 }
+
+function updateVocalIsolationChipUI() {
+  const show = state.settings?.sttEngine !== "gemini" && Boolean(state.vocalModelInstalled);
+  const enabled = Boolean(state.settings?.vocalIsolation);
+  const labelText = enabled ? "보컬 분리: ON" : "보컬 분리: OFF";
+  const chips = [mainVocalIsolationToggle, editVocalIsolationToggle];
+
+  for (const chip of chips) {
+    if (!chip) continue;
+    chip.style.display = show ? "inline-flex" : "none";
+    chip.classList.toggle("active", enabled);
+    chip.setAttribute("aria-pressed", String(enabled));
+    chip.disabled = Boolean(state.isTranscribing);
+    const labelEl = chip.querySelector(".vocal-chip-label");
+    if (labelEl) labelEl.textContent = labelText;
+  }
+}
+
+async function handleVocalIsolationChipToggle() {
+  if (!state.vocalModelInstalled || state.isTranscribing) return;
+  const nextVal = !state.settings?.vocalIsolation;
+  state.settings = { ...(state.settings || {}), vocalIsolation: nextVal };
+  const settingsSelect = document.querySelector("#settingVocalIsolation");
+  if (settingsSelect) {
+    settingsSelect.value = nextVal ? "on" : "off";
+  }
+  updateVocalIsolationChipUI();
+  try {
+    const saved = await window.lyricsPlayer.saveSettings(state.settings);
+    if (saved) {
+      state.settings = saved;
+      updateVocalIsolationChipUI();
+    }
+  } catch (err) {
+    console.error("[App] Failed to persist vocalIsolation setting:", err);
+  }
+}
+
+[mainVocalIsolationToggle, editVocalIsolationToggle].forEach((chip) => {
+  if (chip) chip.addEventListener("click", handleVocalIsolationChipToggle);
+});
 
 function setControlsEnabled(enabled) {
   player.setEnabled(enabled);
@@ -785,38 +836,6 @@ window.lyricsPlayer.onPlaybackCommand((command) => {
     if (state.floatingVisible) {
       floatingButton.click();
     }
-  }
-});
-
-const STAGE_LABELS = {
-  loading_model: "Loading model…",
-  converting: "Converting audio…",
-  transcribing: "Transcribing…",
-  gemini_uploading: "Uploading audio to Gemini…",
-  gemini_transcribing: "Analyzing audio with Gemini…",
-  saving: "Saving…",
-  cancelled: "Cancelled.",
-};
-
-const STAGE_PERCENT = {
-  loading_model: 0.05,
-  converting: 0.15,
-  transcribing: 0.2,
-  gemini_uploading: 0.2,
-  gemini_transcribing: 0.5,
-  saving: 0.95,
-};
-
-window.lyricsPlayer.onTranscriptionProgress((msg) => {
-  if (msg.type === "progress") {
-    const label = STAGE_LABELS[msg.stage] || msg.stage;
-    const pct = msg.percent ?? STAGE_PERCENT[msg.stage] ?? 0;
-    lyricsJobManager.showProgress(label, pct);
-  } else if (msg.type === "segment") {
-    lyricsJobManager.showProgress(`Transcribing… (${msg.id})`, 0.5);
-  } else if (msg.type === "error") {
-    lyricsJobManager.hideProgress();
-    trackStatus.textContent = `Error: ${msg.message}`;
   }
 });
 
