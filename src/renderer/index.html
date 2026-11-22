@@ -403,7 +403,7 @@
         <header class="settings-header">
           <div class="settings-title-group">
             <h2>환경 설정</h2>
-            <p class="settings-subtitle">AI 분석 엔진, 플로팅 가사창, 단축키를 관리합니다.</p>
+            <p class="settings-subtitle">앱 테마, AI 음성 분석, 플로팅 가사창, 단축키를 관리합니다.</p>
           </div>
           <button id="closeSettingsBtn" class="settings-close-btn" type="button" title="닫기" aria-label="닫기">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -415,17 +415,17 @@
 
         <div class="settings-tabs-bar">
           <div class="settings-tabs" role="tablist">
-            <button id="tabGeneralBtn" class="settings-tab-button active" type="button" role="tab" aria-selected="true">AI 및 음성 분석</button>
+            <button id="tabAppBtn" class="settings-tab-button active" type="button" role="tab" aria-selected="true">일반</button>
+            <button id="tabGeneralBtn" class="settings-tab-button" type="button" role="tab" aria-selected="false">AI 및 음성 분석</button>
             <button id="tabFloatingBtn" class="settings-tab-button" type="button" role="tab" aria-selected="false">플로팅 가사창</button>
             <button id="tabShortcutsBtn" class="settings-tab-button" type="button" role="tab" aria-selected="false">단축키</button>
           </div>
         </div>
 
-        <!-- 1. General Settings Tab Content -->
-        <div id="tabGeneralContent" class="tab-content active">
-          <!-- Card 0: Theme Settings -->
+        <!-- 1. General App Tab Content (일반: 테마, 자동화, 캐시) -->
+        <div id="tabAppContent" class="tab-content active">
           <div class="settings-card">
-            <div class="settings-card-header">화면 및 테마 설정</div>
+            <div class="settings-card-header">화면 및 테마</div>
 
             <div class="settings-item">
               <div class="settings-info">
@@ -441,14 +441,49 @@
             </div>
           </div>
 
-          <!-- Card 1: STT Engine & Device Options -->
           <div class="settings-card">
-            <div class="settings-card-header">STT 엔진 및 가속 설정</div>
+            <div class="settings-card-header">자동화 워크플로우</div>
+
+            <div class="settings-item">
+              <div class="settings-info">
+                <label for="settingAutoAnalyzeMode">곡 로드 시 자동 분석</label>
+                <p>가사가 없는 곡을 재생할 때 백그라운드에서 자동으로 가사를 추출합니다.</p>
+              </div>
+              <div class="settings-control">
+                <select id="settingAutoAnalyzeMode" name="autoAnalyzeMode">
+                  <option value="off">사용 안 함 (수동 분석)</option>
+                  <option value="analyze">가사 자동 분석만 수행 (선택 엔진)</option>
+                  <option value="align">가사 자동 분석 + AI 정렬 동시 수행 (Gemini 필요)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <div class="settings-card-header">로컬 데이터 및 캐시</div>
+
+            <div class="settings-item">
+              <div class="settings-info">
+                <label>디스크 캐시 경로</label>
+                <p id="cachePathLabel" class="settings-cache-path">—</p>
+              </div>
+              <div class="settings-control">
+                <button id="clearCacheButton" type="button" class="edit-btn secondary">캐시 비우기</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. AI & STT Settings Tab Content -->
+        <div id="tabGeneralContent" class="tab-content">
+          <!-- Card 1: Common STT Settings -->
+          <div class="settings-card">
+            <div class="settings-card-header">음성 인식(STT) 기본 설정</div>
             
             <div class="settings-item">
               <div class="settings-info">
-                <label for="settingEngine">STT 엔진</label>
-                <p>음성 인식 및 가사 추출 방식을 선택합니다.</p>
+                <label for="settingEngine">기본 STT 엔진</label>
+                <p>음성 인식 및 가사 타임스탬프 추출 방식을 선택합니다.</p>
               </div>
               <div class="settings-control">
                 <select id="settingEngine" name="sttEngine">
@@ -457,6 +492,27 @@
                 </select>
               </div>
             </div>
+
+            <div class="settings-item">
+              <div class="settings-info">
+                <label for="settingLanguage">음성 분석 언어</label>
+                <p>가사로 추출할 오디오 음성의 주 언어입니다.</p>
+              </div>
+              <div class="settings-control">
+                <select id="settingLanguage" name="language">
+                  <option value="">Auto-detect (자동 감지)</option>
+                  <option value="ko">Korean (한국어)</option>
+                  <option value="en">English (영어)</option>
+                  <option value="ja">Japanese (일본어)</option>
+                  <option value="zh">Chinese (중국어)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 2: Local Whisper Engine & CUDA Acceleration -->
+          <div class="settings-card" id="whisperSettingsCard">
+            <div class="settings-card-header">로컬 Whisper 엔진 및 하드웨어 가속</div>
 
             <div class="settings-item" id="settingModelGroup">
               <div class="settings-info">
@@ -522,77 +578,32 @@
                 <div class="cuda-actions" id="cudaActionsArea"></div>
               </div>
             </div>
-
-            <div class="settings-item">
-              <div class="settings-info">
-                <label for="settingLanguage">음성 분석 언어</label>
-                <p>가사로 추출할 오디오 음성의 언어입니다.</p>
-              </div>
-              <div class="settings-control">
-                <select id="settingLanguage" name="language">
-                  <option value="">Auto-detect (자동 감지)</option>
-                  <option value="ko">Korean (한국어)</option>
-                  <option value="en">English (영어)</option>
-                  <option value="ja">Japanese (일본어)</option>
-                  <option value="zh">Chinese (중국어)</option>
-                </select>
-              </div>
-            </div>
           </div>
 
-          <!-- Card 2: AI Post-Processing & API -->
-          <div class="settings-card">
-            <div class="settings-card-header">Gemini 클라우드 & AI 자동 정렬</div>
+          <!-- Card 3: Gemini Cloud & AI Alignment -->
+          <div class="settings-card" id="geminiSettingsCard">
+            <div class="settings-card-header">Gemini 클라우드 & AI 정렬</div>
             
             <div class="settings-item">
               <div class="settings-info">
                 <label for="settingGeminiKey">Gemini API Key</label>
-                <p>클라우드 분석 및 정밀 싱크 대조(AI Align)에 필수적입니다.</p>
+                <p>클라우드 음성 인식(STT) 및 정밀 가사 대조(AI Align)에 필요합니다.</p>
               </div>
               <div class="settings-control">
                 <input type="password" id="settingGeminiKey" placeholder="API 키 입력" />
               </div>
             </div>
 
-            <div class="settings-item" id="settingGeminiModelGroup" style="display: none;">
+            <div class="settings-item" id="settingGeminiModelGroup">
               <div class="settings-info">
                 <label for="settingGeminiModel">Gemini AI 모델</label>
-                <p>Gemini 클라우드 분석(STT) 및 AI 가사 정렬(Align) 시 구동할 모델입니다.</p>
+                <p>클라우드 전사 및 AI 가사 정렬 시 사용할 모델입니다.</p>
               </div>
               <div class="settings-control">
                 <select id="settingGeminiModel" name="geminiModel">
                   <option value="gemini-3.5-flash-lite" selected>gemini-3.5-flash-lite (초고속 & 고효율)</option>
                   <option value="gemini-3.8-flash">gemini-3.8-flash (고정밀 플래그십)</option>
                 </select>
-              </div>
-            </div>
-
-            <div class="settings-item">
-              <div class="settings-info">
-                <label for="settingAutoAnalyzeMode">자동 분석 모드</label>
-                <p>곡 로드 시 자동으로 실행할 백그라운드 분석입니다.</p>
-              </div>
-              <div class="settings-control">
-                <select id="settingAutoAnalyzeMode" name="autoAnalyzeMode">
-                  <option value="off">사용 안 함 (수동 분석)</option>
-                  <option value="analyze">가사 자동 분석만 수행 (선택 엔진)</option>
-                  <option value="align">가사 자동 분석 + AI 정렬 동시 수행 (Gemini 필요)</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <!-- Card 3: Cache Settings -->
-          <div class="settings-card">
-            <div class="settings-card-header">로컬 캐시 및 프라이버시</div>
-            
-            <div class="settings-item">
-              <div class="settings-info">
-                <label>디스크 캐시 경로</label>
-                <p id="cachePathLabel" class="settings-cache-path">—</p>
-              </div>
-              <div class="settings-control">
-                <button id="clearCacheButton" type="button" class="edit-btn secondary">캐시 비우기</button>
               </div>
             </div>
           </div>
@@ -602,38 +613,18 @@
           </p>
         </div>
 
-        <!-- 2. Floating Lyrics Settings Tab Content -->
+        <!-- 3. Floating Lyrics Settings Tab Content -->
         <div id="tabFloatingContent" class="tab-content">
           <div class="settings-card">
-            <div class="settings-card-header">플로팅 가사창 스타일</div>
+            <div class="settings-card-header">가사 텍스트 및 정렬</div>
 
             <div class="settings-item">
               <div class="settings-info">
                 <label for="settingFloatingFontSize">폰트 크기 <span class="settings-value-pill"><span id="valFloatingFontSize">18</span>px</span></label>
-                <p>바탕 화면 가사 글꼴 크기입니다.</p>
+                <p>바탕 화면 플로팅 가사의 글꼴 크기입니다.</p>
               </div>
               <div class="settings-control">
                 <input type="range" id="settingFloatingFontSize" min="12" max="32" step="1" value="18" />
-              </div>
-            </div>
-
-            <div class="settings-item">
-              <div class="settings-info">
-                <label for="settingFloatingOpacity">배경 투명도 <span class="settings-value-pill" id="valFloatingOpacity">0.85</span></label>
-                <p>플로팅 윈도우의 배경 불투명도입니다.</p>
-              </div>
-              <div class="settings-control">
-                <input type="range" id="settingFloatingOpacity" min="0.0" max="1.0" step="0.05" value="0.85" />
-              </div>
-            </div>
-
-            <div class="settings-item">
-              <div class="settings-info">
-                <label for="settingFloatingBgColor">배경 색상</label>
-                <p>플로팅 창의 배경 색상입니다.</p>
-              </div>
-              <div class="settings-control">
-                <input type="color" id="settingFloatingBgColor" value="#0b0d11" class="color-picker-input" />
               </div>
             </div>
 
@@ -661,16 +652,40 @@
               </div>
             </div>
           </div>
+
+          <div class="settings-card">
+            <div class="settings-card-header">창 배경 및 투명도</div>
+
+            <div class="settings-item">
+              <div class="settings-info">
+                <label for="settingFloatingOpacity">배경 투명도 <span class="settings-value-pill" id="valFloatingOpacity">0.85</span></label>
+                <p>플로팅 윈도우 배경의 불투명도를 조절합니다.</p>
+              </div>
+              <div class="settings-control">
+                <input type="range" id="settingFloatingOpacity" min="0.0" max="1.0" step="0.05" value="0.85" />
+              </div>
+            </div>
+
+            <div class="settings-item">
+              <div class="settings-info">
+                <label for="settingFloatingBgColor">배경 색상</label>
+                <p>플로팅 창의 배경 색상입니다.</p>
+              </div>
+              <div class="settings-control">
+                <input type="color" id="settingFloatingBgColor" value="#0b0d11" class="color-picker-input" />
+              </div>
+            </div>
+          </div>
         </div>
 
-        <!-- 3. Shortcuts Settings Tab Content -->
+        <!-- 4. Shortcuts Settings Tab Content -->
         <div id="tabShortcutsContent" class="tab-content settings-shortcut-tab">
-          <div class="settings-card settings-shortcut-card">
-            <div class="settings-card-header settings-shortcut-header">플레이어 단축키 설정</div>
-            <p class="settings-shortcut-desc">
-              키 지정을 하려면 해당 단축키 버튼을 클릭하고 새로운 키를 입력하십시오. (Esc 입력 시 취소)
-            </p>
+          <p class="settings-shortcut-desc">
+            키 지정을 하려면 해당 단축키 버튼을 클릭하고 새로운 키를 입력하십시오. (Esc 입력 시 취소)
+          </p>
 
+          <div class="settings-card">
+            <div class="settings-card-header">재생 및 탐색 제어</div>
             <div class="shortcut-list-container">
               <div class="settings-item">
                 <div class="settings-info">
@@ -678,6 +693,22 @@
                 </div>
                 <div class="settings-control">
                   <button id="btnShortcutTogglePlay" type="button" class="shortcut-capture-btn" data-action="togglePlay">Space</button>
+                </div>
+              </div>
+              <div class="settings-item">
+                <div class="settings-info">
+                  <span>이전 곡 재생</span>
+                </div>
+                <div class="settings-control">
+                  <button id="btnShortcutPrevTrack" type="button" class="shortcut-capture-btn" data-action="prevTrack">KeyP</button>
+                </div>
+              </div>
+              <div class="settings-item">
+                <div class="settings-info">
+                  <span>다음 곡 재생</span>
+                </div>
+                <div class="settings-control">
+                  <button id="btnShortcutNextTrack" type="button" class="shortcut-capture-btn" data-action="nextTrack">KeyN</button>
                 </div>
               </div>
               <div class="settings-item">
@@ -696,6 +727,12 @@
                   <button id="btnShortcutSeekForward" type="button" class="shortcut-capture-btn" data-action="seekForward">ArrowRight</button>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <div class="settings-card">
+            <div class="settings-card-header">볼륨 및 가사창 제어</div>
+            <div class="shortcut-list-container">
               <div class="settings-item">
                 <div class="settings-info">
                   <span>볼륨 올리기</span>
@@ -710,22 +747,6 @@
                 </div>
                 <div class="settings-control">
                   <button id="btnShortcutVolumeDown" type="button" class="shortcut-capture-btn" data-action="volumeDown">ArrowDown</button>
-                </div>
-              </div>
-              <div class="settings-item">
-                <div class="settings-info">
-                  <span>이전 곡 재생</span>
-                </div>
-                <div class="settings-control">
-                  <button id="btnShortcutPrevTrack" type="button" class="shortcut-capture-btn" data-action="prevTrack">KeyP</button>
-                </div>
-              </div>
-              <div class="settings-item">
-                <div class="settings-info">
-                  <span>다음 곡 재생</span>
-                </div>
-                <div class="settings-control">
-                  <button id="btnShortcutNextTrack" type="button" class="shortcut-capture-btn" data-action="nextTrack">KeyN</button>
                 </div>
               </div>
               <div class="settings-item">

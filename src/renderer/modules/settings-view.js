@@ -8,12 +8,15 @@ class SettingsView {
     this.closeSettingsBtn = document.querySelector("#closeSettingsBtn");
     this.saveSettingsButton = document.querySelector("#saveSettingsButton");
     
+    this.tabAppBtn = document.querySelector("#tabAppBtn");
     this.tabGeneralBtn = document.querySelector("#tabGeneralBtn");
     this.tabFloatingBtn = document.querySelector("#tabFloatingBtn");
     this.tabShortcutsBtn = document.querySelector("#tabShortcutsBtn");
+    this.tabAppContent = document.querySelector("#tabAppContent");
     this.tabGeneralContent = document.querySelector("#tabGeneralContent");
     this.tabFloatingContent = document.querySelector("#tabFloatingContent");
     this.tabShortcutsContent = document.querySelector("#tabShortcutsContent");
+    this.whisperSettingsCard = document.querySelector("#whisperSettingsCard");
     
     this.settingTheme = document.querySelector("#settingTheme");
     this.settingEngine = document.querySelector("#settingEngine");
@@ -100,6 +103,9 @@ class SettingsView {
       });
     }
 
+    if (this.tabAppBtn) {
+      this.tabAppBtn.addEventListener("click", () => this.switchTab("app"));
+    }
     this.tabGeneralBtn.addEventListener("click", () => this.switchTab("general"));
     this.tabFloatingBtn.addEventListener("click", () => this.switchTab("floating"));
     this.tabShortcutsBtn.addEventListener("click", () => this.switchTab("shortcuts"));
@@ -181,6 +187,7 @@ class SettingsView {
 
   switchTab(activeTab) {
     const tabs = [
+      { key: "app", btn: this.tabAppBtn, content: this.tabAppContent },
       { key: "general", btn: this.tabGeneralBtn, content: this.tabGeneralContent },
       { key: "floating", btn: this.tabFloatingBtn, content: this.tabFloatingContent },
       { key: "shortcuts", btn: this.tabShortcutsBtn, content: this.tabShortcutsContent },
@@ -198,7 +205,7 @@ class SettingsView {
   }
 
   open() {
-    this.tabGeneralBtn.click();
+    this.switchTab("app");
     this.updateSTTEngineUI();
     this._toggleAccordion(false);
     this.refreshCudaStatus();
@@ -218,15 +225,13 @@ class SettingsView {
 
   updateSTTEngineUI() {
     const isGemini = this.settingEngine.value === "gemini";
-    const isAlignMode = this.settingAutoAnalyzeMode.value === "align";
-    const hasApiKey = !!this.settingGeminiKey.value.trim();
-    const showGeminiModel = isGemini || isAlignMode || hasApiKey;
 
+    this.toggleVisibility(this.whisperSettingsCard, !isGemini);
     this.toggleVisibility(this.settingModelGroup, !isGemini);
     this.toggleVisibility(this.modelManagerAccordion, !isGemini);
     this.toggleVisibility(this.settingWhisperDeviceGroup, !isGemini);
     this.toggleVisibility(this.cudaPackManagerGroup, !isGemini);
-    this.toggleVisibility(this.settingGeminiModelGroup, showGeminiModel);
+    this.toggleVisibility(this.settingGeminiModelGroup, true);
     this.updateAutoAnalyzeDropdownState();
   }
 
