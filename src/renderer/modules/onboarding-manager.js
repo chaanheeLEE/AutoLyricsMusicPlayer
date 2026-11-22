@@ -57,12 +57,12 @@ class OnboardingManager {
       if (!result?.models) return;
       for (const m of result.models) {
         if (m.id === "large-v3-turbo" && this.tagTurbo) {
-          this.tagTurbo.textContent = m.downloaded ? "✓ 이미 설치됨" : "미설치";
-          this.tagTurbo.style.color = m.downloaded ? "var(--accent)" : "";
+          this.tagTurbo.textContent = m.downloaded ? "설치됨" : "미설치";
+          this.tagTurbo.style.color = m.downloaded ? "var(--accent)" : "var(--text-secondary)";
         }
         if (m.id === "base" && this.tagBase) {
-          this.tagBase.textContent = m.downloaded ? "✓ 이미 설치됨" : "미설치";
-          this.tagBase.style.color = m.downloaded ? "var(--accent)" : "";
+          this.tagBase.textContent = m.downloaded ? "설치됨" : "미설치";
+          this.tagBase.style.color = m.downloaded ? "var(--accent)" : "var(--text-secondary)";
         }
       }
     } catch (e) {

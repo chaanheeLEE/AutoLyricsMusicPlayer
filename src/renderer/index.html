@@ -837,40 +837,48 @@
     <dialog id="onboardingDialog" class="settings-dialog onboarding-dialog">
       <div class="onboarding-form">
         <div class="onboarding-header">
-          <div class="onboarding-badge-icon">♪</div>
-          <h2>ALP에 오신 것을 환영합니다!</h2>
+          <div class="onboarding-brand-pill">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 18V5l12-2v13"/>
+              <circle cx="6" cy="18" r="3"/>
+              <circle cx="18" cy="16" r="3"/>
+            </svg>
+            <span>ALP SETUP</span>
+          </div>
+          <h2>ALP에 오신 것을 환영합니다</h2>
           <p class="onboarding-desc">
-            노래의 보컬 음성을 분석하여 실시간 가사 싱크를 생성하기 위해 사용할 <strong>AI 모델</strong>을 선택해주세요.
+            음원의 보컬을 분석해 실시간 싱크 가사를 생성할 기본 <strong>AI 모델</strong>을 선택하세요.<br />
+            선택한 설정은 언제든 상단 <strong>환경 설정</strong>에서 변경할 수 있습니다.
           </p>
         </div>
 
         <div class="onboarding-options">
-          <label class="onboarding-card selected" data-model="large-v3-turbo">
-            <input type="radio" name="onboardingModelChoice" value="large-v3-turbo" checked />
+          <label class="onboarding-card selected" data-model="base">
+            <input type="radio" name="onboardingModelChoice" value="base" checked />
             <div class="onboarding-card-body">
               <div class="onboarding-card-title-row">
-                <strong>large-v3-turbo</strong>
-                <span class="badge-recommend">🚀 최신 추천</span>
+                <strong>Whisper Base</strong>
+                <span class="model-badge badge-default">기본값 · 경량</span>
               </div>
-              <p class="onboarding-card-detail">최고 수준의 가사 인식 정확도와 6배 빠른 연산 속도 (보컬 싱크 최적화)</p>
+              <p class="onboarding-card-detail">가벼운 용량으로 모든 PC에서 부담 없이 빠르게 가사 추출을 시작할 수 있는 표준 모델입니다.</p>
               <div class="onboarding-card-foot">
-                <span>다운로드 용량: <strong>약 1.6 GB</strong></span>
-                <span class="onboarding-status-tag" id="onboardingTagTurbo">확인 중...</span>
+                <span>다운로드 용량: <strong>약 145 MB</strong></span>
+                <span class="onboarding-status-tag" id="onboardingTagBase">상태 확인 중...</span>
               </div>
             </div>
           </label>
 
-          <label class="onboarding-card" data-model="base">
-            <input type="radio" name="onboardingModelChoice" value="base" />
+          <label class="onboarding-card" data-model="large-v3-turbo">
+            <input type="radio" name="onboardingModelChoice" value="large-v3-turbo" />
             <div class="onboarding-card-body">
               <div class="onboarding-card-title-row">
-                <strong>base</strong>
-                <span class="badge-default">⚡ 경량 기본</span>
+                <strong>Whisper Large-v3 Turbo</strong>
+                <span class="model-badge badge-recommend">고성능 추천</span>
               </div>
-              <p class="onboarding-card-detail">가벼운 사양의 PC에 적합하며 즉시 빠르게 시작할 수 있는 표준 모델</p>
+              <p class="onboarding-card-detail">높은 가사 인식 정확도와 빠른 연산 속도를 제공하여 보컬 싱크에 최적화된 모델입니다.</p>
               <div class="onboarding-card-foot">
-                <span>다운로드 용량: <strong>약 145 MB</strong></span>
-                <span class="onboarding-status-tag" id="onboardingTagBase">확인 중...</span>
+                <span>다운로드 용량: <strong>약 1.6 GB</strong></span>
+                <span class="onboarding-status-tag" id="onboardingTagTurbo">상태 확인 중...</span>
               </div>
             </div>
           </label>
@@ -879,12 +887,12 @@
             <input type="radio" name="onboardingModelChoice" value="gemini" />
             <div class="onboarding-card-body">
               <div class="onboarding-card-title-row">
-                <strong>Gemini API (클라우드)</strong>
-                <span class="badge-cloud">☁️ 무설치</span>
+                <strong>Gemini API</strong>
+                <span class="model-badge badge-cloud">클라우드 · 무설치</span>
               </div>
-              <p class="onboarding-card-detail">로컬 모델 다운로드 없이 Google Cloud AI를 통해 직접 오디오를 고속 분석 (API 키 필요)</p>
+              <p class="onboarding-card-detail">로컬 모델 다운로드 없이 Google Cloud AI로 오디오를 직접 분석합니다. (API 키 필요)</p>
               <div class="onboarding-card-foot">
-                <span>다운로드 용량: <strong>0 MB</strong></span>
+                <span>다운로드 용량: <strong>없음 (0 MB)</strong></span>
                 <span class="onboarding-status-tag">즉시 사용 가능</span>
               </div>
             </div>
@@ -903,9 +911,9 @@
           <div class="onboarding-progress-notice">다운로드가 완료되면 자동으로 설정이 적용됩니다. 잠시만 기다려주세요.</div>
         </div>
 
-        <div class="settings-footer onboarding-footer">
-          <button id="onboardingSkipBtn" type="button" class="btn-subtle">나중에 설정 (기본값으로 시작)</button>
-          <button id="onboardingConfirmBtn" type="button" class="primary-button">선택한 모델 적용 및 시작</button>
+        <div class="onboarding-footer">
+          <button id="onboardingSkipBtn" type="button" class="edit-btn secondary">나중에 설정 (기본값 유지)</button>
+          <button id="onboardingConfirmBtn" type="button" class="edit-btn primary">선택한 모델 적용 및 시작</button>
         </div>
       </div>
     </dialog>
