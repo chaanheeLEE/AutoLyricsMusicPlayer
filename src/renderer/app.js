@@ -14,6 +14,9 @@ const navEditLyricsBtn = document.querySelector("#navEditLyricsBtn");
 const analyzeButton = document.querySelector("#analyzeButton");
 const cancelButton = document.querySelector("#cancelButton");
 const alignButton = document.querySelector("#alignButton");
+const mainAnalyzeButton = document.querySelector("#mainAnalyzeButton");
+const mainCancelButton = document.querySelector("#mainCancelButton");
+const mainAlignButton = document.querySelector("#mainAlignButton");
 const floatingButton = document.querySelector("#floatingButton");
 const syncBackButton = document.querySelector("#syncBackButton");
 const syncFineBackButton = document.querySelector("#syncFineBackButton");
@@ -361,7 +364,8 @@ const settingsView = new SettingsView(state, {
 const lyricsJobManager = new LyricsJobManager(state, player, lyricsViewer, settingsView, {
   persistLyricsSoon,
   updateAlignButtonState,
-  updateAnalyzeButtonState
+  updateAnalyzeButtonState,
+  updateTrackStatusBadge
 });
 
 const embedManager = new EmbedManager(state, trackStatus, updateAlignButtonState);
@@ -624,8 +628,17 @@ if (deleteCacheButton) {
 
 function updateAnalyzeButtonState() {
   const hasLyrics = state.lyrics && state.lyrics.length > 0;
-  analyzeButton.classList.toggle("reanalyze-state", hasLyrics);
-  analyzeButton.textContent = hasLyrics ? "Reanalyze" : "Analyze";
+  if (analyzeButton) {
+    analyzeButton.classList.toggle("reanalyze-state", hasLyrics);
+    analyzeButton.textContent = hasLyrics ? "AI 재분석 (Reanalyze)" : "AI 가사 분석 (Analyze)";
+  }
+  if (mainAnalyzeButton) {
+    mainAnalyzeButton.classList.toggle("reanalyze-state", hasLyrics);
+    mainAnalyzeButton.textContent = hasLyrics ? "AI 재분석" : "AI 가사 분석";
+    mainAnalyzeButton.title = hasLyrics
+      ? "현재 곡의 가사를 다시 AI로 분석합니다"
+      : "AI 음성 인식으로 가사를 생성합니다";
+  }
 }
 
 function updateAlignButtonState() {
@@ -633,22 +646,30 @@ function updateAlignButtonState() {
   const hasLyrics = state.lyrics && state.lyrics.length > 0;
   const isAligned = hasLyrics && state.lyrics[0]?.id?.startsWith("align_");
 
-  alignButton.classList.toggle("realign-state", isAligned);
+  const targets = [
+    { btn: alignButton, baseLabel: "AI Align", realignLabel: "AI Realign" },
+    { btn: mainAlignButton, baseLabel: "AI 정합", realignLabel: "AI 재정합" },
+  ];
 
-  if (state.isTranscribing) {
-    alignButton.disabled = true;
-  } else if (!hasApiKey || !hasLyrics) {
-    alignButton.disabled = true;
-    alignButton.title = !hasApiKey 
-      ? "Gemini API Key is required. Please set it in settings." 
-      : "No lyrics to align. Please analyze the track first.";
-    alignButton.textContent = "AI Align";
-  } else {
-    alignButton.disabled = false;
-    alignButton.title = isAligned 
-      ? "Re-run AI Alignment using Gemini" 
-      : "AI Align Lyrics using Gemini";
-    alignButton.textContent = isAligned ? "AI Realign" : "AI Align";
+  for (const { btn, baseLabel, realignLabel } of targets) {
+    if (!btn) continue;
+    btn.classList.toggle("realign-state", isAligned);
+
+    if (state.isTranscribing) {
+      btn.disabled = true;
+    } else if (!hasApiKey || !hasLyrics) {
+      btn.disabled = true;
+      btn.title = !hasApiKey
+        ? "Gemini API Key is required. Please set it in settings."
+        : "No lyrics to align. Please analyze the track first.";
+      btn.textContent = baseLabel;
+    } else {
+      btn.disabled = false;
+      btn.title = isAligned
+        ? "Re-run AI Alignment using Gemini"
+        : "AI Align Lyrics using Gemini";
+      btn.textContent = isAligned ? realignLabel : baseLabel;
+    }
   }
 }
 
@@ -661,8 +682,9 @@ function setControlsEnabled(enabled) {
   player.setEnabled(enabled);
   playlist.setEnabled(enabled);
   lyricsViewer.setEnabled(enabled);
-  
-  analyzeButton.disabled = !enabled;
+
+  if (analyzeButton) analyzeButton.disabled = !enabled;
+  if (mainAnalyzeButton) mainAnalyzeButton.disabled = !enabled;
   floatingButton.disabled = !enabled;
   syncBackButton.disabled = !enabled;
   syncFineBackButton.disabled = !enabled;
@@ -672,7 +694,7 @@ function setControlsEnabled(enabled) {
   exportLrcButton.disabled = !enabled;
   exportVttButton.disabled = !enabled;
   embedManager.setEnabled(enabled);
-  
+
   updateActionButtonsState();
 }
 

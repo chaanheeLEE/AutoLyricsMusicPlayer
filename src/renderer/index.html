@@ -70,6 +70,23 @@
               <p id="trackArtist" class="track-artist">-</p>
               <p id="trackAlbumMeta" class="track-album-meta" style="display: none;"></p>
               <span id="trackStatusBadge" class="track-status-badge">대기 중</span>
+              <div id="mainAnalysisActions" class="main-analysis-actions">
+                <button id="mainAnalyzeButton" class="edit-btn primary main-action-btn" type="button" disabled title="AI 음성 인식으로 가사를 분석합니다">
+                  AI 가사 분석
+                </button>
+                <button id="mainCancelButton" class="edit-btn danger main-action-btn" type="button" disabled style="display: none;" title="진행 중인 AI 분석을 취소합니다">
+                  분석 취소
+                </button>
+                <button id="mainAlignButton" class="edit-btn accent main-action-btn" type="button" disabled title="Gemini AI로 공식 가사와 타임스탬프를 정밀 정합합니다">
+                  AI 정합
+                </button>
+              </div>
+              <div id="mainTranscriptionProgress" class="transcription-progress main-transcription-progress" style="display: none;">
+                <div class="progress-bar-wrap">
+                  <div id="mainProgressBar" class="progress-bar" style="width: 0%;"></div>
+                </div>
+                <p id="mainProgressLabel" class="progress-label">준비 중…</p>
+              </div>
               <p id="trackStatus" style="display:none;">Add track(s) to start playback.</p>
             </div>
           </div>

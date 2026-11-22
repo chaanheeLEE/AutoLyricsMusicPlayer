@@ -9,19 +9,31 @@ class LyricsJobManager {
     this.analyzeButton = document.querySelector("#analyzeButton");
     this.cancelButton = document.querySelector("#cancelButton");
     this.alignButton = document.querySelector("#alignButton");
+    this.mainAnalyzeButton = document.querySelector("#mainAnalyzeButton");
+    this.mainCancelButton = document.querySelector("#mainCancelButton");
+    this.mainAlignButton = document.querySelector("#mainAlignButton");
     this.trackStatus = document.querySelector("#trackStatus");
-    
+
     this.transcriptionProgress = document.querySelector("#transcriptionProgress");
     this.progressLabel = document.querySelector("#progressLabel");
     this.progressBar = document.querySelector("#progressBar");
+    this.mainTranscriptionProgress = document.querySelector("#mainTranscriptionProgress");
+    this.mainProgressLabel = document.querySelector("#mainProgressLabel");
+    this.mainProgressBar = document.querySelector("#mainProgressBar");
 
     this._initEvents();
   }
 
   _initEvents() {
-    this.analyzeButton.addEventListener("click", () => this.handleAnalyzeClick());
-    this.cancelButton.addEventListener("click", () => this.handleCancelClick());
-    this.alignButton.addEventListener("click", () => this.handleAlignClick());
+    [this.analyzeButton, this.mainAnalyzeButton].forEach((btn) => {
+      if (btn) btn.addEventListener("click", () => this.handleAnalyzeClick());
+    });
+    [this.cancelButton, this.mainCancelButton].forEach((btn) => {
+      if (btn) btn.addEventListener("click", () => this.handleCancelClick());
+    });
+    [this.alignButton, this.mainAlignButton].forEach((btn) => {
+      if (btn) btn.addEventListener("click", () => this.handleAlignClick());
+    });
 
     // 백엔드 진행 상태 리스너 연동
     window.lyricsPlayer.onTranscriptionProgress((msg) => {
@@ -43,15 +55,72 @@ class LyricsJobManager {
     });
   }
 
+  _setTranscribingUI(isTranscribing, isAligning = false) {
+    const analyzeButtons = [this.analyzeButton, this.mainAnalyzeButton];
+    const cancelButtons = [this.cancelButton, this.mainCancelButton];
+    const alignButtons = [this.alignButton, this.mainAlignButton];
+
+    if (isTranscribing) {
+      if (isAligning) {
+        analyzeButtons.forEach((btn) => {
+          if (btn) btn.disabled = true;
+        });
+      } else {
+        analyzeButtons.forEach((btn) => {
+          if (btn) btn.style.display = "none";
+        });
+        cancelButtons.forEach((btn) => {
+          if (btn) {
+            btn.style.display = "";
+            btn.disabled = false;
+          }
+        });
+      }
+      alignButtons.forEach((btn) => {
+        if (btn) btn.disabled = true;
+      });
+    } else {
+      cancelButtons.forEach((btn) => {
+        if (btn) {
+          btn.style.display = "none";
+          btn.disabled = true;
+        }
+      });
+      analyzeButtons.forEach((btn) => {
+        if (btn) {
+          btn.style.display = "";
+          btn.disabled = !this.state.track;
+        }
+      });
+      if (this.callbacks.updateAnalyzeButtonState) this.callbacks.updateAnalyzeButtonState();
+      if (this.callbacks.updateAlignButtonState) this.callbacks.updateAlignButtonState();
+    }
+
+    if (this.callbacks.updateTrackStatusBadge) this.callbacks.updateTrackStatusBadge();
+  }
+
   showProgress(label, percent) {
-    this.transcriptionProgress.style.display = "block";
-    this.progressLabel.textContent = label;
-    this.progressBar.style.width = `${Math.min(Math.max(percent * 100, 0), 100)}%`;
+    const widthPct = `${Math.min(Math.max(percent * 100, 0), 100)}%`;
+    const panels = [
+      [this.transcriptionProgress, this.progressLabel, this.progressBar],
+      [this.mainTranscriptionProgress, this.mainProgressLabel, this.mainProgressBar],
+    ];
+    for (const [wrap, labelEl, barEl] of panels) {
+      if (wrap) wrap.style.display = "block";
+      if (labelEl) labelEl.textContent = label;
+      if (barEl) barEl.style.width = widthPct;
+    }
   }
 
   hideProgress() {
-    this.transcriptionProgress.style.display = "none";
-    this.progressBar.style.width = "0%";
+    const panels = [
+      [this.transcriptionProgress, this.progressBar],
+      [this.mainTranscriptionProgress, this.mainProgressBar],
+    ];
+    for (const [wrap, barEl] of panels) {
+      if (wrap) wrap.style.display = "none";
+      if (barEl) barEl.style.width = "0%";
+    }
   }
 
   async handleAnalyzeClick() {
@@ -69,10 +138,7 @@ class LyricsJobManager {
     }
 
     this.state.isTranscribing = true;
-    this.analyzeButton.style.display = "none";
-    this.cancelButton.style.display = "";
-    this.cancelButton.disabled = false;
-    this.alignButton.disabled = true;
+    this._setTranscribingUI(true, false);
 
     const originalTrackKey = this.state.track.cacheKey;
 
@@ -112,24 +178,23 @@ class LyricsJobManager {
 
     if (!this.state.track || this.state.track.cacheKey !== originalTrackKey) {
       this.state.isAutoAnalyzing = false;
+      this.state.isTranscribing = false;
+      this._setTranscribingUI(false);
+      this.hideProgress();
       return;
     }
 
     this.state.isTranscribing = false;
-    this.cancelButton.style.display = "none";
-    this.analyzeButton.style.display = "";
-    this.analyzeButton.disabled = false;
     this.hideProgress();
 
     if (result?.ok && result.lyrics?.length > 0) {
       this.state.lyrics = result.lyrics;
       this.lyricsViewer.setOffset(0);
       this.trackStatus.textContent = `Transcription complete. ${result.lyrics.length} lines found.`;
-      if (this.callbacks.updateAnalyzeButtonState) this.callbacks.updateAnalyzeButtonState();
+      this._setTranscribingUI(false);
       this.lyricsViewer.render();
       this.lyricsViewer.updateActive(this.player.getCurrentTime(), this.player.isPlaying());
       this.callbacks.persistLyricsSoon();
-      this.callbacks.updateAlignButtonState();
 
       if (this.state.isAutoAnalyzing && this.state.settings.autoAnalyzeMode === "align" && (this.state.settings.geminiApiKey || "").trim().length > 0) {
         setTimeout(() => {
@@ -138,26 +203,23 @@ class LyricsJobManager {
       }
     } else if (result?.ok && result.lyrics?.length === 0) {
       this.trackStatus.textContent = "No speech detected. Check settings or audio file.";
-      if (this.callbacks.updateAnalyzeButtonState) this.callbacks.updateAnalyzeButtonState();
-      this.callbacks.updateAlignButtonState();
+      this._setTranscribingUI(false);
     } else {
       this.trackStatus.textContent = `Analysis failed: ${result?.error || "unknown error"}`;
-      if (this.callbacks.updateAnalyzeButtonState) this.callbacks.updateAnalyzeButtonState();
-      this.callbacks.updateAlignButtonState();
+      this._setTranscribingUI(false);
     }
 
     this.state.isAutoAnalyzing = false;
   }
 
   async handleCancelClick() {
-    this.cancelButton.disabled = true;
+    [this.cancelButton, this.mainCancelButton].forEach((btn) => {
+      if (btn) btn.disabled = true;
+    });
     await window.lyricsPlayer.cancelTranscription();
     this.state.isTranscribing = false;
-    this.cancelButton.style.display = "none";
-    this.analyzeButton.style.display = "";
-    this.analyzeButton.disabled = false;
+    this._setTranscribingUI(false);
     this.hideProgress();
-    this.callbacks.updateAlignButtonState();
     this.trackStatus.textContent = "Analysis cancelled.";
   }
 
@@ -175,8 +237,7 @@ class LyricsJobManager {
     }
 
     this.state.isTranscribing = true;
-    this.alignButton.disabled = true;
-    this.analyzeButton.disabled = true;
+    this._setTranscribingUI(true, true);
     this.showProgress("Searching & alignment in progress…", 0.5);
     this.trackStatus.textContent = "AI Alignment in progress…";
 
@@ -210,8 +271,7 @@ class LyricsJobManager {
       this.trackStatus.textContent = `AI Alignment failed: ${error.message}`;
     } finally {
       this.state.isTranscribing = false;
-      this.analyzeButton.disabled = false;
-      this.callbacks.updateAlignButtonState();
+      this._setTranscribingUI(false);
       this.hideProgress();
     }
   }
