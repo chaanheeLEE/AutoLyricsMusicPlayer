@@ -1,6 +1,7 @@
 // UI Elements for main orchestration
 const trackTitle = document.querySelector("#trackTitle");
 const trackArtist = document.querySelector("#trackArtist");
+const trackAlbumMeta = document.querySelector("#trackAlbumMeta");
 const trackStatusBadge = document.querySelector("#trackStatusBadge");
 const trackStatus = document.querySelector("#trackStatus");
 const albumArt = document.querySelector("#albumArt");
@@ -74,16 +75,33 @@ let saveTimer = null;
 
 // escapeHtml은 window.lyricsCore.escapeHtml로 일원화되었습니다.
 
-function parseArtistTitle(rawTitle) {
-  if (!rawTitle) return { title: "No track selected", artist: "-" };
-  const clean = rawTitle.replace(/\.(mp3|flac|m4a|wav|ogg|aac)$/i, "").trim();
-  if (clean.includes(" - ")) {
-    const parts = clean.split(" - ");
-    const artist = parts[0].trim();
-    const title = parts.slice(1).join(" - ").trim();
-    return { title: title || clean, artist: artist || "Unknown Artist" };
+function parseArtistTitle(trackOrTitle) {
+  const meta = window.lyricsCore.resolveTrackMeta(trackOrTitle);
+  return { title: meta.title, artist: meta.artist };
+}
+
+function updateTrackAlbumMeta(track) {
+  if (!trackAlbumMeta) return;
+  if (!track) {
+    trackAlbumMeta.textContent = "";
+    trackAlbumMeta.style.display = "none";
+    return;
   }
-  return { title: clean, artist: "Unknown Artist" };
+  const meta = window.lyricsCore.resolveTrackMeta(track);
+  const parts = [];
+  if (meta.album) parts.push(meta.album);
+  if (meta.year) parts.push(meta.year);
+  if (meta.trackNumber) {
+    parts.push(meta.totalTracks ? `Track ${meta.trackNumber}/${meta.totalTracks}` : `Track ${meta.trackNumber}`);
+  }
+  if (parts.length > 0) {
+    trackAlbumMeta.textContent = parts.join(" · ");
+    trackAlbumMeta.title = parts.join(" · ");
+    trackAlbumMeta.style.display = "block";
+  } else {
+    trackAlbumMeta.textContent = "";
+    trackAlbumMeta.style.display = "none";
+  }
 }
 
 function updatePlayerBarInfo(track) {
@@ -101,7 +119,7 @@ function updatePlayerBarInfo(track) {
     return;
   }
 
-  const { title, artist } = parseArtistTitle(track.title);
+  const { title, artist } = parseArtistTitle(track);
   playerBarTitle.textContent = title;
   playerBarTitle.title = title;
   playerBarArtist.textContent = artist;
@@ -144,7 +162,7 @@ function updateTrackStatusBadge() {
 
 function updateEditHeaderInfo(track) {
   if (editTrackTitle) {
-    editTrackTitle.textContent = track?.title ? parseArtistTitle(track.title).title : "선택된 곡 없음";
+    editTrackTitle.textContent = track ? parseArtistTitle(track).title : "선택된 곡 없음";
   }
   if (editTrackArt && editTrackArtPlaceholder) {
     if (track?.albumArt) {
@@ -157,6 +175,18 @@ function updateEditHeaderInfo(track) {
       editTrackArtPlaceholder.style.display = "flex";
     }
   }
+}
+
+function applyActiveTrackInfoUI(track) {
+  if (!track) return;
+  const { title, artist } = parseArtistTitle(track);
+  trackTitle.innerHTML = `<span>${escapeHtml(title)}</span>`;
+  if (trackArtist) trackArtist.textContent = artist;
+  updateTrackAlbumMeta(track);
+  updateTitleMarquee();
+  updatePlayerBarInfo(track);
+  updateEditHeaderInfo(track);
+  updateMediaSessionMetadata(track);
 }
 
 function persistLyricsSoon() {
@@ -234,6 +264,11 @@ const playlist = new PlaylistManager(state, {
   onPlaylistChange: () => {
     updateAlignButtonState();
   },
+  onTrackMetadataUpdated: (updatedTrack) => {
+    if (state.track === updatedTrack) {
+      applyActiveTrackInfoUI(updatedTrack);
+    }
+  },
   onClearPlaylist: () => {
     // 플레이리스트 전체 비우기 시의 동기화 처리
     player.setEnabled(false);
@@ -241,6 +276,7 @@ const playlist = new PlaylistManager(state, {
     
     trackTitle.innerHTML = "<span>No track selected</span>";
     if (trackArtist) trackArtist.textContent = "-";
+    updateTrackAlbumMeta(null);
     updateTitleMarquee();
     trackStatus.textContent = "Add track(s) to start playback.";
     albumArt.src = "";
@@ -384,12 +420,12 @@ function updateMediaSessionMetadata(track) {
     });
   }
 
-  const { title, artist } = parseArtistTitle(track.title);
+  const meta = window.lyricsCore.resolveTrackMeta(track);
 
   navigator.mediaSession.metadata = new MediaMetadata({
-    title,
-    artist: artist === "-" ? "Local Track" : artist,
-    album: "ALP",
+    title: meta.title,
+    artist: meta.artist === "-" ? "Local Track" : meta.artist,
+    album: meta.album || "ALP",
     artwork: artwork
   });
 }
@@ -418,14 +454,20 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
 
   // 오디오 소스 설정
   player.loadTrack(track, autoPlay);
-  const { title, artist } = parseArtistTitle(track.title);
-  trackTitle.innerHTML = `<span>${escapeHtml(title)}</span>`;
-  if (trackArtist) trackArtist.textContent = artist;
-  updateTitleMarquee();
-  updatePlayerBarInfo(track);
-  updateEditHeaderInfo(track);
+  applyActiveTrackInfoUI(track);
   updateTrackStatusBadge();
-  updateMediaSessionMetadata(track);
+
+  if (!track.metadataLoaded && track.path && window.lyricsPlayer?.getTrackMetadata) {
+    window.lyricsPlayer.getTrackMetadata(track).then((meta) => {
+      if (!meta) return;
+      Object.assign(track, meta);
+      playlist.saveCache();
+      if (state.track === track) {
+        applyActiveTrackInfoUI(track);
+      }
+      playlist.render();
+    }).catch(() => {});
+  }
 
   // 앨범 아트 설정 (비동기 지연 로드 지원)
   if (track.albumArt) {

@@ -115,6 +115,67 @@
     return Number(Math.max(0, current + delta).toFixed(3));
   }
 
+  function parseFilenameTitle(rawTitle) {
+    if (!rawTitle || typeof rawTitle !== "string") {
+      return { title: "No track selected", artist: "-" };
+    }
+    const clean = rawTitle.replace(/\.(mp3|flac|m4a|wav|ogg|aac|opus|webm)$/i, "").trim();
+    if (clean.includes(" - ")) {
+      const parts = clean.split(" - ");
+      const artist = parts[0].trim() || "-";
+      const title = parts.slice(1).join(" - ").trim() || clean;
+      return { title, artist };
+    }
+    return { title: clean || "No track selected", artist: "-" };
+  }
+
+  function resolveTrackMeta(trackOrTitle) {
+    const empty = {
+      title: "No track selected",
+      artist: "-",
+      album: "",
+      albumArtist: "",
+      trackNumber: null,
+      totalTracks: null,
+      discNumber: null,
+      totalDiscs: null,
+      year: "",
+      genre: "",
+      duration: null,
+      codec: "",
+      bitrate: "",
+      sampleRate: "",
+      fileName: ""
+    };
+
+    if (!trackOrTitle) return empty;
+
+    if (typeof trackOrTitle === "string") {
+      const parsed = parseFilenameTitle(trackOrTitle);
+      return { ...empty, title: parsed.title, artist: parsed.artist, fileName: trackOrTitle };
+    }
+
+    const fallback = parseFilenameTitle(trackOrTitle.fileName || trackOrTitle.title);
+    const hasRichMeta = Boolean(trackOrTitle.metadataLoaded);
+    return {
+      title: (hasRichMeta && trackOrTitle.title ? trackOrTitle.title : fallback.title) || "No track selected",
+      artist: (trackOrTitle.artist || fallback.artist || "-") || "-",
+      album: trackOrTitle.album || "",
+      albumArtist: trackOrTitle.albumArtist || "",
+      trackNumber: Number.isFinite(trackOrTitle.trackNumber) ? trackOrTitle.trackNumber : null,
+      totalTracks: Number.isFinite(trackOrTitle.totalTracks) ? trackOrTitle.totalTracks : null,
+      discNumber: Number.isFinite(trackOrTitle.discNumber) ? trackOrTitle.discNumber : null,
+      totalDiscs: Number.isFinite(trackOrTitle.totalDiscs) ? trackOrTitle.totalDiscs : null,
+      year: trackOrTitle.year || "",
+      genre: trackOrTitle.genre || "",
+      duration: Number.isFinite(trackOrTitle.duration) && trackOrTitle.duration > 0 ? trackOrTitle.duration : null,
+      codec: trackOrTitle.codec || "",
+      bitrate: trackOrTitle.bitrate || "",
+      sampleRate: trackOrTitle.sampleRate || "",
+      fileName: trackOrTitle.fileName || trackOrTitle.title || ""
+    };
+  }
+
   const api = {
     clampTime,
     formatClock,
@@ -125,7 +186,8 @@
     serializeVtt,
     escapeHtml,
     parseTimeString,
-    adjustTimestamp
+    adjustTimestamp,
+    resolveTrackMeta
   };
 
   if (typeof module !== "undefined" && module.exports) {

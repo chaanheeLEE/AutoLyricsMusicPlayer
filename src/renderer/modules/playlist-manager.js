@@ -1,7 +1,7 @@
 class PlaylistManager {
   constructor(state, callbacks) {
     this.state = state;
-    this.callbacks = callbacks; // { onSelectTrack, onPlaylistChange, onClearPlaylist }
+    this.callbacks = callbacks; // { onSelectTrack, onPlaylistChange, onClearPlaylist, onTrackMetadataUpdated }
     this.playlistCount = document.querySelector("#playlistCount");
     this.playlistList = document.querySelector("#playlistList");
     this.playlistSortSelect = document.querySelector("#playlistSortSelect");
@@ -18,7 +18,13 @@ class PlaylistManager {
     this.libraryAddTrackBtn = document.querySelector("#libraryAddTrackBtn");
     this.libraryClearBtn = document.querySelector("#libraryClearBtn");
 
+    // 곡 상세 정보 모달
+    this.trackInfoModal = document.querySelector("#trackInfoModal");
+    this.closeTrackInfoBtn = document.querySelector("#closeTrackInfoBtn");
+    this.trackInfoBody = document.querySelector("#trackInfoBody");
+
     this.dragSourceIndex = null;
+    this._metaSyncTimer = null;
     this._initEvents();
   }
 
@@ -32,26 +38,23 @@ class PlaylistManager {
     if (this.libraryAddTrackBtn) this.libraryAddTrackBtn.addEventListener("click", () => this.openAddTracks());
     if (this.libraryClearBtn) this.libraryClearBtn.addEventListener("click", () => this.clearPlaylist());
     if (this.librarySearchInput) this.librarySearchInput.addEventListener("input", () => this.renderLibraryTable());
-    
+
     if (this.librarySortSelect) {
       this.librarySortSelect.addEventListener("change", () => {
-        const val = this.librarySortSelect.value;
-        if (val === "az") {
-          this.sort((a, b) => a.title.localeCompare(b.title));
-        } else if (val === "artist") {
-          this.sort((a, b) => {
-            const artA = a.title.includes(" - ") ? a.title.split(" - ")[0].trim() : "";
-            const artB = b.title.includes(" - ") ? b.title.split(" - ")[0].trim() : "";
-            return artA.localeCompare(artB) || a.title.localeCompare(b.title);
-          });
-        } else if (val === "reset") {
-          this.sort((a, b) => a.originalOrder - b.originalOrder);
-        }
+        this._sortByOption(this.librarySortSelect.value);
       });
     }
 
     if (this.libraryTableBody) {
       this.libraryTableBody.addEventListener("click", (event) => {
+        const infoBtn = event.target.closest(".library-item-info");
+        if (infoBtn) {
+          event.stopPropagation();
+          const idx = parseInt(infoBtn.dataset.index, 10);
+          this.showTrackInfoModal(idx);
+          return;
+        }
+
         const removeBtn = event.target.closest(".library-item-remove");
         if (removeBtn) {
           event.stopPropagation();
@@ -70,13 +73,19 @@ class PlaylistManager {
 
     if (this.playlistSortSelect) {
       this.playlistSortSelect.addEventListener("change", () => {
-        const val = this.playlistSortSelect.value;
-        if (val === "az") {
-          this.sort((a, b) => a.title.localeCompare(b.title));
-        } else if (val === "reset") {
-          this.sort((a, b) => a.originalOrder - b.originalOrder);
-        }
+        this._sortByOption(this.playlistSortSelect.value);
         this.playlistSortSelect.value = "";
+      });
+    }
+
+    if (this.closeTrackInfoBtn && this.trackInfoModal) {
+      this.closeTrackInfoBtn.addEventListener("click", () => this.trackInfoModal.close());
+    }
+    if (this.trackInfoModal) {
+      this.trackInfoModal.addEventListener("click", (e) => {
+        if (e.target === this.trackInfoModal) {
+          this.trackInfoModal.close();
+        }
       });
     }
 
@@ -97,6 +106,103 @@ class PlaylistManager {
     });
   }
 
+  _splitTrackMeta(trackOrTitle) {
+    return window.lyricsCore.resolveTrackMeta(trackOrTitle);
+  }
+
+  _sortByOption(mode) {
+    if (!mode) return;
+    if (mode === "reset") {
+      this.sort((a, b) => (a.originalOrder ?? 0) - (b.originalOrder ?? 0));
+      return;
+    }
+
+    this.sort((a, b) => {
+      const metaA = this._splitTrackMeta(a);
+      const metaB = this._splitTrackMeta(b);
+
+      if (mode === "album") {
+        const albumA = metaA.album || "\uffff";
+        const albumB = metaB.album || "\uffff";
+        const albumCmp = albumA.localeCompare(albumB);
+        if (albumCmp !== 0) return albumCmp;
+
+        const discA = metaA.discNumber ?? 9999;
+        const discB = metaB.discNumber ?? 9999;
+        if (discA !== discB) return discA - discB;
+
+        const trackA = metaA.trackNumber ?? 9999;
+        const trackB = metaB.trackNumber ?? 9999;
+        if (trackA !== trackB) return trackA - trackB;
+
+        return metaA.title.localeCompare(metaB.title);
+      }
+
+      if (mode === "artist") {
+        const artA = metaA.artist === "-" ? "\uffff" : metaA.artist;
+        const artB = metaB.artist === "-" ? "\uffff" : metaB.artist;
+        return artA.localeCompare(artB) || metaA.album.localeCompare(metaB.album) || metaA.title.localeCompare(metaB.title);
+      }
+
+      if (mode === "year") {
+        const yearA = metaA.year || "";
+        const yearB = metaB.year || "";
+        if (yearA !== yearB) return yearB.localeCompare(yearA);
+        return metaA.title.localeCompare(metaB.title);
+      }
+
+      if (mode === "duration") {
+        const durA = metaA.duration ?? 0;
+        const durB = metaB.duration ?? 0;
+        return durB - durA || metaA.title.localeCompare(metaB.title);
+      }
+
+      // default "az"
+      return metaA.title.localeCompare(metaB.title);
+    });
+  }
+
+  _matchesQuery(meta, query) {
+    if (!query) return true;
+    const fields = [meta.title, meta.artist, meta.album, meta.genre, meta.year, meta.fileName];
+    return fields.some((field) => field && String(field).toLowerCase().includes(query));
+  }
+
+  showTrackInfoModal(index) {
+    const track = this.state.playlist[index];
+    if (!track || !this.trackInfoModal || !this.trackInfoBody) return;
+
+    const meta = this._splitTrackMeta(track);
+    const esc = window.lyricsCore.escapeHtml;
+    const formatNumTotal = (num, total) => (num ? (total ? `${num} / ${total}` : String(num)) : "-");
+    const techSummary = [meta.codec, meta.bitrate, meta.sampleRate].filter(Boolean).join(" · ") || "-";
+
+    const rows = [
+      ["곡 제목", meta.title || "-"],
+      ["아티스트", meta.artist || "-"],
+      ["앨범명", meta.album || "-"],
+      ["앨범 아티스트", meta.albumArtist || "-"],
+      ["트랙 번호", formatNumTotal(meta.trackNumber, meta.totalTracks)],
+      ["디스크 번호", formatNumTotal(meta.discNumber, meta.totalDiscs)],
+      ["발매 연도", meta.year || "-"],
+      ["장르", meta.genre || "-"],
+      ["재생 길이", meta.duration ? window.lyricsCore.formatClock(meta.duration) : "-"],
+      ["오디오 정보", techSummary],
+      ["원본 파일명", meta.fileName || "-"],
+      ["파일 경로", track.path || "-"]
+    ];
+
+    this.trackInfoBody.innerHTML = `
+      <div class="track-info-grid">
+        ${rows.map(([label, val]) => `
+          <div class="track-info-label">${esc(label)}</div>
+          <div class="track-info-value">${esc(String(val))}</div>
+        `).join("")}
+      </div>
+    `;
+    this.trackInfoModal.showModal();
+  }
+
   updateHeader() {
     const total = this.state.playlist.length;
     const currentNum = this.state.currentIndex >= 0 ? this.state.currentIndex + 1 : 0;
@@ -114,7 +220,7 @@ class PlaylistManager {
     if (this.state.playlist.length === 0) {
       this.libraryTableBody.innerHTML = `
         <tr>
-          <td colspan="5" style="text-align: center; padding: 48px 0; color: var(--muted);">
+          <td colspan="7" style="text-align: center; padding: 48px 0; color: var(--muted);">
             라이브러리에 등록된 음악이 없습니다. 우측 상단의 '+ 음악 추가' 버튼을 눌러 곡을 추가하세요.
           </td>
         </tr>
@@ -127,9 +233,8 @@ class PlaylistManager {
     let html = "";
 
     this.state.playlist.forEach((track, index) => {
-      const { title, artist } = this._splitTrackMeta(track.title);
-
-      if (query && !title.toLowerCase().includes(query) && !artist.toLowerCase().includes(query)) {
+      const meta = this._splitTrackMeta(track);
+      if (!this._matchesQuery(meta, query)) {
         return;
       }
 
@@ -137,21 +242,28 @@ class PlaylistManager {
       const isPlaying = index === this.state.currentIndex;
       const rowClass = isPlaying ? "library-row playing" : "library-row";
       const numDisplay = isPlaying ? "▶" : String(index + 1);
+      const trackPill = meta.trackNumber ? `<span class="track-num-pill">${String(meta.trackNumber).padStart(2, "0")}</span>` : "";
+      const durationStr = meta.duration ? window.lyricsCore.formatClock(meta.duration) : "-";
 
       html += `
         <tr class="${rowClass}" data-index="${index}">
           <td class="col-num">${numDisplay}</td>
-          <td class="col-title" title="${window.lyricsCore.escapeHtml(title)}">
-            <strong style="font-weight: 600;">${window.lyricsCore.escapeHtml(title)}</strong>
+          <td class="col-title" title="${window.lyricsCore.escapeHtml(meta.title)}">
+            ${trackPill}<strong style="font-weight: 600;">${window.lyricsCore.escapeHtml(meta.title)}</strong>
           </td>
-          <td class="col-artist" title="${window.lyricsCore.escapeHtml(artist)}">${window.lyricsCore.escapeHtml(artist)}</td>
+          <td class="col-artist" title="${window.lyricsCore.escapeHtml(meta.artist)}">${window.lyricsCore.escapeHtml(meta.artist)}</td>
+          <td class="col-album" title="${window.lyricsCore.escapeHtml(meta.album || "-")}">${window.lyricsCore.escapeHtml(meta.album || "-")}</td>
+          <td class="col-duration">${durationStr}</td>
           <td class="col-status">
             <span class="status-chip ${isPlaying && this.state.lyrics?.length > 0 ? "ready" : ""}">
               ${isPlaying && this.state.lyrics?.length > 0 ? `가사 있음 (${this.state.lyrics.length}줄)` : "대기"}
             </span>
           </td>
           <td class="col-actions">
-            <button class="sort-action-btn danger-action-btn library-item-remove" data-index="${index}" type="button" title="라이브러리에서 제거">삭제</button>
+            <div class="library-actions-wrap">
+              <button class="sort-action-btn library-item-info" data-index="${index}" type="button" title="상세 메타데이터 보기">정보</button>
+              <button class="sort-action-btn danger-action-btn library-item-remove" data-index="${index}" type="button" title="라이브러리에서 제거">삭제</button>
+            </div>
           </td>
         </tr>
       `;
@@ -160,7 +272,7 @@ class PlaylistManager {
     if (renderedCount === 0) {
       this.libraryTableBody.innerHTML = `
         <tr>
-          <td colspan="5" style="text-align: center; padding: 32px 0; color: var(--muted);">
+          <td colspan="7" style="text-align: center; padding: 32px 0; color: var(--muted);">
             검색 결과와 일치하는 음악이 없습니다.
           </td>
         </tr>
@@ -249,19 +361,6 @@ class PlaylistManager {
     });
   }
 
-  // escapeHtml은 window.lyricsCore.escapeHtml로 일원화되었습니다.
-
-  _splitTrackMeta(rawTitle) {
-    const clean = (rawTitle || "").replace(/\.(mp3|flac|m4a|wav|ogg|aac|opus)$/i, "").trim();
-    if (clean.includes(" - ")) {
-      const parts = clean.split(" - ");
-      const artist = parts[0].trim() || "-";
-      const title = parts.slice(1).join(" - ").trim() || clean;
-      return { title, artist };
-    }
-    return { title: clean || "Unknown Track", artist: "-" };
-  }
-
   _lazyLoadQueueArtwork(items) {
     if (!window.lyricsPlayer?.getTrackAlbumArt) return;
     items.forEach((item, index) => {
@@ -280,6 +379,40 @@ class PlaylistManager {
     });
   }
 
+  _scheduleMetadataSync(updatedTrack) {
+    if (updatedTrack && this.state.track === updatedTrack && this.callbacks.onTrackMetadataUpdated) {
+      this.callbacks.onTrackMetadataUpdated(updatedTrack);
+    }
+    clearTimeout(this._metaSyncTimer);
+    this._metaSyncTimer = setTimeout(() => {
+      this.saveCache();
+      this.renderLibraryTable();
+    }, 150);
+  }
+
+  _lazyLoadQueueMetadata(items) {
+    if (!window.lyricsPlayer?.getTrackMetadata) return;
+    items.forEach((item, index) => {
+      if (item.metadataLoaded || item._metaRequested || !item.path) return;
+      item._metaRequested = true;
+      window.lyricsPlayer.getTrackMetadata(item).then((meta) => {
+        if (!meta) return;
+        Object.assign(item, meta);
+        const resolved = this._splitTrackMeta(item);
+        const row = this.playlistList?.querySelector(`.playlist-item[data-index="${index}"]`);
+        if (row) {
+          const titleEl = row.querySelector(".playlist-item-title");
+          const artistEl = row.querySelector(".playlist-item-artist");
+          const durEl = row.querySelector(".playlist-item-duration");
+          if (titleEl) titleEl.textContent = resolved.title;
+          if (artistEl) artistEl.textContent = resolved.artist;
+          if (durEl) durEl.textContent = resolved.duration ? window.lyricsCore.formatClock(resolved.duration) : "";
+        }
+        this._scheduleMetadataSync(item);
+      }).catch(() => {});
+    });
+  }
+
   render() {
     if (this.state.playlist.length === 0) {
       this.playlistList.innerHTML = `<div class="settings-note" style="text-align: center; padding: 12px 0;">No tracks added</div>`;
@@ -293,23 +426,25 @@ class PlaylistManager {
     let renderedCount = 0;
 
     this.state.playlist.forEach((item, index) => {
-      if (query && !item.title.toLowerCase().includes(query)) {
+      const meta = this._splitTrackMeta(item);
+      if (!this._matchesQuery(meta, query)) {
         return;
       }
       renderedCount++;
       const activeClass = index === this.state.currentIndex ? "active" : "";
-      const { title, artist } = this._splitTrackMeta(item.title);
       const artHtml = item.albumArt
         ? `<img class="playlist-item-art" src="${item.albumArt}" alt="" />`
         : `<span class="playlist-item-art-placeholder">♪</span>`;
+      const durStr = meta.duration ? window.lyricsCore.formatClock(meta.duration) : "";
 
       html += `
-        <div class="playlist-item ${activeClass}" data-index="${index}" draggable="true">
+        <div class="playlist-item ${activeClass}" data-index="${index}" draggable="true" title="${window.lyricsCore.escapeHtml(meta.album ? `${meta.title} — ${meta.artist} (${meta.album})` : `${meta.title} — ${meta.artist}`)}">
           <div class="playlist-item-art-wrap">${artHtml}</div>
           <div class="playlist-item-meta">
-            <span class="playlist-item-title">${window.lyricsCore.escapeHtml(title)}</span>
-            <span class="playlist-item-artist">${window.lyricsCore.escapeHtml(artist)}</span>
+            <span class="playlist-item-title">${window.lyricsCore.escapeHtml(meta.title)}</span>
+            <span class="playlist-item-artist">${window.lyricsCore.escapeHtml(meta.artist)}</span>
           </div>
+          <span class="playlist-item-duration">${durStr}</span>
           <button class="playlist-item-remove" data-index="${index}" type="button" title="대기열에서 제외">✕</button>
         </div>
       `;
@@ -321,6 +456,7 @@ class PlaylistManager {
       this.playlistList.innerHTML = html;
       this.bindDragEvents();
       this._lazyLoadQueueArtwork(this.state.playlist);
+      this._lazyLoadQueueMetadata(this.state.playlist);
     }
 
     this.updateHeader();

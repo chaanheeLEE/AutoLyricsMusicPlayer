@@ -68,6 +68,7 @@
             <div class="track-copy">
               <h2 id="trackTitle"><span>No track selected</span></h2>
               <p id="trackArtist" class="track-artist">-</p>
+              <p id="trackAlbumMeta" class="track-album-meta" style="display: none;"></p>
               <span id="trackStatusBadge" class="track-status-badge">대기 중</span>
               <p id="trackStatus" style="display:none;">Add track(s) to start playback.</p>
             </div>
@@ -231,11 +232,14 @@
               <span class="search-icon" aria-hidden="true">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               </span>
-              <input id="librarySearchInput" type="text" placeholder="제목 또는 아티스트 검색…" />
+              <input id="librarySearchInput" type="text" placeholder="제목, 아티스트, 앨범, 장르 검색…" />
             </div>
             <select id="librarySortSelect" class="library-sort-select" title="정렬 기준">
-              <option value="az">제목 오름차순 (A-Z)</option>
+              <option value="album">앨범순 (앨범 → 트랙 번호)</option>
               <option value="artist">아티스트순</option>
+              <option value="az">제목 오름차순 (A-Z)</option>
+              <option value="year">발매 연도순</option>
+              <option value="duration">재생 길이순</option>
               <option value="reset">추가된 순서</option>
             </select>
             <button id="libraryAddTrackBtn" class="edit-btn primary" type="button">+ 음악 추가</button>
@@ -250,6 +254,8 @@
                 <th class="col-num">#</th>
                 <th class="col-title">곡 제목</th>
                 <th class="col-artist">아티스트</th>
+                <th class="col-album">앨범</th>
+                <th class="col-duration">길이</th>
                 <th class="col-status">가사 상태</th>
                 <th class="col-actions">작업</th>
               </tr>
@@ -277,7 +283,9 @@
         <div class="queue-tools-row">
           <select id="playlistSortSelect" class="sort-select-box" title="대기열 정렬">
             <option value="" disabled selected hidden>정렬</option>
-            <option value="az">이름순 (A-Z)</option>
+            <option value="album">앨범 · 트랙순</option>
+            <option value="artist">아티스트순</option>
+            <option value="az">제목순 (A-Z)</option>
             <option value="reset">원래 순서</option>
           </select>
           <button id="playlistSearchButton" class="sort-action-btn" type="button" title="대기열 내 검색" aria-label="대기열 내 검색">
@@ -781,6 +789,27 @@
           <button id="confirmEmbedBtn" type="button" class="edit-btn primary">음원에 내장하기</button>
         </div>
       </form>
+    </dialog>
+
+    <!-- Track Metadata Detail Modal -->
+    <dialog id="trackInfoModal" class="settings-dialog track-info-modal">
+      <div class="settings-form settings-modal-layout">
+        <header class="settings-header">
+          <div class="settings-title-group">
+            <h2>곡 상세 정보</h2>
+            <p class="settings-subtitle">음원 파일 태그 및 오디오 스트림 메타데이터</p>
+          </div>
+          <button id="closeTrackInfoBtn" class="settings-close-btn" type="button" title="닫기" aria-label="닫기">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </header>
+        <div id="trackInfoBody" class="track-info-body">
+          <!-- 동적 메타데이터 그리드 렌더링 -->
+        </div>
+      </div>
     </dialog>
 
     <!-- Onboarding Welcome & Model Setup Dialog -->

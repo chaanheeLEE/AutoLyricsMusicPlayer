@@ -1,6 +1,19 @@
-# updated — Auto Lyrics Player (ALP)
+# Updated — Auto Lyrics Player (ALP)
 
 완료된 주요 업데이트 내역을 최신순(내림차순)으로 정리한 문서입니다.
+
+---
+
+## 2026-11-22 — 오디오 메타데이터(태그) 추출 및 활용
+- **FFmpeg 기반 메타데이터 추출 및 캐싱 (`media-helper.js`, `ipc-router.js`, `preload.js`)**:
+  - 외부 패키지 추가 없이 `ffmpeg -hide_banner -i <파일> -f ffmetadata -` 출력에서 `title`, `artist`, `album`, `albumArtist`, `trackNumber`/`totalTracks`, `discNumber`/`totalDiscs`, `year`, `genre`, `duration`, `codec`/`bitrate`/`sampleRate`, `fileName`을 추출하고 RAM/디스크(`metadata-cache`)에 캐싱하도록 구현했습니다.
+  - 기존 `localStorage` 저장 트랙도 `track:get-metadata` 지연 로드를 통해 자동으로 태그와 재생 길이를 보강합니다.
+- **공통 메타 해석 유틸리티 (`src/shared/lyrics-core.js`)**:
+  - 태그 유무에 따라 메타데이터 우선 적용 및 파일명 폴백을 단일화하는 `resolveTrackMeta()`를 추가했습니다.
+- **UI·정렬·검색·상세 정보 모달 (`index.html`, `playlist-manager.js`, `app.js`, `playlist.css`)**:
+  - 감상 화면(`#trackAlbumMeta`)에 `앨범명 · 발매 연도 · Track N` 보조 정보를 표시하고, 재생바·대기열(`Up next` 재생 길이 표시)·`MediaSession`에 실제 태그 정보를 연동했습니다.
+  - 라이브러리에 **앨범**·**길이** 컬럼, 트랙 번호 배지(`.track-num-pill`), **곡 상세 정보 모달(`#trackInfoModal`)**을 추가했습니다.
+  - `앨범순(앨범 → 디스크 번호 → 트랙 번호)`, `아티스트순`, `제목순`, `발매 연도순`, `재생 길이순` 정렬 및 제목·아티스트·앨범·장르·연도·파일명 통합 검색을 구현했습니다.
 
 ---
 

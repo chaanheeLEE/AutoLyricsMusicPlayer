@@ -235,4 +235,4 @@ async function loadLyricsFromSources(trackPath) {
   return null;
 }
 
-module.exports = { loadLyricsFromSources, parseLrc };
+module.exports = { loadLyricsFromSources, parseLrc, parseFfmetadata };

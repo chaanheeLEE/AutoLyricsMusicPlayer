@@ -434,6 +434,17 @@ h2 {
   text-overflow: ellipsis;
 }
 
+.track-album-meta {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  opacity: 0.82;
+  margin: 0;
+  width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .track-status-badge {
   display: inline-flex;
   align-items: center;

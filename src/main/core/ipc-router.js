@@ -19,17 +19,22 @@ let activeJob = null;
 async function createTrackObject(filePath) {
   try {
     const stats = await fs.stat(filePath);
-    const track = {
+    const fileName = path.basename(filePath);
+    const baseTrack = {
       path: filePath,
       url: pathToFileURL(filePath).toString(),
-      title: path.basename(filePath),
+      fileName,
+      title: fileName,
       size: stats.size,
       modifiedMs: stats.mtimeMs,
       albumArt: null
     };
+    const cacheKey = cacheManager.getTrackCacheKey(baseTrack);
+    const metadata = await mediaHelper.extractTrackMetadata(filePath, cacheKey).catch(() => null);
     return {
-      ...track,
-      cacheKey: cacheManager.getTrackCacheKey(track)
+      ...baseTrack,
+      ...(metadata || {}),
+      cacheKey
     };
   } catch {
     return null;
@@ -70,12 +75,24 @@ function registerIpcHandlers(windowManager) {
     }
   });
 
+  ipcMain.handle("track:get-metadata", async (_event, payload) => {
+    const filePath = typeof payload === "string" ? payload : payload?.path;
+    const cacheKey = typeof payload === "object" ? payload?.cacheKey : null;
+    if (!filePath) return null;
+    try {
+      return await mediaHelper.extractTrackMetadata(filePath, cacheKey);
+    } catch {
+      return null;
+    }
+  });
+
   ipcMain.handle("track:prefetch", async (_event, track) => {
     if (!track?.path) return false;
     try {
       await Promise.all([
         cacheManager.loadLyricsCache(track),
-        mediaHelper.extractAlbumArt(track.path, track.cacheKey)
+        mediaHelper.extractAlbumArt(track.path, track.cacheKey),
+        mediaHelper.extractTrackMetadata(track.path, track.cacheKey)
       ]);
       return true;
     } catch {
