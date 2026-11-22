@@ -20,10 +20,16 @@ function resolveFfmpeg() {
   }
 
   const { existsSync } = require("node:fs");
-  const packedFfmpeg = path.join(process.resourcesPath, "bin", "ffmpeg.exe");
+  const packedFfmpeg = path.join(process.resourcesPath || "", "bin", "ffmpeg.exe");
   if (existsSync(packedFfmpeg)) {
     cachedFfmpegPath = packedFfmpeg;
     return packedFfmpeg;
+  }
+
+  const devFfmpeg = path.join(__dirname, "..", "..", "..", "bin", "win32", "ffmpeg.exe");
+  if (existsSync(devFfmpeg)) {
+    cachedFfmpegPath = devFfmpeg;
+    return devFfmpeg;
   }
 
   try {
@@ -66,31 +72,47 @@ function resolveFfmpeg() {
   }
 }
 
+const VOCAL_FILTER = "highpass=f=85,lowpass=f=7600,dynaudnorm=f=150:g=11:p=0.9:m=5.0";
+
+function hasFasterWhisper(pythonCmd) {
+  try {
+    execFileSync(pythonCmd, ["-c", "import faster_whisper"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Resolve python binary — PATH first, then common conda/venv locations. */
 function resolvePython() {
-  const { execFileSync } = require("node:child_process");
-  // Try plain 'python' first (already in PATH)
+  const { existsSync } = require("node:fs");
   for (const cmd of ["python", "python3"]) {
-    try {
-      execFileSync(cmd, ["-c", "import faster_whisper"], { stdio: "ignore" });
+    if (hasFasterWhisper(cmd)) {
       return cmd;
-    } catch { /* try next */ }
+    }
   }
-  // Common conda/venv locations on Windows
-  const candidates = [
-    path.join(os.homedir(), "miniconda3", "python.exe"),
-    path.join(os.homedir(), "anaconda3", "python.exe"),
-    path.join(os.homedir(), "Miniconda3", "python.exe"),
-    path.join(os.homedir(), "Anaconda3", "python.exe"),
-    path.join("C:\\", "ProgramData", "miniconda3", "python.exe"),
-    path.join("C:\\", "ProgramData", "anaconda3", "python.exe"),
+  // Common conda/venv and Windows Python locations
+  const condaRoots = [
+    path.join(os.homedir(), "miniconda3"),
+    path.join(os.homedir(), "anaconda3"),
+    path.join(os.homedir(), "Miniconda3"),
+    path.join(os.homedir(), "Anaconda3"),
+    path.join(os.homedir(), "AppData", "Local", "miniconda3"),
+    path.join(os.homedir(), "AppData", "Local", "anaconda3"),
+    path.join("C:\\", "ProgramData", "miniconda3"),
+    path.join("C:\\", "ProgramData", "anaconda3"),
   ];
-  const { accessSync } = require("node:fs");
+  const candidates = [
+    ...condaRoots.map((root) => path.join(root, "envs", "lyrics_player", "python.exe")),
+    ...condaRoots.map((root) => path.join(root, "python.exe")),
+    path.join(os.homedir(), "AppData", "Local", "Programs", "Python", "Python312", "python.exe"),
+    path.join(os.homedir(), "AppData", "Local", "Programs", "Python", "Python311", "python.exe"),
+    path.join(os.homedir(), "AppData", "Local", "Programs", "Python", "Python310", "python.exe"),
+  ];
   for (const c of candidates) {
-    try {
-      accessSync(c);
+    if (existsSync(c) && hasFasterWhisper(c)) {
       return c;
-    } catch { /* skip */ }
+    }
   }
   throw new Error(
     "python with faster-whisper not found.\n" +
@@ -99,27 +121,9 @@ function resolvePython() {
   );
 }
 
-
-/**
- * Convert audio to 16kHz mono WAV using ffmpeg.
- * @param {string} inputPath
- * @param {string} outputPath
- * @returns {Promise<void>}
- */
-function convertAudio(inputPath, outputPath) {
+function runFfmpeg(ffmpegBin, args) {
   return new Promise((resolve, reject) => {
-    let ffmpegBin;
-    try { ffmpegBin = resolveFfmpeg(); } catch (err) { return reject(err); }
-
-    const proc = spawn(ffmpegBin, [
-      "-y",
-      "-i", inputPath,
-      "-ar", "16000",
-      "-ac", "1",
-      "-f", "wav",
-      outputPath,
-    ], { stdio: ["ignore", "pipe", "pipe"] });
-
+    const proc = spawn(ffmpegBin, args, { stdio: ["ignore", "pipe", "pipe"] });
 
     let stderr = "";
     proc.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
@@ -128,7 +132,9 @@ function convertAudio(inputPath, outputPath) {
       if (code === 0) {
         resolve();
       } else {
-        reject(new Error(`ffmpeg exited with code ${code}:\n${stderr.slice(-500)}`));
+        const err = new Error(`ffmpeg exited with code ${code}:\n${stderr.slice(-500)}`);
+        err.exitCode = code;
+        reject(err);
       }
     });
 
@@ -140,6 +146,43 @@ function convertAudio(inputPath, outputPath) {
       }
     });
   });
+}
+
+/**
+ * Convert audio to vocal-filtered 16kHz mono WAV using ffmpeg, falling back to raw conversion on filter error.
+ * @param {string} inputPath
+ * @param {string} outputPath
+ * @returns {Promise<void>}
+ */
+async function convertAudio(inputPath, outputPath) {
+  const ffmpegBin = resolveFfmpeg();
+  const filteredArgs = [
+    "-y",
+    "-i", inputPath,
+    "-vn",
+    "-af", VOCAL_FILTER,
+    "-ar", "16000",
+    "-ac", "1",
+    "-f", "wav",
+    outputPath,
+  ];
+  try {
+    await runFfmpeg(ffmpegBin, filteredArgs);
+  } catch (err) {
+    if (err.exitCode === undefined) {
+      throw err;
+    }
+    console.warn("[Transcription Worker] FFmpeg vocal filter failed, retrying raw conversion:", err.message);
+    await runFfmpeg(ffmpegBin, [
+      "-y",
+      "-i", inputPath,
+      "-vn",
+      "-ar", "16000",
+      "-ac", "1",
+      "-f", "wav",
+      outputPath,
+    ]);
+  }
 }
 
 /**
@@ -194,15 +237,28 @@ function startTranscription(track, options, onProgress) {
 
     await new Promise((resolve, reject) => {
       const { existsSync } = require("node:fs");
-      const packedTranscribe = path.join(process.resourcesPath, "bin", "transcribe.exe");
-      
+      const packedTranscribe = process.resourcesPath
+        ? path.join(process.resourcesPath, "bin", "transcribe.exe")
+        : "";
+      const devTranscribe = path.join(__dirname, "..", "..", "..", "bin", "win32", "transcribe.exe");
+
       let cmd, args;
-      if (existsSync(packedTranscribe)) {
+      if (packedTranscribe && existsSync(packedTranscribe)) {
         cmd = packedTranscribe;
         args = [tmpWav, "--model", model];
       } else {
-        cmd = resolvePython();
-        args = [TRANSCRIBE_SCRIPT, tmpWav, "--model", model];
+        try {
+          cmd = resolvePython();
+          args = [TRANSCRIBE_SCRIPT, tmpWav, "--model", model];
+        } catch (pyErr) {
+          if (existsSync(devTranscribe)) {
+            console.warn("[Transcription Worker] Python faster-whisper unavailable in dev mode, falling back to bin/win32/transcribe.exe");
+            cmd = devTranscribe;
+            args = [tmpWav, "--model", model];
+          } else {
+            throw pyErr;
+          }
+        }
       }
       args.push("--device", whisperDevice);
       if (language) args.push("--language", language);

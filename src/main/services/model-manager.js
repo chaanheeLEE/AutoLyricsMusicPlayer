@@ -165,29 +165,45 @@ async function deleteModel(modelId) {
   }
 }
 
+function hasFasterWhisper(pythonCmd) {
+  try {
+    execFileSync(pythonCmd, ["-c", "import faster_whisper"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Python 실행 파일 위치 탐색
  */
 function resolvePython() {
   for (const cmd of ["python", "python3"]) {
-    try {
-      execFileSync(cmd, ["-c", "import faster_whisper"], { stdio: "ignore" });
+    if (hasFasterWhisper(cmd)) {
       return cmd;
-    } catch { /* try next */ }
+    }
   }
+  const condaRoots = [
+    path.join(os.homedir(), "miniconda3"),
+    path.join(os.homedir(), "anaconda3"),
+    path.join(os.homedir(), "Miniconda3"),
+    path.join(os.homedir(), "Anaconda3"),
+    path.join(os.homedir(), "AppData", "Local", "miniconda3"),
+    path.join(os.homedir(), "AppData", "Local", "anaconda3"),
+    path.join("C:\\", "ProgramData", "miniconda3"),
+    path.join("C:\\", "ProgramData", "anaconda3"),
+  ];
   const candidates = [
-    path.join(os.homedir(), "miniconda3", "python.exe"),
-    path.join(os.homedir(), "anaconda3", "python.exe"),
-    path.join(os.homedir(), "Miniconda3", "python.exe"),
-    path.join(os.homedir(), "Anaconda3", "python.exe"),
-    path.join("C:\\", "ProgramData", "miniconda3", "python.exe"),
-    path.join("C:\\", "ProgramData", "anaconda3", "python.exe"),
+    ...condaRoots.map((root) => path.join(root, "envs", "lyrics_player", "python.exe")),
+    ...condaRoots.map((root) => path.join(root, "python.exe")),
+    path.join(os.homedir(), "AppData", "Local", "Programs", "Python", "Python312", "python.exe"),
+    path.join(os.homedir(), "AppData", "Local", "Programs", "Python", "Python311", "python.exe"),
+    path.join(os.homedir(), "AppData", "Local", "Programs", "Python", "Python310", "python.exe"),
   ];
   for (const c of candidates) {
-    try {
-      fsSync.accessSync(c);
+    if (fsSync.existsSync(c) && hasFasterWhisper(c)) {
       return c;
-    } catch { /* skip */ }
+    }
   }
   throw new Error("python with faster-whisper not found. Please install faster-whisper.");
 }

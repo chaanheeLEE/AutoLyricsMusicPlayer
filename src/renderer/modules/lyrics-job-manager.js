@@ -86,14 +86,17 @@ class LyricsJobManager {
       this.showProgress("Converting audio…", 0);
       this.trackStatus.textContent = "Analyzing…";
     }
-    const trackTitle = this.state.track.title ? this.state.track.title.replace(/\.[^/.]+$/, "") : "";
-    const artist = this.state.track.artist || "";
-    const metadataIntro = artist ? `${trackTitle} - ${artist} 가사: ` : `${trackTitle} 가사: `;
-
     if (this.state.embeddedLyricsLines && this.state.embeddedLyricsLines.length > 0) {
-      options.initialPrompt = metadataIntro + this.state.embeddedLyricsLines.join(" ");
-    } else if (trackTitle) {
-      options.initialPrompt = metadataIntro;
+      const openingHint = this.state.embeddedLyricsLines
+        .map((line) => (typeof line === "string" ? line.trim() : ""))
+        .filter((line) => line && !/^[\[\(].*[\]\)]$/.test(line))
+        .slice(0, 4)
+        .join(" ")
+        .slice(0, 120)
+        .trim();
+      options.initialPrompt = openingHint || null;
+    } else {
+      options.initialPrompt = null;
     }
     if (options.beamSize === undefined) {
       options.beamSize = 5;

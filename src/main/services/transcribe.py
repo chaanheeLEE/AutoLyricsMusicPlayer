@@ -164,47 +164,98 @@ def main():
     try:
         emit({"type": "progress", "stage": "loading_model", "percent": 0.0})
         import ctranslate2
-        
-        # Helper function to execute transcription and collect lines
-        def run_transcription(target_model):
-            emit({"type": "progress", "stage": "transcribing", "percent": 0.1})
-            iter_segments, info_obj = target_model.transcribe(
-                args.audio_path,
-                language=args.language,
-                beam_size=args.beam_size,
-                vad_filter=False,  # 사용자 요구사항에 따라 vad_filter=False 고정 (가사 손실 0%)
-                word_timestamps=True,  # 단어 단위 precise timestamp 추출
-                condition_on_previous_text=False,
-                temperature=0.0,
-                initial_prompt=args.initial_prompt or "가사 전사: 노래 가사를 줄 단위로 명확히 분할하여 기록합니다.",
-            )
-            
+        import inspect
+        import wave
+        import numpy as np
+
+        def detect_vocal_language(target_model, wav_path):
+            """Auto-detect language from a vocal-active mid-track slice to avoid intro/ad-lib misdetection."""
+            try:
+                with wave.open(wav_path, "rb") as wf:
+                    if wf.getsampwidth() != 2 or wf.getnchannels() != 1 or wf.getframerate() <= 0:
+                        return None, 0.0
+                    framerate = wf.getframerate()
+                    nframes = wf.getnframes()
+                    duration = nframes / float(framerate)
+                    if duration < 45.0:
+                        return None, 0.0
+                    start_sec = min(45.0, duration * 0.25)
+                    start_frame = int(start_sec * framerate)
+                    slice_frames = min(int(30.0 * framerate), nframes - start_frame)
+                    if slice_frames <= 0:
+                        return None, 0.0
+                    wf.setpos(start_frame)
+                    pcm_bytes = wf.readframes(slice_frames)
+                mid_audio = np.frombuffer(pcm_bytes, dtype=np.int16).astype(np.float32) / 32768.0
+                if mid_audio.size == 0:
+                    return None, 0.0
+
+                probe_kwargs = dict(
+                    beam_size=1,
+                    best_of=1,
+                    temperature=0.0,
+                    without_timestamps=True,
+                )
+                try:
+                    _, probe_info = target_model.transcribe(mid_audio, vad_filter=True, **probe_kwargs)
+                except Exception:
+                    _, probe_info = target_model.transcribe(mid_audio, vad_filter=False, **probe_kwargs)
+
+                lang = getattr(probe_info, "language", None)
+                prob = float(getattr(probe_info, "language_probability", 0.0) or 0.0)
+                if lang and prob >= 0.55:
+                    return lang, prob
+            except Exception as probe_exc:
+                emit({"type": "info", "message": f"Mid-track language detection skipped: {str(probe_exc)}"})
+            return None, 0.0
+
+        def collect_segments(iter_segments):
             output_lines = []
             line_count = 1
 
             for seg in iter_segments:
+                no_speech_prob = getattr(seg, "no_speech_prob", 0.0) or 0.0
+                avg_logprob = getattr(seg, "avg_logprob", 0.0)
+                if avg_logprob is None:
+                    avg_logprob = 0.0
+                if no_speech_prob > 0.85 and avg_logprob < -1.2:
+                    continue
+
                 words = getattr(seg, "words", None)
                 if words and len(words) > 0:
+                    non_empty_words = [w for w in words if w.word and w.word.strip()]
                     current_line_words = []
-                    
-                    for w in words:
-                        w_text = w.word.strip()
-                        if not w_text:
+
+                    for idx, w in enumerate(non_empty_words):
+                        w_prob = getattr(w, "probability", 1.0)
+                        if w_prob is None:
+                            w_prob = 1.0
+                        next_gap = (
+                            (non_empty_words[idx + 1].start - w.end)
+                            if idx + 1 < len(non_empty_words)
+                            else None
+                        )
+                        if (
+                            not current_line_words
+                            and w.start < 30.0
+                            and w_prob < 0.15
+                            and ((next_gap is not None and next_gap >= 2.0) or (idx == 0 and next_gap is None))
+                        ):
                             continue
-                        
+
                         if not current_line_words:
                             current_line_words.append(w)
                         else:
                             prev_w = current_line_words[-1]
                             gap = w.start - prev_w.end
-                            
+
                             # 단어 간 시간 차이가 1.2초 이상이거나, 줄바꿈 힌트가 포함되거나, 텍스트가 너무 길어지면 줄 분할
                             should_split = (
                                 gap >= 1.2 or
                                 "\n" in w.word or
                                 len(" ".join([x.word.strip() for x in current_line_words])) > 45
                             )
-                            
+
                             if should_split:
                                 line_text = " ".join([x.word.strip() for x in current_line_words]).strip()
                                 if line_text:
@@ -220,7 +271,7 @@ def main():
                                 current_line_words = [w]
                             else:
                                 current_line_words.append(w)
-                    
+
                     if current_line_words:
                         line_text = " ".join([x.word.strip() for x in current_line_words]).strip()
                         if line_text:
@@ -245,6 +296,71 @@ def main():
                             "confidence": 0.9,
                         })
                         line_count += 1
+
+            return output_lines
+
+        # Helper function to execute transcription and collect lines
+        def run_transcription(target_model):
+            emit({"type": "progress", "stage": "transcribing", "percent": 0.1})
+
+            resolved_language = args.language
+            if not resolved_language:
+                probed_lang, probed_prob = detect_vocal_language(target_model, args.audio_path)
+                if probed_lang:
+                    resolved_language = probed_lang
+                    emit({
+                        "type": "info",
+                        "message": f"Detected vocal language from mid-track: {resolved_language} ({probed_prob:.2f})"
+                    })
+
+            clean_prompt = args.initial_prompt.strip()[:120] if args.initial_prompt and args.initial_prompt.strip() else None
+
+            transcribe_kwargs = dict(
+                language=resolved_language,
+                beam_size=args.beam_size,
+                word_timestamps=True,  # 단어 단위 precise timestamp 추출
+                condition_on_previous_text=False,
+                temperature=(0.0, 0.2, 0.4, 0.6),
+                compression_ratio_threshold=2.0,
+                log_prob_threshold=-1.0,
+                no_speech_threshold=0.6,
+                initial_prompt=clean_prompt,
+            )
+            supported_params = inspect.signature(target_model.transcribe).parameters
+            if "hallucination_silence_threshold" in supported_params:
+                transcribe_kwargs["hallucination_silence_threshold"] = 1.5
+
+            vad_params = dict(
+                threshold=0.25,
+                min_speech_duration_ms=150,
+                min_silence_duration_ms=1500,
+                speech_pad_ms=600,
+            )
+
+            output_lines = []
+            info_obj = None
+            try:
+                iter_segments, info_obj = target_model.transcribe(
+                    args.audio_path,
+                    vad_filter=True,
+                    vad_parameters=vad_params,
+                    **transcribe_kwargs,
+                )
+                output_lines = collect_segments(iter_segments)
+            except Exception as vad_exc:
+                emit({
+                    "type": "info",
+                    "message": f"Relaxed music VAD fallback triggered ({str(vad_exc)}). Retrying with vad_filter=False."
+                })
+                output_lines = []
+
+            if len(output_lines) == 0:
+                iter_segments, info_obj = target_model.transcribe(
+                    args.audio_path,
+                    vad_filter=False,
+                    **transcribe_kwargs,
+                )
+                output_lines = collect_segments(iter_segments)
 
             return output_lines, info_obj
 
