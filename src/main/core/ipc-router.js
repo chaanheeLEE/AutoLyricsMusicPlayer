@@ -365,6 +365,32 @@ function registerIpcHandlers(windowManager) {
   ipcMain.handle("cuda:delete", async () => {
     return await cudaManager.deleteCudaPack();
   });
+
+  // 커스텀 윈도우 제어 IPC
+  ipcMain.handle("window:minimize", () => {
+    const mainWindow = windowManager.getMainWindow();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.minimize();
+    }
+  });
+
+  ipcMain.handle("window:toggle-maximize", () => {
+    const mainWindow = windowManager.getMainWindow();
+    if (!mainWindow || mainWindow.isDestroyed()) return { isMaximized: false };
+    if (mainWindow.isMaximized()) {
+      mainWindow.unmaximize();
+    } else {
+      mainWindow.maximize();
+    }
+    return { isMaximized: mainWindow.isMaximized() };
+  });
+
+  ipcMain.handle("window:close", () => {
+    const mainWindow = windowManager.getMainWindow();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.close();
+    }
+  });
 }
 
 module.exports = {

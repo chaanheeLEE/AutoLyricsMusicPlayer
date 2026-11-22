@@ -12,7 +12,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 148px 0 24px; /* 우측 148px: 윈도우 네이티브 창 제어 버튼 안전 마진 */
+  padding: 0 14px 0 24px;
   z-index: 900;
   user-select: none;
   -webkit-app-region: drag;
@@ -23,6 +23,8 @@
 .nav-actions,
 .nav-btn,
 .nav-icon-btn,
+.window-controls,
+.win-control-btn,
 button,
 input {
   -webkit-app-region: no-drag;
@@ -166,6 +168,52 @@ input {
 .nav-icon-btn svg {
   display: block;
   pointer-events: none;
+}
+
+.nav-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border-subtle);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+.window-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.win-control-btn {
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease;
+}
+
+.win-control-btn svg {
+  display: block;
+  pointer-events: none;
+}
+
+.win-control-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.08);
+  border: none;
+}
+
+.win-control-btn.win-close-btn:hover:not(:disabled) {
+  background: var(--status-error);
+  color: #ffffff;
+  border: none;
 }
 
 /* ==========================================================================

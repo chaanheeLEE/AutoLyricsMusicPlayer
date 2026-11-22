@@ -60,4 +60,10 @@ contextBridge.exposeInMainWorld("lyricsPlayer", {
   removeCudaDownloadProgressListener: () => {
     ipcRenderer.removeAllListeners("cuda:download-progress");
   },
+  minimizeWindow: () => ipcRenderer.invoke("window:minimize"),
+  toggleMaximizeWindow: () => ipcRenderer.invoke("window:toggle-maximize"),
+  closeWindow: () => ipcRenderer.invoke("window:close"),
+  onWindowMaximizedChanged: (callback) => {
+    ipcRenderer.on("window:maximized-changed", (_event, isMaximized) => callback(isMaximized));
+  },
 });

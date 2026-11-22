@@ -1043,4 +1043,42 @@ function initMediaSession() {
       exportDropdownMenu.classList.remove("show");
     });
   }
+
+  // 커스텀 윈도우 제어 버튼 (최소화 / 최대화 / 닫기)
+  const winMinimizeBtn = document.querySelector("#winMinimizeBtn");
+  const winMaximizeBtn = document.querySelector("#winMaximizeBtn");
+  const winCloseBtn = document.querySelector("#winCloseBtn");
+
+  const ICON_MAXIMIZE = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="8" height="8" rx="1"/></svg>`;
+  const ICON_RESTORE = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><rect x="1.8" y="3.5" width="6.5" height="6.5" rx="0.8"/><path d="M3.8 3.5V2.4a.8.8 0 0 1 .8-.8h5a.8.8 0 0 1 .8.8v5a.8.8 0 0 1-.8.8H8.3"/></svg>`;
+
+  function updateMaximizeButtonUI(isMaximized) {
+    if (!winMaximizeBtn) return;
+    winMaximizeBtn.innerHTML = isMaximized ? ICON_RESTORE : ICON_MAXIMIZE;
+    winMaximizeBtn.title = isMaximized ? "이전 크기로 복원" : "최대화";
+    winMaximizeBtn.setAttribute("aria-label", winMaximizeBtn.title);
+  }
+
+  if (winMinimizeBtn && window.lyricsPlayer?.minimizeWindow) {
+    winMinimizeBtn.addEventListener("click", () => window.lyricsPlayer.minimizeWindow());
+  }
+
+  if (winMaximizeBtn && window.lyricsPlayer?.toggleMaximizeWindow) {
+    winMaximizeBtn.addEventListener("click", async () => {
+      const res = await window.lyricsPlayer.toggleMaximizeWindow();
+      if (typeof res?.isMaximized === "boolean") {
+        updateMaximizeButtonUI(res.isMaximized);
+      }
+    });
+  }
+
+  if (winCloseBtn && window.lyricsPlayer?.closeWindow) {
+    winCloseBtn.addEventListener("click", () => window.lyricsPlayer.closeWindow());
+  }
+
+  if (window.lyricsPlayer?.onWindowMaximizedChanged) {
+    window.lyricsPlayer.onWindowMaximizedChanged((isMaximized) => {
+      updateMaximizeButtonUI(isMaximized);
+    });
+  }
 })();
