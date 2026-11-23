@@ -20,6 +20,8 @@
 ## 2. 메인 화면 UI·UX 및 창·테마 개선
 - [ ] **[P1] 재생 대기열 토글 버튼을 우측 하단 재생바로 이동 (`index.html`, `app.js`, `player-bar.css`)**: 상단 내비게이션 바(`#navQueueToggleBtn`) 대신 우측 하단 플레이어 바(`#floatingButton` 옆)에 아이콘 전용 대기열 토글 버튼을 배치하여 재생·가사·대기열 제어 동선을 하단 바로 일원화
 - [ ] **[P1] 하단 플레이어 바 중앙 재생 컨트롤 정중앙 배치 (`player-bar.css`)**: 좌측 트랙 정보(`.player-bar-track`, `max-width: 320px`)와 우측 액션 영역(`.player-bar-actions`)의 너비 비대칭으로 중앙 재생 버튼들이 좌측으로 치우치는 문제를 `grid-template-columns: 1fr auto 1fr` 대칭 레이아웃으로 수정
+- [ ] **[P1] 메인 감상 화면 좌측 곡 정보 패널(`.player-pane`) 좌우 여백 대칭 보정 (`layout.css`)**: 좌측 컨테이너 패딩과 `.player-pane` 우측 구분선(`border-right`) 사이에서 앨범 커버(`.disc`)·곡 정보(`.track-copy`)의 좌우 여백이 비대칭으로 보이는 문제를 대칭 여백/정렬로 조정
+- [ ] **[P2] 가사 글씨체(폰트) 선택 및 커스텀 옵션 추가 (`index.html`, `settings-view.js`, `settings-manager.js`, `lyrics.css`, `floating.css`)**: 설정 창에서 메인 가사 뷰어 및 플로팅 가사창의 글씨체 프리셋 선택 또는 사용자 시스템 폰트 커스텀 지정 기능 지원
 - [ ] **[P3] 앨범 커버 기반 앰비언트 배경**: 현재 재생 중인 앨범 아트의 대표 색상을 추출해 감상 화면 배경에 은은한 그라데이션 반영
 - [ ] **[P3] 사용자 커스텀 테마 확장**: 설정 창에서 기본 제공 테마(`Lyra Lavender`, `Emerald Dark`) 외 라이트 테마 및 사용자 포인트 컬러 커스터마이징 지원
 - [ ] **[P3] 창 상태 유지**: 종료 시 마지막 창 크기·위치 및 우측 대기열(`Up next`) 열림 상태 복원
@@ -47,3 +49,17 @@
 - [ ] **[P3] 시스템 전역 단축키(Global Shortcuts)**: 백그라운드 재생 중에도 플로팅 가사창 토글 및 재생 제어 단축키 지원
 - [ ] **[P3] 플로팅 창 표시 모드 확장**: 현재 줄만 보는 1줄 모드 / 앞뒤 문맥 2~3줄 모드 전환 및 투명/잠금 시 호버 싱크 미세 조정
 - [ ] **[P3] 시스템 트레이(Tray) 통합**: 창 닫기 시 트레이로 최소화 옵션 및 트레이 우클릭 미니 제어 메뉴
+
+---
+
+## 6. 코드 아키텍처 및 모듈 리팩토링
+- [ ] **[P2] 렌더러 메인 오케스트레이터(`src/renderer/app.js`, 약 1,300줄) 역할 분리**:
+  - 트랙 전환·히스토리·프리페치·가사 캐시 스냅샷 저장 로직(`track-controller.js`)과 전역 단축키·`MediaSession`·커스텀 윈도우 제어(`shell-controls.js`)를 분리해 `app.js`를 초기화 및 모듈 연결 엔트리로 경량화
+- [ ] **[P2] 설정 뷰(`src/renderer/modules/settings-view.js`, 약 835줄) 및 모델·가속 팩 다운로드 모듈 공통화**:
+  - Whisper 모델·CUDA 가속 팩·ONNX 보컬 분리 모델의 다운로드 진행률·취소·삭제 UI 렌더링을 공통 헬퍼로 통합하고, 메인 프로세스(`model-manager.js`, `cuda-manager.js`, `vocal-model-manager.js`)의 다운로드/취소/상태 관리 중복 코드 정리
+- [ ] **[P2] 대기열·라이브러리 뷰 모듈 분리 (`src/renderer/modules/playlist-manager.js`, 약 610줄)**:
+  - `library`/`queue` 데이터 모델 분리 작업과 연계해 우측 대기열 드로어(`Up next`), 라이브러리 테이블 뷰, 곡 상세 정보 모달(`#trackInfoModal`)을 개별 모듈로 분리
+- [ ] **[P3] 메인 프로세스 IPC 라우터(`src/main/core/ipc-router.js`, 약 480줄) 도메인별 분할**:
+  - 단일 파일에 집중된 핸들러를 `track/media`, `lyrics-cache/export/embed`, `transcription/align/models`, `window/floating/settings` 도메인 단위로 분리하고 채널 상수 일원화
+- [ ] **[P3] Python 전사 스크립트(`src/main/services/transcribe.py`, 약 520줄) 및 대형 스타일시트(`layout.css`, 약 870줄) 구조화**:
+  - `transcribe.py` 내 CUDA 런타임 탐지·HuggingFace 다운로드·언어 감지·단어 단위 세그먼트 분할을 역할별로 모듈화하고, `layout.css`에서 상단 내비게이션·감상 패널·공통 모달 스타일을 분리
