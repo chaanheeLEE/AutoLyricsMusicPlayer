@@ -1,0 +1,73 @@
+name: 버그 리포트 (Bug Report)
+description: 재생, 가사 분석/정합, UI, 또는 GPU 가속 중 발생한 오류를 제보합니다.
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: 문제 설명
+      description: 어떤 동작 중 문제가 발생했는지 구체적으로 설명해 주세요.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 재현 방법
+      description: 문제가 발생하는 순서를 단계별로 적어주세요.
+      placeholder: |
+        1. 음원 파일(.mp3/.flac) 추가
+        2. 보컬 분리 ON 후 AI 가사 분석 실행
+        3. 오류 메시지 확인
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: 앱 버전
+      placeholder: "예: v1.0.2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: engine
+    attributes:
+      label: 사용 중인 STT 엔진
+      options:
+        - Local Whisper (tiny / base / small / large-v3-turbo)
+        - Gemini API (Cloud)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: acceleration
+    attributes:
+      label: 가속 환경 / GPU 종류
+      options:
+        - Auto (CUDA / DirectML 자동 감지)
+        - NVIDIA GPU (CUDA)
+        - AMD / Intel GPU (DirectML)
+        - CPU Only
+    validations:
+      required: false
+
+  - type: dropdown
+    id: vocal_isolation
+    attributes:
+      label: 보컬 분리 전처리 사용 여부
+      options:
+        - OFF (사용 안 함)
+        - ON (UVR-MDX-NET-Voc_FT.onnx)
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 오류 로그 (transcribe_error.log / 개발자 도구 콘솔)
+      description: 앱 폴더의 transcribe_error.log 내용이나 DevTools 콘솔 오류를 붙여넣어 주세요.
+      render: text
+    validations:
+      required: false

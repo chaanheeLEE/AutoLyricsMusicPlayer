@@ -1,0 +1,9 @@
+# Build & runtime Python dependencies verified against Python 3.11 (lyrics_player)
+# Note: Release CI uninstalls transitive CPU `onnxruntime` and installs `onnxruntime-directml==1.24.4`.
+faster-whisper==1.2.1
+ctranslate2==4.8.1
+huggingface-hub==1.22.0
+numpy==2.4.6
+pyinstaller==6.21.0
+nvidia-cublas-cu12==12.9.2.10
+nvidia-cudnn-cu12==9.24.0.43
