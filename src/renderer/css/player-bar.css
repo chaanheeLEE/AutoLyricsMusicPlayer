@@ -182,7 +182,6 @@
 }
 
 .bar-btn svg,
-.bar-pill-btn svg,
 .volume-icon-btn svg {
   display: block;
   pointer-events: none;
@@ -234,7 +233,7 @@
   transform: scale(0.96) !important;
 }
 
-/* 2.3 우측 액션 (채움 볼륨 슬라이더, 플로팅 가사창, 대기열) */
+/* 2.3 우측 액션 (채움 볼륨 슬라이더, 플로팅 가사창) */
 .player-bar-actions {
   display: flex;
   align-items: center;
@@ -299,33 +298,16 @@
   transform: scale(1.18);
 }
 
-.bar-pill-btn {
-  border: 1px solid var(--border-subtle);
-  background: var(--surface-hover);
+.bar-action-icon-btn {
+  width: 34px;
+  height: 34px;
+  color: var(--text-secondary);
+}
+
+.bar-action-icon-btn:hover:not(:disabled) {
   color: var(--text-primary);
-  border-radius: var(--radius-sm);
-  height: 30px;
-  padding: 0 10px;
-  font-size: 0.76rem;
-  font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  cursor: pointer;
-  transition: all 120ms ease;
 }
 
-.bar-pill-btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.bar-pill-btn:active:not(:disabled) {
-  transform: scale(0.97);
-}
-
-.bar-pill-btn.active {
-  border-color: var(--accent);
+.bar-action-icon-btn.active {
   color: var(--accent);
-  background: var(--surface-selected);
 }

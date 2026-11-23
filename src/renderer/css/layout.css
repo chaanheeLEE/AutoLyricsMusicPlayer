@@ -16,18 +16,31 @@
   z-index: 900;
   user-select: none;
   -webkit-app-region: drag;
+  app-region: drag;
 }
 
-.nav-brand,
-.nav-tabs,
-.nav-actions,
+.app-nav .nav-brand,
+.app-nav .brand-name,
+.app-nav .nav-tabs,
+.app-nav .nav-actions,
+.app-nav .window-controls,
+.app-nav .nav-divider {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.app-nav button,
+.app-nav input,
+.app-nav select,
+.app-nav a,
+.nav-tab,
 .nav-btn,
 .nav-icon-btn,
-.window-controls,
 .win-control-btn,
 button,
 input {
   -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 
 .nav-brand {
@@ -382,7 +395,7 @@ h2 {
   gap: 5px;
   width: 100%;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .track-copy h2 {
@@ -443,6 +456,30 @@ h2 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.track-ai-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+  max-width: 240px;
+  margin-top: 10px;
+  padding: 12px 2px 4px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.track-ai-section .track-status-badge {
+  margin-top: 0;
+}
+
+.track-ai-section .main-analysis-actions {
+  margin-top: 4px;
+}
+
+.track-ai-section .vocal-isolation-chip {
+  margin-top: 2px;
 }
 
 .track-status-badge {

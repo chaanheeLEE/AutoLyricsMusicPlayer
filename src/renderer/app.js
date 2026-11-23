@@ -37,7 +37,6 @@ const playerBarTitle = document.querySelector("#playerBarTitle");
 const playerBarArtist = document.querySelector("#playerBarArtist");
 const playerBarArt = document.querySelector("#playerBarArt");
 const playerBarPlaceholder = document.querySelector("#playerBarPlaceholder");
-const queueToggleButton = document.querySelector("#queueToggleButton");
 
 // Views & Edit Toolbar Elements
 const nowPlayingView = document.querySelector("#nowPlayingView");
@@ -816,10 +815,8 @@ function updateFloatingButtonUI(visible) {
   if (!floatingButton) return;
   floatingButton.classList.toggle("active", visible);
   floatingButton.title = visible ? "외부 플로팅 가사창 닫기" : "외부 투명 플로팅 가사창 열기";
-  const labelSpan = floatingButton.querySelector("span");
-  if (labelSpan) {
-    labelSpan.textContent = visible ? "가사 창 닫기" : "가사 창";
-  }
+  floatingButton.setAttribute("aria-label", floatingButton.title);
+  floatingButton.setAttribute("aria-pressed", String(visible));
 }
 
 floatingButton.addEventListener("click", async () => {
@@ -1097,18 +1094,11 @@ function initMediaSession() {
     }
   });
 
-  // 재생 대기열 토글 및 닫기 버튼 핸들러 (상단 nav + 하단 바 + 닫기 버튼 동기화)
+  // 재생 대기열 토글 및 닫기 버튼 핸들러 (상단 nav + 닫기 버튼 동기화)
   function setQueueDrawerOpen(open) {
     if (!queueDrawer) return;
     queueDrawer.classList.toggle("open", open);
-    if (queueToggleButton) queueToggleButton.classList.toggle("active", open);
     if (navQueueToggleBtn) navQueueToggleBtn.classList.toggle("active", open);
-  }
-
-  if (queueToggleButton && queueDrawer) {
-    queueToggleButton.addEventListener("click", () => {
-      setQueueDrawerOpen(!queueDrawer.classList.contains("open"));
-    });
   }
 
   if (navQueueToggleBtn && queueDrawer) {
