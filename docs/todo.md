@@ -5,13 +5,6 @@
 ---
 
 ## 1. AI 분석·정합 파이프라인 및 자동화
-- [ ] **[P0] 곡 이동 시 AI 분석/정합 결과 오지정(Cross-track 오염) 버그 수정 (`lyrics-job-manager.js`, `app.js`)**:
-  - `handleAlignClick()`에 `originalTrackKey` 검증 가드가 없어 AI 정합 중 곡을 넘기면 이동된 새 곡의 가사/캐시에 덮어써지는 문제 해결
-  - `persistLyricsSoon()` 250ms 디바운스 타이머가 지연 시점의 `state.track`을 참조해 다른 곡에 저장할 수 있는 경합 차단 (대상 `track` 캡처 전달)
-  - `selectPlaylistItem()`에서 이전 작업 취소 완료 대기 및 곡 전환 후 백그라운드 완료 시 이동된 곡에 덮어쓰지 않고 원곡 캐시에만 안전 저장할지 여부 결정
-- [ ] **[P0] AI 분석 + AI 정합(`autoAnalyzeMode === "align"`) 자동화 라인 안정화 (`lyrics-job-manager.js`, `lyrics-aligner.js`)**:
-  - `autoAnalyzeMode === "align"`일 때 DOM `.click()` 및 `setTimeout(..., 500)` 우회 대신 `handleAlignClick()` 직접 체이닝 및 `isAutoAnalyzing` 상태 꼬임 방지
-  - 1차 STT 실패·웹 가사 크롤링 실패·Gemini 타임아웃 등 자동화 파이프라인 중간 실패 원인 로깅 및 사용자 피드백/폴백 개선
 - [ ] **[P2] 자동화 옵션 재검토 및 곡 전환 → 자동화 진입 속도 개선 (`app.js`, `index.html`, `settings-view.js`)**:
   - 존재하지 않는 `state.tracks`를 참조해 동작하지 않던 다음 트랙 프리페치(`state.playlist` 기준으로 수정) 정상화 및 곡 전환 시 `setTimeout(..., 100)` + `setTimeout(..., 500)` 인위적 대기 제거
   - `settingAutoAnalyzeMode` 선택지 재정비 (수동 / 내장 가사 없을 때만 자동 / 분석+정합 / 보컬 분리 연동 여부 등)
@@ -19,6 +12,8 @@
 - [ ] **[P3] Gemini 가사 전사·정합 프롬프트 고도화 (`src/main/services/gemini-prompts.js`)**:
   - 전사(`transcribeSystemInstruction`): 전주/간주 타임스탬프 처리, 코러스/추임새 표기 및 소절 분할 기준 세분화
   - 정합(`alignSystemInstruction`): 1·2절 반복 후렴구 매핑 안정성 및 Whisper 누락 라인 대응 규칙(`lyrics-aligner.js` 분할 로직과 정합성 확보) 검토
+- [x] **곡 이동 시 AI 분석/정합 결과 오지정(Cross-track 오염) 버그 수정**: 작업 토큰(`jobId`)·트랙 스냅샷 격리, 디바운스 저장(`saveTimers`) 트랙 캡처, `selectPlaylistItem` 시퀀스 가드 및 백그라운드 완료 시 원곡 캐시 안전 저장 (`updated.md` 참고)
+- [x] **AI 분석 + AI 정합(`autoAnalyzeMode === "align"`) 자동화 라인 안정화 및 503 멀티 모델 폴백**: 직접 체이닝 전환, `AbortSignal`/프로세스 취소 통합, LRCLIB 다국어 유사도·다중 쿼리 개선, 수동 분석 후 `AI 정합` 버튼 유도, `GPU`/`CPU` 장치 표기 단순화, `gemini-3.1-flash-lite` 추가 및 503/429 자동 폴백 (`updated.md` 참고)
 - [x] **경량 ONNX 보컬 분리(Vocal Separation) 전처리 파이프라인**: `UVR-MDX-NET-Voc_FT.onnx` 온디맨드 모델 관리, `onnxruntime-directml` 기반 GPU/CPU 자동 가속 보컬 분리 및 설정 토글 (`updated.md` 참고)
 
 ---

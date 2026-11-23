@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-11-24 — AI 분석·정합 안정화, Cross-track 오염 차단 및 Gemini 멀티 모델 폴백
+- **곡 전환 시 Cross-track 가사 오염 차단 (`lyrics-job-manager.js`, `app.js`, `ipc-router.js`, `transcription-worker.js`)**:
+  - 분석·정합 시작 시 대상 트랙·설정·내장 가사를 스냅샷으로 고정하고 작업 토큰(`jobId`)으로 진행률·결과 이벤트를 격리해, 작업 중 곡을 넘겨도 새 곡의 가사/상태를 덮어쓰지 않고 완료된 결과만 원곡 캐시에 안전 저장하도록 개선했습니다.
+  - `persistLyricsSoon()`을 트랙별 `saveTimers` 스냅샷 저장으로 전환하고, `selectPlaylistItem()`에 시퀀스 가드·자동 분석 타이머 정리·이전 작업 취소(`ffmpeg`/Whisper/Gemini/Align 통합 중단) 병행 대기를 적용했습니다.
+- **AI 분석·정합 자동화 라인 및 검색·진단 강화 (`lyrics-aligner.js`, `lyrics-scraper.js`, `transcribe.py`, `layout.css`)**:
+  - `autoAnalyzeMode === "align"` 시 DOM `.click()`·`500ms` 우회를 제거하고 `_runAlignment()` 직접 체이닝으로 전환했으며, 수동 1차 분석 완료 시 `AI 정합` 버튼 시각 강조(`.align-suggested`)와 안내 문구를 제공합니다.
+  - LRCLIB 다중 쿼리(`아티스트 + 곡명` → `정제 곡명` → `Artist - Title` 분할), 다국어 유니코드(`\p{L}\p{N}`) 유사도 매칭·최고 유사도 후보 선택, 12초 타임아웃 및 0건 매칭 시 Whisper 안전 폴백을 적용했습니다.
+  - 분석 진행 표시의 장치 안내를 `GPU` / `CPU`로 단순화했습니다.
+- **Gemini 3.1 Flash-Lite 추가 및 503/429 멀티 모델 자동 폴백 (`gemini-service.js`, `index.html`, `test/alignment-pipeline.test.js`)**:
+  - 설정 창 Gemini 모델 선택지에 `gemini-3.1-flash-lite`를 추가하고, `503`/`429` 과부하 발생 시 `3.5-flash-lite ↔ 3.1-flash-lite ↔ 3.8-flash` 간 자동 폴백과 상태 메시지 구분(`503` 서버 혼잡 / `429` 한도 초과)을 구현했습니다.
+
+---
+
 ## 2026-11-22 — 경량 ONNX 보컬 분리(Vocal Separation) 전처리 & DirectML GPU 가속
 - **순수 `numpy` + `onnxruntime-directml` 보컬 분리 모듈 (`src/main/services/vocal_separator.py`, `transcribe.py`)**:
   - PyTorch/Demucs 없이 `onnxruntime-directml`(`+11.13 MB`) 기반 `CUDA → DirectML(NVIDIA·AMD·Intel GPU) → CPU` 자동 가속 파이프라인을 구축해 `UVR-MDX-NET-Voc_FT.onnx`로 44.1kHz 스테레오 보컬 스템을 추출하고 `16kHz float32` 파형으로 Whisper에 전달합니다.
