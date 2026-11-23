@@ -4,6 +4,18 @@
 
 ---
 
+## 2026-11-24 — 트랙 프리페치·셔플 덱 고도화, 자동화 진입 속도 개선 및 설정·용어 정비
+- **순차·셔플 다음 트랙 프리페치 및 가사 즉시 로딩 (`app.js`, `cache-manager.js`, `lyrics-core.js`, `player-controller.js`)**:
+  - `state.playlist` 기준 프리페치를 복구하고 미보유 가사도 RAM 캐시(`null`)에 기록해 중복 디스크 스캔을 제거했습니다.
+  - Fisher-Yates 기반 비반복 셔플 순서표(`syncShuffleQueue`)와 앞으로가기 스택(`forwardHistory`)을 도입해, 랜덤 재생에서도 다음 예정 곡을 정확히 사전 적재하고 `이전 곡 → 다음 곡` 이동 시 원래 곡으로 일관되게 복귀하도록 개선했습니다.
+  - 곡 전환 시 이전 작업 취소(`cancelPromise`) 대기와 가사 캐시 로드를 분리해 싱크 가사를 즉시 렌더링하고, 프리페치(`180ms`)와 자동 분석 진입(`200ms` 디바운스)을 비동기로 예약해 연속 스킵 시 반응 속도를 높였습니다.
+- **자동화 설정 탭 통합, `AI 정합` 용어 통일 및 버튼 상태 정밀화 (`index.html`, `settings-view.js`, `lyrics-job-manager.js`, `lyrics-viewer.js`, `embed-manager.js`)**:
+  - `자동화 워크플로우` 카드를 `AI 및 음성 분석` 탭으로 통합하고 Gemini API Key 입력 여부에 따른 동적 안내 문구를 추가했습니다.
+  - 가사 편집 화면과 설정 창의 `AI 정렬` / 영문 혼용 라벨을 `AI 가사 분석` · `AI 재분석` · `분석 취소` · `AI 정합` · `AI 재정합`으로 통일했습니다.
+  - 곡 전환 시 가사 상태 초기화 순서를 바로잡고 가사 출처(`state.lyricsSource`)를 구분해, 미분석 곡이나 내장/외부 LRC 곡에 `AI 재분석`이 오표시되던 문제를 해결했습니다.
+
+---
+
 ## 2026-11-24 — 메인 화면 UI·UX 정리 및 상단 창 드래그 영역 확대
 - **상단 글로벌 바 창 드래그 영역 확대 (`layout.css`)**:
   - `.app-nav` 내 컨테이너(`.nav-brand`, `.nav-tabs`, `.nav-actions`, `.window-controls`)의 `no-drag`를 해제하고 실제 버튼·입력 요소에만 `no-drag`를 제한해 상단 바 빈 공간 전체에서 창 이동이 가능하도록 개선했습니다.
