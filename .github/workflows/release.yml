@@ -2,53 +2,140 @@ name: Build and Release AutoLyricsPlayer
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   release:
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[skip ci]')
     runs-on: windows-latest
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check Release Eligibility
+        id: meta
+        shell: pwsh
+        run: |
+          $ref = $env:GITHUB_REF
+          if ($ref -like "refs/tags/v*") {
+            $tag = $env:GITHUB_REF_NAME
+            "should_release=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            "tag_exists=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Write-Host "Triggered by tag push: $tag"
+            exit 0
+          }
+
+          $pkg = Get-Content -Raw -Path "package.json" | ConvertFrom-Json
+          $version = $pkg.version
+          $tag = "v$version"
+
+          git rev-parse -q --verify "refs/tags/$tag" *> $null
+          $tagExists = ($LASTEXITCODE -eq 0)
+
+          if ($tagExists -and $env:GITHUB_EVENT_NAME -ne "workflow_dispatch") {
+            Write-Host "Tag $tag already exists. Skipping release build on main."
+            "should_release=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            "tag_exists=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          } else {
+            Write-Host "Eligible for release: $tag (tag_exists=$tagExists)"
+            "should_release=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            "tag_exists=$($tagExists.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          }
 
       - name: Setup Node.js
+        if: steps.meta.outputs.should_release == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
 
       - name: Setup Python
+        if: steps.meta.outputs.should_release == 'true'
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: '3.11'
 
       - name: Install Python Build Dependencies
+        if: steps.meta.outputs.should_release == 'true'
         run: |
           python -m pip install --upgrade pip
-          pip install faster-whisper ctranslate2 pyinstaller nvidia-cublas-cu12 nvidia-cudnn-cu12
+          pip install -r requirements.txt
           pip uninstall -y onnxruntime
-          pip install onnxruntime-directml
+          pip install onnxruntime-directml==1.24.4
 
       - name: Install Dependencies
+        if: steps.meta.outputs.should_release == 'true'
         run: npm ci
 
-      - name: Run Check
-        run: npm run check
+      - name: Run Check and Tests
+        if: steps.meta.outputs.should_release == 'true'
+        run: |
+          npm run check
+          npm test
+
+      - name: Extract Release Notes from updated.md
+        id: notes
+        if: steps.meta.outputs.should_release == 'true'
+        run: node scripts/release-notes.js extract --out release-notes.md
 
       - name: Build Electron App
+        if: steps.meta.outputs.should_release == 'true'
         run: npm run build -- -c.publish=never
 
       - name: Package CUDA GPU Acceleration Pack
+        if: steps.meta.outputs.should_release == 'true'
         run: |
           python scripts/copy-nvidia-dlls.py temp_nvidia_dlls
           Compress-Archive -Path 'temp_nvidia_dlls/nvidia/*' -DestinationPath 'dist/cuda-runtime-win64.zip' -Force
         shell: pwsh
 
-      - name: Publish Release Artifacts
+      - name: Create and Push Release Tag
+        if: steps.meta.outputs.should_release == 'true' && steps.meta.outputs.tag_exists != 'true'
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag $env:RELEASE_TAG
+          git push origin $env:RELEASE_TAG
+
+      - name: Publish Release Artifacts (with updated.md notes)
+        if: steps.meta.outputs.should_release == 'true' && steps.notes.outputs.has_notes == 'true'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ALP ${{ steps.meta.outputs.tag }}
+          body_path: release-notes.md
+          files: |
+            dist/*.exe
+            dist/*.blockmap
+            dist/cuda-runtime-win64.zip
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish Release Artifacts (fallback auto notes)
+        if: steps.meta.outputs.should_release == 'true' && steps.notes.outputs.has_notes != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ALP ${{ steps.meta.outputs.tag }}
           files: |
             dist/*.exe
             dist/*.blockmap
@@ -58,3 +145,43 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Archive CHANGELOG.md, Reset updated.md, and Sync main & develop
+        if: steps.meta.outputs.should_release == 'true'
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git fetch origin main
+          git checkout -B main origin/main
+
+          node scripts/release-notes.js archive --version $env:RELEASE_TAG
+
+          $changed = git status --porcelain updated.md CHANGELOG.md
+          if ($changed) {
+            git add updated.md CHANGELOG.md
+            git commit -m "chore: archive changelog and reset updated.md for $env:RELEASE_TAG [skip ci]"
+            git push origin main
+            Write-Host "Archived CHANGELOG.md and reset updated.md on main."
+          } else {
+            Write-Host "No changes in updated.md or CHANGELOG.md to commit."
+          }
+
+          git ls-remote --exit-code --heads origin develop *> $null
+          if ($LASTEXITCODE -eq 0) {
+            git fetch origin develop
+            git checkout -B develop origin/develop
+            git merge origin/main --no-edit
+            if ($LASTEXITCODE -eq 0) {
+              git push origin develop
+              Write-Host "Successfully synced main -> develop."
+            } else {
+              git merge --abort *> $null
+              Write-Host "::warning::Auto-sync main -> develop encountered a merge conflict. Release succeeded, please merge main into develop manually."
+            }
+          } else {
+            Write-Host "origin/develop branch not found on remote; skipping develop sync."
+          }
