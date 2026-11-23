@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-11-24 — 메인 화면 UI·UX 정리 및 상단 창 드래그 영역 확대
+- **상단 글로벌 바 창 드래그 영역 확대 (`layout.css`)**:
+  - `.app-nav` 내 컨테이너(`.nav-brand`, `.nav-tabs`, `.nav-actions`, `.window-controls`)의 `no-drag`를 해제하고 실제 버튼·입력 요소에만 `no-drag`를 제한해 상단 바 빈 공간 전체에서 창 이동이 가능하도록 개선했습니다.
+- **우측 하단 재생바 간소화 (`index.html`, `app.js`, `player-bar.css`)**:
+  - 상단 바와 중복되는 하단 대기열 버튼(`#queueToggleButton`)을 제거하고, 플로팅 가사창 버튼(`#floatingButton`)을 텍스트 없는 아이콘 전용 버튼으로 정리했습니다.
+- **좌측 감상 패널 곡 정보 ↔ AI 제어 영역 위계 분리 (`index.html`, `layout.css`)**:
+  - 곡 메타정보와 하단 AI 상태 배지·버튼 영역(`.track-ai-section`) 사이에 여백 및 은은한 구분선(`border-top`)을 추가해 가독성을 높였습니다.
+
+---
+
 ## 2026-11-24 — AI 분석·정합 안정화, Cross-track 오염 차단 및 Gemini 멀티 모델 폴백
 - **곡 전환 시 Cross-track 가사 오염 차단 (`lyrics-job-manager.js`, `app.js`, `ipc-router.js`, `transcription-worker.js`)**:
   - 분석·정합 시작 시 대상 트랙·설정·내장 가사를 스냅샷으로 고정하고 작업 토큰(`jobId`)으로 진행률·결과 이벤트를 격리해, 작업 중 곡을 넘겨도 새 곡의 가사/상태를 덮어쓰지 않고 완료된 결과만 원곡 캐시에 안전 저장하도록 개선했습니다.

@@ -19,16 +19,12 @@
 ---
 
 ## 2. 메인 화면 UI·UX 및 창·테마 개선
-- [ ] **[P1] 상단 글로벌 바 창 드래그 영역 확대 (`index.html`, `layout.css`)**:
-  - `.app-nav`에서 `.nav-brand`·`.nav-tabs`·`.nav-actions` 컨테이너 자체가 `no-drag`를 넓게 점유해 좌측 일부만 창 이동이 되던 문제 수정 → 빈 공간 전체를 `-webkit-app-region: drag`로 열고 개별 버튼/탭 요소만 `no-drag` 지정
-- [ ] **[P1] 우측 하단 플레이어 바 버튼 간소화 및 중복 대기열 버튼 제거 (`index.html`, `app.js`, `player-bar.css`)**:
-  - 상단 바(`#navQueueToggleBtn`)와 중복되는 하단 `#queueToggleButton` 제거
-  - `#floatingButton`의 `"가사 창"` 텍스트 라벨을 제거하고 아이콘 전용 버튼(`title`/`aria-label` 유지)으로 정리 (`updateFloatingButtonUI` 텍스트 갱신 제거)
-- [ ] **[P1] 좌측 감상 패널 곡 정보 ↔ AI 안내·버튼 영역 위계 분리 (`index.html`, `layout.css`)**:
-  - `.track-copy` 내 곡 제목/아티스트/앨범 메타와 하단 `#trackStatusBadge`, `#mainAnalysisActions`, `#mainVocalIsolationToggle` 사이에 여유 공백 및 은은한 구분선(`border-top`) 추가
 - [ ] **[P3] 앨범 커버 기반 앰비언트 배경**: 현재 재생 중인 앨범 아트의 대표 색상을 추출해 감상 화면 배경에 은은한 그라데이션 반영
 - [ ] **[P3] 사용자 커스텀 테마 확장**: 설정 창에서 기본 제공 테마(`Lyra Lavender`, `Emerald Dark`) 외 라이트 테마 및 사용자 포인트 컬러 커스터마이징 지원
 - [ ] **[P3] 창 상태 유지**: 종료 시 마지막 창 크기·위치 및 우측 대기열(`Up next`) 열림 상태 복원
+- [x] **상단 글로벌 바 창 드래그 영역 확대**: `.app-nav` 내 비인터랙티브 컨테이너(`nav-brand`, `nav-tabs`, `nav-actions`, `window-controls`)의 `no-drag`를 해제해 빈 공간 전체 드래그 지원 (`updated.md` 참고)
+- [x] **우측 하단 플레이어 바 간소화 및 중복 대기열 버튼 제거**: 하단 `#queueToggleButton` 삭제, `#floatingButton` 아이콘 전용화 (`updated.md` 참고)
+- [x] **좌측 감상 패널 곡 정보 ↔ AI 안내·버튼 위계 분리**: `.track-ai-section` 래퍼와 상단 여백·구분선(`border-top`) 추가 (`updated.md` 참고)
 
 ---
 
