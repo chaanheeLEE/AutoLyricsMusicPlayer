@@ -1,6 +1,6 @@
 # Todo — Auto Lyrics Player (ALP)
 
-향후 추가하거나 개선할 기능 및 과제를 **주제별로 묶고 우선순위(`[P0]`~`[P3]`) 순으로 정렬**한 목록입니다. (완료된 내역은 [Updated.md](./Updated.md) 참고)
+향후 추가하거나 개선할 기능 및 과제를 **주제별로 묶고 우선순위(`[P0]`~`[P3]`) 순으로 정렬**한 목록입니다. (완료된 내역은 [updated.md](../updated.md) 및 [CHANGELOG.md](../CHANGELOG.md) 참고)
 
 ---
 
@@ -19,7 +19,7 @@
 - [ ] **[P3] Gemini 가사 전사·정합 프롬프트 고도화 (`src/main/services/gemini-prompts.js`)**:
   - 전사(`transcribeSystemInstruction`): 전주/간주 타임스탬프 처리, 코러스/추임새 표기 및 소절 분할 기준 세분화
   - 정합(`alignSystemInstruction`): 1·2절 반복 후렴구 매핑 안정성 및 Whisper 누락 라인 대응 규칙(`lyrics-aligner.js` 분할 로직과 정합성 확보) 검토
-- [x] **경량 ONNX 보컬 분리(Vocal Separation) 전처리 파이프라인**: `UVR-MDX-NET-Voc_FT.onnx` 온디맨드 모델 관리, `onnxruntime-directml` 기반 GPU/CPU 자동 가속 보컬 분리 및 설정 토글 (`Updated.md` 참고)
+- [x] **경량 ONNX 보컬 분리(Vocal Separation) 전처리 파이프라인**: `UVR-MDX-NET-Voc_FT.onnx` 온디맨드 모델 관리, `onnxruntime-directml` 기반 GPU/CPU 자동 가속 보컬 분리 및 설정 토글 (`updated.md` 참고)
 
 ---
 
