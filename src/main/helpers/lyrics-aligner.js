@@ -1,8 +1,37 @@
 const { alignLyricsWithGemini } = require("../services/gemini-service");
 const { scrapeLyrics } = require("../services/lyrics-scraper");
 
-async function alignAndInterpolateLyrics(payload) {
-  const { track, whisperLyrics, settings, customQuery, embeddedLyricsLines } = payload;
+function classifyAlignError(failureStage, err) {
+  const msg = String(err?.message || "");
+  if (failureStage === "scrape") {
+    if (/timed out/i.test(msg)) return "scrape_timeout";
+    if (/empty_official_lyrics/i.test(msg)) return "empty_official_lyrics";
+    return "scrape_not_found";
+  }
+  if (failureStage === "gemini") {
+    if (/timed out/i.test(msg)) return "gemini_timeout";
+    return "gemini_api_error";
+  }
+  if (failureStage === "matching") {
+    if (/no_valid_alignment_matches/i.test(msg)) return "no_valid_matches";
+    return "matching_error";
+  }
+  return "unknown";
+}
+
+async function alignAndInterpolateLyrics(payload, runtimeOptions = {}) {
+  const { track, whisperLyrics, settings, customQuery, embeddedLyricsLines } = payload || {};
+  const signal = runtimeOptions?.signal || payload?.signal || null;
+  const onProgress = runtimeOptions?.onProgress || payload?.onProgress || null;
+  const alignFn = runtimeOptions?.deps?.alignLyricsWithGemini || alignLyricsWithGemini;
+  const scrapeFn = runtimeOptions?.deps?.scrapeLyrics || scrapeLyrics;
+
+  const emitProgress = (msg) => {
+    if (!signal?.aborted && typeof onProgress === "function") {
+      onProgress(msg);
+    }
+  };
+
   const apiKey = settings?.geminiApiKey;
   const maxDuration = (track?.duration && !isNaN(track.duration) && track.duration > 0) ? Number(track.duration) : null;
 
@@ -12,18 +41,32 @@ async function alignAndInterpolateLyrics(payload) {
   if (!whisperLyrics || whisperLyrics.length === 0) {
     return { ok: false, error: "no_whisper_lyrics" };
   }
+  if (signal?.aborted) {
+    return { ok: false, cancelled: true, error: "cancelled" };
+  }
+
+  let failureStage = "unknown";
 
   try {
     let officialLines;
+    let lyricsSource;
 
     if (embeddedLyricsLines && embeddedLyricsLines.length > 0) {
-      // 내장 가사가 있으면 웹 크롤링 생략하고 바로 내장 가사를 Gemini 정합 소스로 사용
-      officialLines = embeddedLyricsLines.map(l => l.trim()).filter(l => l.length > 0);
+      failureStage = "scrape";
+      lyricsSource = "embedded";
+      officialLines = embeddedLyricsLines.map(l => String(l || "").trim()).filter(l => l.length > 0);
       console.log(`[Aligner] Using embedded lyrics as official source (${officialLines.length} lines) — skipping scraping`);
+      emitProgress({ type: "progress", stage: "align_gemini", percent: 0.45 });
     } else {
-      // 내장 가사 없으면 기존 방식: DuckDuckGo 크롤링
-      const officialText = await scrapeLyrics(track, whisperLyrics, customQuery);
-      officialLines = officialText.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+      failureStage = "scrape";
+      lyricsSource = "lrclib";
+      emitProgress({ type: "progress", stage: "align_scraping", percent: 0.25 });
+      const officialText = await scrapeFn(track, whisperLyrics, customQuery, { signal });
+      officialLines = String(officialText || "").split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    }
+
+    if (signal?.aborted) {
+      return { ok: false, cancelled: true, error: "cancelled" };
     }
 
     if (officialLines.length === 0) {
@@ -31,15 +74,21 @@ async function alignAndInterpolateLyrics(payload) {
     }
 
     // 2. Gemini API 호출 (gemini-service 모듈 위임)
+    failureStage = "gemini";
+    emitProgress({ type: "progress", stage: "align_gemini", percent: 0.55 });
     const geminiModel = settings?.geminiModel || "gemini-3.5-flash-lite";
-    const alignment = await alignLyricsWithGemini(apiKey, officialLines, whisperLyrics, geminiModel, maxDuration);
+    const alignment = await alignFn(apiKey, officialLines, whisperLyrics, geminiModel, maxDuration, { signal });
 
+    if (signal?.aborted) {
+      return { ok: false, cancelled: true, error: "cancelled" };
+    }
+
+    failureStage = "matching";
     const whisperMap = new Map();
     whisperLyrics.forEach(item => whisperMap.set(item.id, item));
 
     // 시간 역행(Chronological inversion) 검출 및 무효화 처리
     if (alignment && alignment.length > 0) {
-      // official_index 순으로 정렬하여 순차적인 흐름 분석
       const sortedAlignment = [...alignment].sort((a, b) => a.official_index - b.official_index);
       let lastValidStart = -1;
 
@@ -49,7 +98,6 @@ async function alignAndInterpolateLyrics(payload) {
           if (wLine) {
             if (wLine.start < lastValidStart) {
               console.warn(`[Aligner] Time reversal detected at official_index ${item.official_index} (whisper_id: ${item.whisper_id}, start: ${wLine.start}s < last: ${lastValidStart}s). Invalidating match.`);
-              // 원본 alignment 객체의 값을 null로 변경하여 무효화
               const target = alignment.find(a => a.official_index === item.official_index);
               if (target) {
                 target.whisper_id = null;
@@ -67,8 +115,8 @@ async function alignAndInterpolateLyrics(payload) {
       });
     }
 
-    // 3. 중복 매핑 검출 및 지능형 시간 분할 처리 (중복 제거 안전망 개선)
-    const whisperToOfficialMap = new Map(); // whisper_id -> Array of official_indices
+    // 3. 중복 매핑 검출 및 지능형 시간 분할 처리
+    const whisperToOfficialMap = new Map();
     (alignment || []).forEach(item => {
       if (item.whisper_id) {
         if (!whisperToOfficialMap.has(item.whisper_id)) {
@@ -78,18 +126,17 @@ async function alignAndInterpolateLyrics(payload) {
       }
     });
 
-    const officialTimeMap = new Map(); // official_index -> { start, end }
+    const officialTimeMap = new Map();
     whisperToOfficialMap.forEach((indices, wId) => {
       const whisperLine = whisperMap.get(wId);
       if (!whisperLine) return;
 
-      const totalDuration = whisperLine.end - whisperLine.start;
+      const totalDuration = Math.max(0, whisperLine.end - whisperLine.start);
       const count = indices.length;
 
       if (count === 1) {
         officialTimeMap.set(indices[0], { start: whisperLine.start, end: whisperLine.end });
       } else {
-        // 중복 매핑된 경우: 인덱스 순서대로 정렬 후 글자 수 비율로 분할 배분
         indices.sort((a, b) => a - b);
         const lengths = indices.map(idx => (officialLines[idx] || "").length || 1);
         const totalLength = lengths.reduce((sum, len) => sum + len, 0);
@@ -109,11 +156,16 @@ async function alignAndInterpolateLyrics(payload) {
       }
     });
 
+    // 유효 매칭이 0건이면 엉뚱한 균등 보간 대신 Whisper 가사로 안전 폴백
+    if (officialTimeMap.size === 0) {
+      throw new Error("no_valid_alignment_matches");
+    }
+
     // 4. 공식 가사에 배분된 싱크 입히기
     const finalLyrics = [];
     officialLines.forEach((text, index) => {
       const timeInfo = officialTimeMap.get(index);
-      
+
       finalLyrics.push({
         id: `align_${String(index + 1).padStart(3, "0")}`,
         start: timeInfo ? timeInfo.start : null,
@@ -131,23 +183,20 @@ async function alignAndInterpolateLyrics(payload) {
     let i = 0;
     while (i < finalLyrics.length) {
       if (finalLyrics[i].start === null) {
-        // 연속적으로 null인 구간 탐색
         let startNullIdx = i;
         let endNullIdx = i;
         while (endNullIdx < finalLyrics.length && finalLyrics[endNullIdx].start === null) {
           endNullIdx++;
         }
-        // null 구간은 [startNullIdx, endNullIdx - 1] 범위임
-        
+
         const prevIdx = startNullIdx - 1;
         const prevEnd = prevIdx >= 0 ? finalLyrics[prevIdx].end : 0.5;
-        
+
         const nextIdx = endNullIdx;
         const nextStart = nextIdx < finalLyrics.length ? finalLyrics[nextIdx].start : (maxDuration !== null ? maxDuration : (prevEnd + (endNullIdx - startNullIdx) * 2.0));
 
-        const totalGap = nextStart - prevEnd;
-        
-        // null인 구간 내 가사들의 글자 수 비율 계산
+        const totalGap = Math.max(0, nextStart - prevEnd);
+
         const nullSubArray = finalLyrics.slice(startNullIdx, endNullIdx);
         const lengths = nullSubArray.map(item => (item.text || "").trim().length || 1);
         const totalLength = lengths.reduce((sum, len) => sum + len, 0);
@@ -157,14 +206,14 @@ async function alignAndInterpolateLyrics(payload) {
           const targetIdx = startNullIdx + k;
           const len = lengths[k];
           const share = (len / totalLength) * totalGap;
-          
+
           finalLyrics[targetIdx].start = Number(currentStart.toFixed(3));
           finalLyrics[targetIdx].end = Number((currentStart + share).toFixed(3));
-          
+
           currentStart += share;
         }
 
-        i = endNullIdx; // null 구간 건너뛰기
+        i = endNullIdx;
       } else {
         i++;
       }
@@ -174,12 +223,11 @@ async function alignAndInterpolateLyrics(payload) {
     for (const lyric of finalLyrics) {
       if (maxDuration !== null) {
         if (lyric.start > maxDuration) {
-          lyric.start = Number((maxDuration - 0.8).toFixed(3));
+          lyric.start = Number(Math.max(0, maxDuration - 0.8).toFixed(3));
         }
         if (lyric.end > maxDuration) {
           lyric.end = maxDuration;
         }
-        // 시간 왜곡 방지
         if (lyric.start >= lyric.end) {
           lyric.start = Number(Math.max(0, lyric.end - 0.8).toFixed(3));
         }
@@ -187,7 +235,6 @@ async function alignAndInterpolateLyrics(payload) {
 
       if (lyric.end <= lyric.start || lyric.end - lyric.start < 0.2) {
         lyric.end = Number((lyric.start + 0.8).toFixed(3));
-        // 가드 보정 후 재검증
         if (maxDuration !== null && lyric.end > maxDuration) {
           lyric.end = maxDuration;
           lyric.start = Number(Math.max(0, maxDuration - 0.8).toFixed(3));
@@ -200,18 +247,41 @@ async function alignAndInterpolateLyrics(payload) {
       lyric.id = `align_${String(idx + 1).padStart(3, "0")}`;
     });
 
-    return { ok: true, lyrics: finalLyrics, source: "gemini" };
+    emitProgress({ type: "progress", stage: "saving", percent: 1.0 });
+
+    return {
+      ok: true,
+      lyrics: finalLyrics,
+      source: "gemini",
+      lyricsSource,
+      matchedCount: officialTimeMap.size,
+      totalCount: finalLyrics.length
+    };
 
   } catch (err) {
-    console.log(`[Aligner] AI Alignment failed, falling back to whisper lyrics: ${err.message}`);
-    // 크롤링이나 AI 정합이 실패한 경우, 수집해 두었던 Whisper 분석 가사를 Fallback 대안으로 활용
+    if (err?.cancelled || err?.message === "cancelled" || signal?.aborted) {
+      return { ok: false, cancelled: true, error: "cancelled" };
+    }
+
+    const errorCode = classifyAlignError(failureStage, err);
+    console.warn(`[Aligner] AI Alignment failed at stage=${failureStage} (${errorCode}), falling back to whisper lyrics: ${err.message}`);
+
     const fallbackLyrics = whisperLyrics.map((lyric, idx) => ({
       id: `line_${String(idx + 1).padStart(3, "0")}`,
       start: lyric.start,
       end: lyric.end,
       text: lyric.text
     }));
-    return { ok: true, lyrics: fallbackLyrics, source: "whisper", warning: "fallback_to_whisper", errorDetail: err.message + "\n" + err.stack };
+    return {
+      ok: true,
+      lyrics: fallbackLyrics,
+      source: "whisper",
+      warning: "fallback_to_whisper",
+      failureStage,
+      errorCode,
+      errorMessage: err.message,
+      errorDetail: err.message + "\n" + (err.stack || "")
+    };
   }
 }
 

@@ -72,12 +72,15 @@ const state = {
   shuffle: false,
   repeatMode: "all",
   isAutoAnalyzing: false,
+  alignSuggestedTrackKey: null,
   embeddedLyricsLines: null,
   history: [],
   playlistFilter: "",
 };
 
-let saveTimer = null;
+const saveTimers = new Map();
+let trackSelectionSeq = 0;
+let autoAnalyzeTimer = null;
 
 // escapeHtml은 window.lyricsCore.escapeHtml로 일원화되었습니다.
 
@@ -195,36 +198,68 @@ function applyActiveTrackInfoUI(track) {
   updateMediaSessionMetadata(track);
 }
 
-function persistLyricsSoon() {
-  if (!state.track || state.lyrics.length === 0) {
-    return;
+function buildLyricsSaveSnapshot(explicitPayload = null) {
+  const track = explicitPayload?.track || state.track;
+  const rawLyrics = explicitPayload?.lyrics !== undefined ? explicitPayload.lyrics : state.lyrics;
+  if (!track?.cacheKey || !Array.isArray(rawLyrics) || rawLyrics.length === 0) {
+    return null;
   }
 
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    window.lyricsPlayer.saveCachedLyrics({
-      track: state.track,
-      lyrics: state.lyrics,
-      syncOffset: state.syncOffset,
-      embeddedPlainLyrics: state.embeddedLyricsLines,
-      metadata: { source: "local" }
-    });
-  }, 250);
+  const embeddedPlainLyrics = explicitPayload?.embeddedPlainLyrics !== undefined
+    ? explicitPayload.embeddedPlainLyrics
+    : state.embeddedLyricsLines;
+
+  return {
+    track: { ...track },
+    lyrics: rawLyrics.map((line) => ({ ...line })),
+    syncOffset: explicitPayload?.syncOffset !== undefined ? explicitPayload.syncOffset : state.syncOffset,
+    embeddedPlainLyrics: Array.isArray(embeddedPlainLyrics) ? [...embeddedPlainLyrics] : null,
+    metadata: explicitPayload?.metadata || { source: "local" }
+  };
 }
 
-function persistLyricsImmediately() {
-  if (!state.track || state.lyrics.length === 0) {
+function persistLyricsSoon(explicitPayload = null) {
+  const snapshot = buildLyricsSaveSnapshot(explicitPayload);
+  if (!snapshot) {
     return;
   }
 
-  clearTimeout(saveTimer);
-  return window.lyricsPlayer.saveCachedLyrics({
-    track: state.track,
-    lyrics: state.lyrics,
-    syncOffset: state.syncOffset,
-    embeddedPlainLyrics: state.embeddedLyricsLines,
-    metadata: { source: "local" }
-  });
+  const cacheKey = snapshot.track.cacheKey;
+  const existing = saveTimers.get(cacheKey);
+  if (existing) {
+    clearTimeout(existing.timerId);
+  }
+
+  const timerId = setTimeout(() => {
+    saveTimers.delete(cacheKey);
+    window.lyricsPlayer.saveCachedLyrics(snapshot);
+  }, 250);
+
+  saveTimers.set(cacheKey, { timerId, snapshot });
+}
+
+function persistLyricsImmediately(explicitPayload = null) {
+  const snapshot = buildLyricsSaveSnapshot(explicitPayload);
+  if (!snapshot) {
+    return;
+  }
+
+  const cacheKey = snapshot.track.cacheKey;
+  const existing = saveTimers.get(cacheKey);
+  if (existing) {
+    clearTimeout(existing.timerId);
+    saveTimers.delete(cacheKey);
+  }
+
+  return window.lyricsPlayer.saveCachedLyrics(snapshot);
+}
+
+function flushPendingLyricsSaves() {
+  for (const [cacheKey, entry] of saveTimers.entries()) {
+    clearTimeout(entry.timerId);
+    saveTimers.delete(cacheKey);
+    window.lyricsPlayer.saveCachedLyrics(entry.snapshot).catch(() => {});
+  }
 }
 
 // -------------------------------------------------------------
@@ -276,6 +311,14 @@ const playlist = new PlaylistManager(state, {
     }
   },
   onClearPlaylist: () => {
+    if (autoAnalyzeTimer) {
+      clearTimeout(autoAnalyzeTimer);
+      autoAnalyzeTimer = null;
+    }
+    state.alignSuggestedTrackKey = null;
+    flushPendingLyricsSaves();
+    lyricsJobManager.cancelActiveJob({ silent: true }).catch(() => {});
+
     // 플레이리스트 전체 비우기 시의 동기화 처리
     player.setEnabled(false);
     player.loadTrack({ url: "" }, false);
@@ -359,8 +402,7 @@ const settingsView = new SettingsView(state, {
     updateVocalIsolationChipUI();
 
     if (state.settings.autoAnalyzeMode !== "off" && state.track && state.lyrics.length === 0 && !state.isTranscribing) {
-      state.isAutoAnalyzing = true;
-      lyricsJobManager.handleAnalyzeClick();
+      lyricsJobManager.handleAnalyzeClick({ isAuto: true, expectedTrackKey: state.track.cacheKey });
     }
   },
   onVocalModelStatusChange: (status) => {
@@ -371,10 +413,12 @@ const settingsView = new SettingsView(state, {
 
 const lyricsJobManager = new LyricsJobManager(state, player, lyricsViewer, settingsView, {
   persistLyricsSoon,
+  persistLyricsImmediately,
   updateAlignButtonState,
   updateAnalyzeButtonState,
   updateVocalIsolationChipUI,
-  updateTrackStatusBadge
+  updateTrackStatusBadge,
+  updateDeleteCacheButtonState
 });
 
 const embedManager = new EmbedManager(state, trackStatus, updateAlignButtonState);
@@ -445,11 +489,16 @@ function updateMediaSessionMetadata(track) {
 
 async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false) {
   if (index < 0 || index >= state.playlist.length) return;
+  const selectionSeq = ++trackSelectionSeq;
   state.activeLineId = null;
+  state.alignSuggestedTrackKey = null;
 
-  if (state.isTranscribing) {
-    lyricsJobManager.handleCancelClick().catch(() => {});
+  if (autoAnalyzeTimer) {
+    clearTimeout(autoAnalyzeTimer);
+    autoAnalyzeTimer = null;
   }
+  flushPendingLyricsSaves();
+  const cancelPromise = lyricsJobManager.cancelActiveJob({ silent: true }).catch(() => {});
 
   // 히스토리 기록
   if (!isFromHistory && state.currentIndex >= 0 && state.currentIndex !== index) {
@@ -541,9 +590,16 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
   lyricsViewer.setOffset(0);
   lyricsViewer.render();
 
-  // 캐시 가사 정보 로드
+  // 캐시 가사 정보 로드 (이전 작업 취소 완료와 병행 대기)
   trackStatus.textContent = "Loading cached lyrics…";
-  const cached = await window.lyricsPlayer.loadCachedLyrics(track);
+  const [cached] = await Promise.all([
+    window.lyricsPlayer.loadCachedLyrics(track),
+    cancelPromise
+  ]);
+
+  if (selectionSeq !== trackSelectionSeq || state.track !== track) {
+    return;
+  }
 
   // 내장 가사 존재 여부에 따른 Embed 버튼 하이라이트 지정
   const hasEmbedded = typeof cached?.hasEmbeddedLyrics === "boolean"
@@ -570,9 +626,10 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
       );
 
     if (shouldAutoAnalyze) {
-      state.isAutoAnalyzing = true;
-      setTimeout(() => {
-        lyricsJobManager.handleAnalyzeClick();
+      autoAnalyzeTimer = setTimeout(() => {
+        autoAnalyzeTimer = null;
+        if (selectionSeq !== trackSelectionSeq || state.track !== track) return;
+        lyricsJobManager.handleAnalyzeClick({ isAuto: true, expectedTrackKey: track.cacheKey });
       }, 100);
     }
   } else if (cached?.lyrics) {
@@ -587,9 +644,10 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
     trackStatus.textContent = "No cached lyrics. Press Analyze to generate.";
 
     if (state.settings.autoAnalyzeMode !== "off" && !state.isTranscribing) {
-      state.isAutoAnalyzing = true;
-      setTimeout(() => {
-        lyricsJobManager.handleAnalyzeClick();
+      autoAnalyzeTimer = setTimeout(() => {
+        autoAnalyzeTimer = null;
+        if (selectionSeq !== trackSelectionSeq || state.track !== track) return;
+        lyricsJobManager.handleAnalyzeClick({ isAuto: true, expectedTrackKey: track.cacheKey });
       }, 100);
     }
   }
@@ -623,6 +681,7 @@ if (deleteCacheButton) {
       if (res?.ok) {
         state.lyrics = [];
         state.syncOffset = 0;
+        state.alignSuggestedTrackKey = null;
         lyricsViewer.setOffset(0);
         lyricsViewer.render();
         trackStatus.textContent = "Cache deleted. Press Analyze to generate lyrics.";
@@ -654,6 +713,7 @@ function updateAlignButtonState() {
   const hasApiKey = !!(state.settings?.geminiApiKey || "").trim();
   const hasLyrics = state.lyrics && state.lyrics.length > 0;
   const isAligned = hasLyrics && state.lyrics[0]?.id?.startsWith("align_");
+  const isSuggested = !state.isTranscribing && hasApiKey && hasLyrics && !isAligned && state.alignSuggestedTrackKey === state.track?.cacheKey;
 
   const targets = [
     { btn: alignButton, baseLabel: "AI Align", realignLabel: "AI Realign" },
@@ -663,6 +723,7 @@ function updateAlignButtonState() {
   for (const { btn, baseLabel, realignLabel } of targets) {
     if (!btn) continue;
     btn.classList.toggle("realign-state", isAligned);
+    btn.classList.toggle("align-suggested", isSuggested);
 
     if (state.isTranscribing) {
       btn.disabled = true;

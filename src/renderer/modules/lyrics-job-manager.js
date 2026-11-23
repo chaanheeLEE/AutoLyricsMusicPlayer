@@ -4,7 +4,7 @@ class LyricsJobManager {
     this.player = player;
     this.lyricsViewer = lyricsViewer;
     this.settingsView = settingsView;
-    this.callbacks = callbacks; // { persistLyricsSoon, updateAlignButtonState }
+    this.callbacks = callbacks; // { persistLyricsSoon, persistLyricsImmediately, updateAlignButtonState, ... }
 
     this.analyzeButton = document.querySelector("#analyzeButton");
     this.cancelButton = document.querySelector("#cancelButton");
@@ -20,6 +20,11 @@ class LyricsJobManager {
     this.mainTranscriptionProgress = document.querySelector("#mainTranscriptionProgress");
     this.mainProgressLabel = document.querySelector("#mainProgressLabel");
     this.mainProgressBar = document.querySelector("#mainProgressBar");
+
+    this.jobSeq = 0;
+    this.activeJobId = null;
+    this.activeTrackKey = null;
+    this.activeStage = null;
 
     this._initEvents();
   }
@@ -37,6 +42,11 @@ class LyricsJobManager {
 
     // 백엔드 진행 상태 리스너 연동
     window.lyricsPlayer.onTranscriptionProgress((msg) => {
+      if (!this.activeJobId) return;
+      if (msg.jobId !== undefined && msg.jobId !== null && msg.jobId !== this.activeJobId) {
+        return;
+      }
+
       const STAGE_LABELS = {
         loading_model: "모델 불러오는 중…",
         converting: "오디오 변환 중…",
@@ -44,22 +54,93 @@ class LyricsJobManager {
         transcribing: "AI 가사 분석 중…",
         gemini_uploading: "Gemini에 음원 업로드 중…",
         gemini_transcribing: "Gemini 가사 분석 중…",
+        align_scraping: "공식 가사 검색 중…",
+        align_gemini: "AI 정밀 가사 정합 중…",
         saving: "저장 중…",
         cancelled: "취소됨",
       };
 
       if (msg.type === "progress") {
         const baseLabel = STAGE_LABELS[msg.stage] || "작업 진행 중…";
-        const label = msg.deviceLabel ? `${baseLabel} [${msg.deviceLabel}]` : baseLabel;
+        const deviceLabel = this._normalizeDeviceLabel(msg.deviceLabel);
+        const label = deviceLabel ? `${baseLabel} [${deviceLabel}]` : baseLabel;
         const percent = msg.percent !== undefined ? msg.percent : 0;
         this.showProgress(label, percent);
       } else if (msg.type === "segment") {
         this.showProgress(`가사 수신 중… (${msg.id})`, 0.9);
       } else if (msg.type === "error") {
         this.hideProgress();
-        this.trackStatus.textContent = `오류: ${msg.message}`;
+        if (!this.activeTrackKey || this.state.track?.cacheKey === this.activeTrackKey) {
+          this.trackStatus.textContent = `오류: ${msg.message}`;
+        }
       }
     });
+  }
+
+  _normalizeDeviceLabel(rawLabel) {
+    if (!rawLabel || typeof rawLabel !== "string") return "";
+    if (/gpu|cuda|dml|directml/i.test(rawLabel)) return "GPU";
+    if (/cpu/i.test(rawLabel)) return "CPU";
+    return "";
+  }
+
+  _isCurrentJob(jobId, trackKey) {
+    return this.activeJobId === jobId && Boolean(this.state.track && this.state.track.cacheKey === trackKey);
+  }
+
+  _finishJobIfCurrent(jobId) {
+    if (this.activeJobId !== jobId) return;
+    this.activeJobId = null;
+    this.activeTrackKey = null;
+    this.activeStage = null;
+    this.state.isTranscribing = false;
+    this.state.isAutoAnalyzing = false;
+    this.hideProgress();
+    this._setTranscribingUI(false);
+  }
+
+  async _saveBackgroundResult(targetTrack, lyrics, embeddedPlainLyrics, source) {
+    if (!targetTrack?.cacheKey || !Array.isArray(lyrics) || lyrics.length === 0) {
+      return;
+    }
+    const payload = {
+      track: targetTrack,
+      lyrics,
+      syncOffset: 0,
+      embeddedPlainLyrics: embeddedPlainLyrics || null,
+      metadata: { source }
+    };
+    try {
+      if (this.callbacks.persistLyricsImmediately) {
+        await this.callbacks.persistLyricsImmediately(payload);
+      } else {
+        await window.lyricsPlayer.saveCachedLyrics(payload);
+      }
+      console.log(`[JobManager] Background job completed for switched track (${targetTrack.title}); saved safely to original track cache.`);
+    } catch (err) {
+      console.warn("[JobManager] Failed to persist background job result:", err);
+    }
+  }
+
+  _formatAlignFallbackMessage(result) {
+    const code = result?.errorCode;
+    if (code === "scrape_timeout") {
+      return "AI 정합 실패 (공식 가사 검색 시간 초과) · 1차 분석 가사 유지";
+    }
+    if (code === "scrape_not_found" || code === "empty_official_lyrics") {
+      return "AI 정합 실패 (일치하는 공식 가사 미발견) · 1차 분석 가사 유지";
+    }
+    if (code === "gemini_timeout") {
+      return "AI 정합 실패 (Gemini 응답 시간 초과) · 1차 분석 가사 유지";
+    }
+    if (code === "gemini_api_error") {
+      return "AI 정합 실패 (Gemini API 오류) · 1차 분석 가사 유지";
+    }
+    if (code === "no_valid_matches") {
+      return "AI 정합 실패 (가사 싱크 매칭 불가) · 1차 분석 가사 유지";
+    }
+    const detail = result?.errorMessage || result?.errorDetail?.split("\n")[0] || "unknown error";
+    return `AI Alignment Failed: ${detail}`;
   }
 
   _setTranscribingUI(isTranscribing, isAligning = false) {
@@ -68,21 +149,15 @@ class LyricsJobManager {
     const alignButtons = [this.alignButton, this.mainAlignButton];
 
     if (isTranscribing) {
-      if (isAligning) {
-        analyzeButtons.forEach((btn) => {
-          if (btn) btn.disabled = true;
-        });
-      } else {
-        analyzeButtons.forEach((btn) => {
-          if (btn) btn.style.display = "none";
-        });
-        cancelButtons.forEach((btn) => {
-          if (btn) {
-            btn.style.display = "";
-            btn.disabled = false;
-          }
-        });
-      }
+      analyzeButtons.forEach((btn) => {
+        if (btn) btn.style.display = "none";
+      });
+      cancelButtons.forEach((btn) => {
+        if (btn) {
+          btn.style.display = "";
+          btn.disabled = false;
+        }
+      });
       alignButtons.forEach((btn) => {
         if (btn) btn.disabled = true;
       });
@@ -135,28 +210,77 @@ class LyricsJobManager {
     }
   }
 
-  async handleAnalyzeClick() {
+  async cancelActiveJob({ silent = false } = {}) {
+    const hadActive = Boolean(this.activeJobId || this.state.isTranscribing || this.state.isAutoAnalyzing);
+
+    // 곡 전환·사용자 취소 시 즉시 현재 작업 토큰과 UI 상태를 무효화해 경합 차단
+    this.activeJobId = null;
+    this.activeTrackKey = null;
+    this.activeStage = null;
+    this.state.isTranscribing = false;
+    this.state.isAutoAnalyzing = false;
+
+    this._setTranscribingUI(false);
+    this.hideProgress();
+    if (!silent) {
+      this.trackStatus.textContent = "Analysis cancelled.";
+    }
+
+    if (hadActive) {
+      try {
+        await window.lyricsPlayer.cancelTranscription();
+      } catch (err) {
+        console.warn("[JobManager] cancelTranscription failed:", err);
+      }
+    }
+  }
+
+  async handleAnalyzeClick({ isAuto = false, expectedTrackKey = null } = {}) {
     if (!this.state.track) {
       this.state.isAutoAnalyzing = false;
+      return;
+    }
+    if (expectedTrackKey && this.state.track.cacheKey !== expectedTrackKey) {
+      return;
+    }
+    if (this.state.isTranscribing) {
       return;
     }
 
     // Gemini API Engine 사용 시 API Key 필수 검증
     if (this.state.settings.sttEngine === "gemini" && (!this.state.settings.geminiApiKey || !this.state.settings.geminiApiKey.trim())) {
-      alert("Gemini API Engine을 사용하려면 설정에서 Gemini API Key를 입력해야 합니다.");
       this.state.isAutoAnalyzing = false;
-      this.settingsView.open();
+      if (isAuto) {
+        this.trackStatus.textContent = "자동 분석 건너뜀: Gemini API Key가 설정되지 않았습니다.";
+      } else {
+        alert("Gemini API Engine을 사용하려면 설정에서 Gemini API Key를 입력해야 합니다.");
+        this.settingsView.open();
+      }
       return;
     }
 
+    // 작업 시작 시점의 대상 트랙/가사/설정을 스냅샷으로 고정해 곡 전환 오염 차단
+    const targetTrack = {
+      ...this.state.track,
+      duration: this.player.getDuration()
+    };
+    const originalTrackKey = targetTrack.cacheKey;
+    const targetEmbeddedLyrics = Array.isArray(this.state.embeddedLyricsLines)
+      ? [...this.state.embeddedLyricsLines]
+      : null;
+    const targetSettings = { ...(this.state.settings || {}) };
+
+    const jobId = ++this.jobSeq;
+    this.activeJobId = jobId;
+    this.activeTrackKey = originalTrackKey;
+    this.activeStage = "transcribing";
     this.state.isTranscribing = true;
+    this.state.isAutoAnalyzing = Boolean(isAuto);
+    this.state.alignSuggestedTrackKey = null;
     this._setTranscribingUI(true, false);
 
-    const originalTrackKey = this.state.track.cacheKey;
+    const options = { ...targetSettings, jobId };
 
-    // Whisper 설정 및 힌트 프롬프트 구성
-    const options = { ...(this.state.settings || {}) };
-    
     if (options.sttEngine === "gemini") {
       this.showProgress("Gemini에 음원 업로드 중…", 0.1);
       this.trackStatus.textContent = "Uploading & Analyzing…";
@@ -164,8 +288,9 @@ class LyricsJobManager {
       this.showProgress("오디오 변환 중…", 0);
       this.trackStatus.textContent = "Analyzing…";
     }
-    if (this.state.embeddedLyricsLines && this.state.embeddedLyricsLines.length > 0) {
-      const openingHint = this.state.embeddedLyricsLines
+
+    if (targetEmbeddedLyrics && targetEmbeddedLyrics.length > 0) {
+      const openingHint = targetEmbeddedLyrics
         .map((line) => (typeof line === "string" ? line.trim() : ""))
         .filter((line) => line && !/^[\[\(].*[\]\)]$/.test(line))
         .slice(0, 4)
@@ -180,64 +305,94 @@ class LyricsJobManager {
       options.beamSize = 5;
     }
 
-    // 음악의 실제 총 길이를 백엔드에 제공하기 위해 duration 속성 주입
-    const trackPayload = {
-      ...(this.state.track || {}),
-      duration: this.player.getDuration()
-    };
+    const sttSource = options.sttEngine === "gemini" ? "gemini" : "whisper";
+    const result = await window.lyricsPlayer.startTranscription(targetTrack, options);
 
-    const result = await window.lyricsPlayer.startTranscription(trackPayload, options);
-
-    if (!this.state.track || this.state.track.cacheKey !== originalTrackKey) {
-      this.state.isAutoAnalyzing = false;
-      this.state.isTranscribing = false;
-      this._setTranscribingUI(false);
-      this.hideProgress();
+    // 작업 중 다른 곡으로 전환되었거나 취소된 경우: 현재 화면 상태를 건드리지 않고 원곡 캐시만 안전 저장
+    if (!this._isCurrentJob(jobId, originalTrackKey)) {
+      if (!result?.cancelled && result?.ok && result.lyrics?.length > 0) {
+        await this._saveBackgroundResult(targetTrack, result.lyrics, targetEmbeddedLyrics, sttSource);
+      }
       return;
     }
 
-    this.state.isTranscribing = false;
-    this.hideProgress();
+    if (result?.cancelled) {
+      this._finishJobIfCurrent(jobId);
+      return;
+    }
 
     if (result?.ok && result.lyrics?.length > 0) {
       this.state.lyrics = result.lyrics;
       this.lyricsViewer.setOffset(0);
-      this.trackStatus.textContent = `Transcription complete. ${result.lyrics.length} lines found.`;
-      this._setTranscribingUI(false);
       this.lyricsViewer.render();
       this.lyricsViewer.updateActive(this.player.getCurrentTime(), this.player.isPlaying());
-      this.callbacks.persistLyricsSoon();
 
-      if (this.state.isAutoAnalyzing && this.state.settings.autoAnalyzeMode === "align" && (this.state.settings.geminiApiKey || "").trim().length > 0) {
-        setTimeout(() => {
-          this.alignButton.click();
-        }, 500);
+      await (this.callbacks.persistLyricsImmediately
+        ? this.callbacks.persistLyricsImmediately({
+            track: targetTrack,
+            lyrics: result.lyrics,
+            syncOffset: 0,
+            embeddedPlainLyrics: targetEmbeddedLyrics,
+            metadata: { source: sttSource }
+          })
+        : Promise.resolve());
+
+      if (this.callbacks.updateDeleteCacheButtonState) {
+        this.callbacks.updateDeleteCacheButtonState();
       }
-    } else if (result?.ok && result.lyrics?.length === 0) {
-      this.trackStatus.textContent = "No speech detected. Check settings or audio file.";
-      this._setTranscribingUI(false);
-    } else {
-      this.trackStatus.textContent = `Analysis failed: ${result?.error || "unknown error"}`;
-      this._setTranscribingUI(false);
+
+      if (isAuto && targetSettings.autoAnalyzeMode === "align") {
+        if ((targetSettings.geminiApiKey || "").trim().length > 0) {
+          await this._runAlignment({
+            jobId,
+            targetTrack,
+            whisperLyrics: result.lyrics,
+            embeddedLyricsLines: targetEmbeddedLyrics,
+            settings: targetSettings,
+            fromAutoAnalyze: true
+          });
+          return;
+        }
+        this.state.alignSuggestedTrackKey = null;
+        this.trackStatus.textContent = `1차 분석 완료 (${result.lyrics.length}줄) · Gemini API Key 미설정으로 AI 정합 건너뜀`;
+        this._finishJobIfCurrent(jobId);
+        return;
+      }
+
+      if ((targetSettings.geminiApiKey || "").trim().length > 0) {
+        this.state.alignSuggestedTrackKey = originalTrackKey;
+        this.trackStatus.textContent = `1차 분석 완료 (${result.lyrics.length}줄) · 'AI 정합'으로 공식 가사에 맞출 수 있습니다.`;
+      } else {
+        this.state.alignSuggestedTrackKey = null;
+        this.trackStatus.textContent = `1차 분석 완료 (${result.lyrics.length}줄).`;
+      }
+      this._finishJobIfCurrent(jobId);
+      return;
     }
 
-    this.state.isAutoAnalyzing = false;
+    if (result?.ok && result.lyrics?.length === 0) {
+      this.trackStatus.textContent = "No speech detected. Check settings or audio file.";
+    } else {
+      console.error("[JobManager] Transcription failed:", result?.error);
+      this.trackStatus.textContent = `Analysis failed: ${result?.error || "unknown error"}`;
+    }
+
+    this._finishJobIfCurrent(jobId);
   }
 
   async handleCancelClick() {
     [this.cancelButton, this.mainCancelButton].forEach((btn) => {
       if (btn) btn.disabled = true;
     });
-    await window.lyricsPlayer.cancelTranscription();
-    this.state.isTranscribing = false;
-    this._setTranscribingUI(false);
-    this.hideProgress();
-    this.trackStatus.textContent = "Analysis cancelled.";
+    await this.cancelActiveJob({ silent: false });
   }
 
   async handleAlignClick() {
     if (!this.state.track || this.state.lyrics.length === 0) {
       this.trackStatus.textContent = "No lyrics to align. Run Analyze first.";
+      return;
+    }
+    if (this.state.isTranscribing) {
       return;
     }
 
@@ -248,43 +403,105 @@ class LyricsJobManager {
       return;
     }
 
+    const targetTrack = {
+      ...this.state.track,
+      duration: this.player.getDuration()
+    };
+    const whisperLyrics = this.state.lyrics.map((line) => ({ ...line }));
+    const embeddedLyricsLines = Array.isArray(this.state.embeddedLyricsLines)
+      ? [...this.state.embeddedLyricsLines]
+      : null;
+    const settings = { ...(this.state.settings || {}) };
+
+    const jobId = ++this.jobSeq;
+    this.activeJobId = jobId;
+    this.activeTrackKey = targetTrack.cacheKey;
+
+    await this._runAlignment({
+      jobId,
+      targetTrack,
+      whisperLyrics,
+      embeddedLyricsLines,
+      settings,
+      fromAutoAnalyze: false
+    });
+  }
+
+  async _runAlignment({ jobId, targetTrack, whisperLyrics, embeddedLyricsLines, settings, fromAutoAnalyze = false }) {
+    const originalTrackKey = targetTrack.cacheKey;
+    if (!this._isCurrentJob(jobId, originalTrackKey)) {
+      return;
+    }
+
+    this.activeStage = "aligning";
     this.state.isTranscribing = true;
+    this.state.alignSuggestedTrackKey = null;
     this._setTranscribingUI(true, true);
-    this.showProgress("AI 정밀 가사 정합 중…", 0.5);
-    this.trackStatus.textContent = "AI Alignment in progress…";
+    this.showProgress("AI 정밀 가사 정합 준비 중…", 0.2);
+    this.trackStatus.textContent = fromAutoAnalyze
+      ? "1차 분석 완료 · AI 정밀 가사 정합 중…"
+      : "AI 정밀 가사 정합 중…";
 
     try {
       const result = await window.lyricsPlayer.alignLyrics({
-        track: this.state.track,
-        whisperLyrics: this.state.lyrics,
-        settings: this.state.settings,
-        embeddedLyricsLines: this.state.embeddedLyricsLines || null
+        jobId,
+        track: targetTrack,
+        whisperLyrics,
+        settings,
+        embeddedLyricsLines: embeddedLyricsLines || null
       });
+
+      if (!this._isCurrentJob(jobId, originalTrackKey)) {
+        if (!result?.cancelled && result?.ok && result.source === "gemini" && result.lyrics?.length > 0) {
+          await this._saveBackgroundResult(targetTrack, result.lyrics, embeddedLyricsLines, "gemini_align");
+        }
+        return;
+      }
+
+      if (result?.cancelled) {
+        return;
+      }
 
       if (result?.ok && result.lyrics?.length > 0) {
         this.state.lyrics = result.lyrics;
         this.lyricsViewer.setOffset(0);
-        
+
         if (result.warning === "fallback_to_whisper") {
-          console.error("[Aligner] Fallback to whisper active. AI Align Error detail:\n", result.errorDetail);
-          this.trackStatus.textContent = `AI Alignment Failed: ${result.errorDetail.split('\n')[0]}`;
+          console.warn(
+            `[Aligner] Fallback to whisper active (stage=${result.failureStage}, code=${result.errorCode}):\n`,
+            result.errorDetail
+          );
+          this.trackStatus.textContent = this._formatAlignFallbackMessage(result);
         } else {
-          this.trackStatus.textContent = `AI Alignment complete. ${result.lyrics.length} official lines mapped.`;
+          const sourceLabel = result.lyricsSource === "embedded" ? "내장 가사" : "웹 가사";
+          this.trackStatus.textContent = `AI 가사 정합 완료 (${result.lyrics.length}줄 · ${sourceLabel} 기준)`;
+          await (this.callbacks.persistLyricsImmediately
+            ? this.callbacks.persistLyricsImmediately({
+                track: targetTrack,
+                lyrics: result.lyrics,
+                syncOffset: 0,
+                embeddedPlainLyrics: embeddedLyricsLines,
+                metadata: { source: "gemini_align" }
+              })
+            : Promise.resolve());
         }
 
         this.lyricsViewer.render();
         this.lyricsViewer.updateActive(this.player.getCurrentTime(), this.player.isPlaying());
-        this.callbacks.persistLyricsSoon();
-        this.callbacks.updateAlignButtonState();
+        if (this.callbacks.updateDeleteCacheButtonState) {
+          this.callbacks.updateDeleteCacheButtonState();
+        }
       } else {
+        console.error("[JobManager] Alignment failed:", result?.error);
         this.trackStatus.textContent = `AI Alignment failed: ${result?.error || "unknown error"}`;
       }
     } catch (error) {
-      this.trackStatus.textContent = `AI Alignment failed: ${error.message}`;
+      console.error("[JobManager] Alignment exception:", error);
+      if (this._isCurrentJob(jobId, originalTrackKey)) {
+        this.trackStatus.textContent = `AI Alignment failed: ${error.message}`;
+      }
     } finally {
-      this.state.isTranscribing = false;
-      this._setTranscribingUI(false);
-      this.hideProgress();
+      this._finishJobIfCurrent(jobId);
     }
   }
 }

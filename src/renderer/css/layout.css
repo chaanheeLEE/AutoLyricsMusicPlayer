@@ -543,9 +543,25 @@ h2 {
   font-weight: 600;
 }
 
+@keyframes alignSuggestPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 28%, transparent);
+  }
+}
+
 #mainAlignButton.realign-state {
   border-color: color-mix(in srgb, var(--accent) 40%, var(--border-subtle));
   color: var(--text-primary);
+}
+
+#mainAlignButton.align-suggested {
+  background: var(--surface-selected);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  animation: alignSuggestPulse 1.6s ease-in-out 3;
 }
 
 #mainAlignButton:hover:not(:disabled) {
@@ -673,6 +689,13 @@ input[type="range"] {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--surface-selected);
+}
+
+#alignButton.align-suggested {
+  background: var(--surface-selected);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  animation: alignSuggestPulse 1.6s ease-in-out 3;
 }
 
 #embedAudioButton.highlight-blue {
