@@ -176,6 +176,39 @@
     };
   }
 
+  function syncShuffleQueue(playlist, currentTrack, existingQueue = [], randomFn = Math.random) {
+    if (!Array.isArray(playlist) || playlist.length <= 1) {
+      return [];
+    }
+
+    const playlistSet = new Set(playlist);
+    const seen = new Set();
+    const validQueue = [];
+
+    if (Array.isArray(existingQueue)) {
+      for (const track of existingQueue) {
+        if (playlistSet.has(track) && track !== currentTrack && !seen.has(track)) {
+          seen.add(track);
+          validQueue.push(track);
+        }
+      }
+    }
+
+    if (validQueue.length > 0) {
+      return validQueue;
+    }
+
+    const pool = playlist.filter((track) => track !== currentTrack);
+    const deck = pool.length > 0 ? pool : [...playlist];
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(randomFn() * (i + 1));
+      const tmp = deck[i];
+      deck[i] = deck[j];
+      deck[j] = tmp;
+    }
+    return deck;
+  }
+
   const api = {
     clampTime,
     formatClock,
@@ -187,7 +220,8 @@
     escapeHtml,
     parseTimeString,
     adjustTimestamp,
-    resolveTrackMeta
+    resolveTrackMeta,
+    syncShuffleQueue
   };
 
   if (typeof module !== "undefined" && module.exports) {

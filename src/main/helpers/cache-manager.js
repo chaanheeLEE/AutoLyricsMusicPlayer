@@ -94,6 +94,7 @@ async function loadLyricsCache(track) {
     return result;
   }
 
+  lyricsRamCache.set(track.cacheKey, null);
   return null;
 }
 

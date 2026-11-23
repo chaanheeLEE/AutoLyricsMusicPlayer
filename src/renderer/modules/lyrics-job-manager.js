@@ -85,6 +85,13 @@ class LyricsJobManager {
     return "";
   }
 
+  _resolveTrackDuration(track) {
+    const playerDur = this.player.getDuration();
+    if (Number.isFinite(playerDur) && playerDur > 0) return playerDur;
+    const metaDur = Number(track?.duration);
+    return Number.isFinite(metaDur) && metaDur > 0 ? metaDur : null;
+  }
+
   _isCurrentJob(jobId, trackKey) {
     return this.activeJobId === jobId && Boolean(this.state.track && this.state.track.cacheKey === trackKey);
   }
@@ -269,7 +276,7 @@ class LyricsJobManager {
     // 작업 시작 시점의 대상 트랙/가사/설정을 스냅샷으로 고정해 곡 전환 오염 차단
     const targetTrack = {
       ...this.state.track,
-      duration: this.player.getDuration()
+      duration: this._resolveTrackDuration(this.state.track)
     };
     const originalTrackKey = targetTrack.cacheKey;
     const targetEmbeddedLyrics = Array.isArray(this.state.embeddedLyricsLines)
@@ -330,6 +337,7 @@ class LyricsJobManager {
 
     if (result?.ok && result.lyrics?.length > 0) {
       this.state.lyrics = result.lyrics;
+      this.state.lyricsSource = sttSource;
       this.lyricsViewer.setOffset(0);
       this.lyricsViewer.render();
       this.lyricsViewer.updateActive(this.player.getCurrentTime(), this.player.isPlaying());
@@ -412,7 +420,7 @@ class LyricsJobManager {
 
     const targetTrack = {
       ...this.state.track,
-      duration: this.player.getDuration()
+      duration: this._resolveTrackDuration(this.state.track)
     };
     const whisperLyrics = this.state.lyrics.map((line) => ({ ...line }));
     const embeddedLyricsLines = Array.isArray(this.state.embeddedLyricsLines)
@@ -471,6 +479,7 @@ class LyricsJobManager {
 
       if (result?.ok && result.lyrics?.length > 0) {
         this.state.lyrics = result.lyrics;
+        this.state.lyricsSource = result.warning === "fallback_to_whisper" ? "whisper" : "gemini_align";
         this.lyricsViewer.setOffset(0);
 
         if (result.warning === "fallback_to_whisper") {

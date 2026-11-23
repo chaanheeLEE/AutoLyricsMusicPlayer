@@ -216,18 +216,18 @@
 
             <!-- 섹션 3: 접이식 AI 분석 도구 -->
             <details id="editAnalysisDetails" class="edit-analysis-details" open>
-              <summary class="edit-section-summary">AI 분석 및 정렬 도구 (Analysis tools)</summary>
+              <summary class="edit-section-summary">AI 가사 분석 및 정합 도구</summary>
               <div class="edit-analysis-body">
-                <p class="edit-section-desc">음성 인식(Whisper/Gemini)으로 타임스탬프를 추출하거나 공식 가사와 대조 정렬합니다.</p>
+                <p class="edit-section-desc">AI 음성 인식으로 가사 타임스탬프를 추출하거나 공식 가사와 정밀 정합합니다.</p>
                 <div class="edit-btn-row">
                   <button id="analyzeButton" class="edit-btn primary" type="button" disabled style="flex: 1;">
-                    AI 가사 분석 (Analyze)
+                    AI 가사 분석
                   </button>
                   <button id="cancelButton" class="edit-btn danger" type="button" disabled style="display: none;">
-                    취소 (Cancel)
+                    분석 취소
                   </button>
                   <button id="alignButton" class="edit-btn accent" type="button" disabled style="flex: 1;">
-                    AI 정밀 정합 (AI Align)
+                    AI 정합
                   </button>
                 </div>
 
@@ -438,7 +438,7 @@
           </div>
         </div>
 
-        <!-- 1. General App Tab Content (일반: 테마, 자동화, 캐시) -->
+        <!-- 1. General App Tab Content (일반: 테마, 캐시) -->
         <div id="tabAppContent" class="tab-content active">
           <div class="settings-card">
             <div class="settings-card-header">화면 및 테마</div>
@@ -452,24 +452,6 @@
                 <select id="settingTheme" name="theme">
                   <option value="lyra" selected>Lyra Lavender (라벤더 다크)</option>
                   <option value="emerald">Emerald Dark (에메랄드 다크)</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div class="settings-card">
-            <div class="settings-card-header">자동화 워크플로우</div>
-
-            <div class="settings-item">
-              <div class="settings-info">
-                <label for="settingAutoAnalyzeMode">곡 로드 시 자동 분석</label>
-                <p>가사가 없는 곡을 재생할 때 백그라운드에서 자동으로 가사를 추출합니다.</p>
-              </div>
-              <div class="settings-control">
-                <select id="settingAutoAnalyzeMode" name="autoAnalyzeMode">
-                  <option value="off">사용 안 함 (수동 분석)</option>
-                  <option value="analyze">가사 자동 분석만 수행 (선택 엔진)</option>
-                  <option value="align">가사 자동 분석 + AI 정렬 동시 수행 (Gemini 필요)</option>
                 </select>
               </div>
             </div>
@@ -526,7 +508,26 @@
             </div>
           </div>
 
-          <!-- Card 2: Local Whisper Engine & CUDA Acceleration -->
+          <!-- Card 2: Automation Workflow -->
+          <div class="settings-card">
+            <div class="settings-card-header">자동화 워크플로우</div>
+
+            <div class="settings-item">
+              <div class="settings-info">
+                <label for="settingAutoAnalyzeMode">곡 전환 시 자동 분석</label>
+                <p id="autoAnalyzeDesc">가사(또는 싱크)가 없는 곡으로 전환하면 자동으로 AI 가사 분석을 시작합니다.</p>
+              </div>
+              <div class="settings-control">
+                <select id="settingAutoAnalyzeMode" name="autoAnalyzeMode">
+                  <option value="off">사용 안 함 (수동 분석)</option>
+                  <option value="analyze">1차 가사 분석만 자동 수행</option>
+                  <option value="align">1차 가사 분석 + AI 정합 자동 수행 (Gemini 필요)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 3: Local Whisper Engine & CUDA Acceleration -->
           <div class="settings-card" id="whisperSettingsCard">
             <div class="settings-card-header">로컬 Whisper 엔진 및 하드웨어 가속</div>
 
@@ -620,14 +621,14 @@
             </div>
           </div>
 
-          <!-- Card 3: Gemini Cloud & AI Alignment -->
+          <!-- Card 4: Gemini Cloud & AI Alignment -->
           <div class="settings-card" id="geminiSettingsCard">
-            <div class="settings-card-header">Gemini 클라우드 & AI 정렬</div>
+            <div class="settings-card-header">Gemini 클라우드 & AI 정합</div>
             
             <div class="settings-item">
               <div class="settings-info">
                 <label for="settingGeminiKey">Gemini API Key</label>
-                <p>클라우드 음성 인식(STT) 및 정밀 가사 대조(AI Align)에 필요합니다.</p>
+                <p>클라우드 음성 인식(STT) 및 공식 가사 정합(AI 정합)에 필요합니다.</p>
               </div>
               <div class="settings-control">
                 <input type="password" id="settingGeminiKey" placeholder="API 키 입력" />
@@ -637,7 +638,7 @@
             <div class="settings-item" id="settingGeminiModelGroup">
               <div class="settings-info">
                 <label for="settingGeminiModel">Gemini AI 모델</label>
-                <p>클라우드 전사 및 AI 가사 정렬 시 사용할 모델입니다.</p>
+                <p>클라우드 전사 및 AI 가사 정합 시 사용할 모델입니다.</p>
               </div>
               <div class="settings-control">
                 <select id="settingGeminiModel" name="geminiModel">

@@ -26,6 +26,7 @@ class SettingsView {
     this.settingLanguage = document.querySelector("#settingLanguage");
     this.settingGeminiKey = document.querySelector("#settingGeminiKey");
     this.settingAutoAnalyzeMode = document.querySelector("#settingAutoAnalyzeMode");
+    this.autoAnalyzeDesc = document.querySelector("#autoAnalyzeDesc");
     this.settingModelGroup = document.querySelector("#settingModelGroup");
     this.settingWhisperDeviceGroup = document.querySelector("#settingWhisperDeviceGroup");
     this.settingGeminiModelGroup = document.querySelector("#settingGeminiModelGroup");
@@ -262,6 +263,11 @@ class SettingsView {
       if (!hasApiKey && this.settingAutoAnalyzeMode.value === "align") {
         this.settingAutoAnalyzeMode.value = "analyze";
       }
+    }
+    if (this.autoAnalyzeDesc) {
+      this.autoAnalyzeDesc.textContent = hasApiKey
+        ? "가사(또는 싱크)가 없는 곡으로 전환하면 자동으로 AI 가사 분석을 시작합니다."
+        : "가사(또는 싱크)가 없는 곡으로 전환하면 자동 분석을 시작합니다. 아래에서 Gemini API Key를 입력하면 'AI 정합'까지 자동화할 수 있습니다.";
     }
   }
 

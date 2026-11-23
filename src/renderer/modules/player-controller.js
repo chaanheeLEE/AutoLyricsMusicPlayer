@@ -177,6 +177,9 @@ class PlayerController {
     this.shuffleButton.title = `셔플: ${this.state.shuffle ? "ON" : "OFF"}`;
     this.shuffleButton.classList.toggle("active", this.state.shuffle);
     localStorage.setItem("shuffle", String(this.state.shuffle));
+    if (typeof this.callbacks.onShuffleChange === "function") {
+      this.callbacks.onShuffleChange(this.state.shuffle);
+    }
   }
 
   prev() {

@@ -228,7 +228,7 @@ class LyricsViewer {
         this.lyricsList.innerHTML = `
           <div class="empty-state">
             <h3>내장 가사 감지됨 (${this.state.embeddedLyricsLines.length}줄)</h3>
-            <p>Analyze를 실행하여 Whisper로 타임스탬프를 추출한 뒤,<br>AI Align으로 싱크를 적용하세요.</p>
+            <p>'AI 가사 분석'으로 타임스탬프를 추출한 뒤,<br>'AI 정합'으로 공식 가사에 싱크를 적용하세요.</p>
           </div>
         `;
       } else {
