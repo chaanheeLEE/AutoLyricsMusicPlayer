@@ -1,0 +1,20 @@
+name: 기능 제안 (Feature Request)
+description: ALP에 추가되었으면 하는 기능이나 UX 개선 아이디어를 제안합니다.
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: 제안 요약
+      description: 어떤 기능 또는 개선이 필요한지 작성해 주세요.
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: 필요한 이유 / 사용 시나리오
+      description: 이 기능이 어떤 불편함을 해결하는지 알려주세요.
+    validations:
+      required: false
