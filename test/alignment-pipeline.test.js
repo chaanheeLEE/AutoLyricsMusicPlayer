@@ -7,6 +7,11 @@ const {
 const {
   alignAndInterpolateLyrics,
 } = require("../src/main/helpers/lyrics-aligner");
+const {
+  GEMINI_FALLBACK_MODELS,
+  buildModelFallbackChain,
+  callGeminiApiWithRetry,
+} = require("../src/main/services/gemini-service");
 
 test("calculateBigramSimilarity supports Korean, English, and Japanese scripts", () => {
   const koA = "오늘 밤 별빛 아래서 너와 함께 걸어가네";
@@ -153,4 +158,116 @@ test("alignAndInterpolateLyrics invalidates time reversals, splits duplicates, a
   assert.equal(res.lyrics[2].start, 10.0);
   assert.equal(res.lyrics[3].start, 13.0);
   assert.equal(res.lyrics[3].end, 20);
+});
+
+test("buildModelFallbackChain preserves primary model first and deduplicates fallback models", () => {
+  assert.deepEqual(GEMINI_FALLBACK_MODELS, [
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-3.8-flash",
+  ]);
+  assert.deepEqual(buildModelFallbackChain("gemini-3.5-flash-lite"), [
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-3.8-flash",
+  ]);
+  assert.deepEqual(buildModelFallbackChain("gemini-3.1-flash-lite"), [
+    "gemini-3.1-flash-lite",
+    "gemini-3.5-flash-lite",
+    "gemini-3.8-flash",
+  ]);
+  assert.deepEqual(buildModelFallbackChain("gemini-3.8-flash"), [
+    "gemini-3.8-flash",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+  ]);
+});
+
+test("callGeminiApiWithRetry falls back to gemini-3.1-flash-lite on 503 high demand", async () => {
+  const calledModels = [];
+  const fallbacks = [];
+
+  const result = await callGeminiApiWithRetry(
+    "dummy-key",
+    "contents",
+    "sys",
+    { type: "ARRAY" },
+    "gemini-3.5-flash-lite",
+    2,
+    1,
+    {
+      generateContentFn: async ({ model }) => {
+        calledModels.push(model);
+        if (model === "gemini-3.5-flash-lite") {
+          const err = new Error('{"error":{"code":503,"message":"This model is currently experiencing high demand.","status":"UNAVAILABLE"}}');
+          err.status = 503;
+          throw err;
+        }
+        return { text: JSON.stringify([{ official_index: 0, whisper_id: "line_001" }]) };
+      },
+      onFallback: (info) => fallbacks.push(info)
+    }
+  );
+
+  assert.deepEqual(calledModels, [
+    "gemini-3.5-flash-lite",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite"
+  ]);
+  assert.equal(fallbacks.length, 1);
+  assert.equal(fallbacks[0].fromModel, "gemini-3.5-flash-lite");
+  assert.equal(fallbacks[0].toModel, "gemini-3.1-flash-lite");
+  assert.deepEqual(result, [{ official_index: 0, whisper_id: "line_001" }]);
+});
+
+test("callGeminiApiWithRetry fails fast on 401 API_KEY_INVALID without fallback", async () => {
+  const calledModels = [];
+
+  await assert.rejects(
+    () =>
+      callGeminiApiWithRetry(
+        "bad-key",
+        "contents",
+        "sys",
+        { type: "ARRAY" },
+        "gemini-3.5-flash-lite",
+        2,
+        1,
+        {
+          generateContentFn: async ({ model }) => {
+            calledModels.push(model);
+            const err = new Error("API_KEY_INVALID");
+            err.status = 401;
+            throw err;
+          }
+        }
+      ),
+    /API_KEY_INVALID/
+  );
+
+  assert.deepEqual(calledModels, ["gemini-3.5-flash-lite"]);
+});
+
+test("alignAndInterpolateLyrics classifies 503 high demand errors as gemini_overloaded", async () => {
+  const res = await alignAndInterpolateLyrics(
+    {
+      track: { title: "Test Song", duration: 120 },
+      whisperLyrics: [{ id: "line_001", start: 1.0, end: 3.5, text: "test lyric" }],
+      settings: { geminiApiKey: "dummy-key" },
+      embeddedLyricsLines: ["official test lyric"]
+    },
+    {
+      deps: {
+        alignLyricsWithGemini: async () => {
+          throw new Error("Gemini API failed across models: 503 This model is currently experiencing high demand (UNAVAILABLE)");
+        }
+      }
+    }
+  );
+
+  assert.equal(res.ok, true);
+  assert.equal(res.source, "whisper");
+  assert.equal(res.warning, "fallback_to_whisper");
+  assert.equal(res.failureStage, "gemini");
+  assert.equal(res.errorCode, "gemini_overloaded");
 });

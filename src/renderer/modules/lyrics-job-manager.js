@@ -56,6 +56,7 @@ class LyricsJobManager {
         gemini_transcribing: "Gemini 가사 분석 중…",
         align_scraping: "공식 가사 검색 중…",
         align_gemini: "AI 정밀 가사 정합 중…",
+        align_gemini_fallback: "AI 서버 혼잡 · 예비 모델로 정합 재시도 중…",
         saving: "저장 중…",
         cancelled: "취소됨",
       };
@@ -132,6 +133,12 @@ class LyricsJobManager {
     }
     if (code === "gemini_timeout") {
       return "AI 정합 실패 (Gemini 응답 시간 초과) · 1차 분석 가사 유지";
+    }
+    if (code === "gemini_overloaded") {
+      return "AI 정합 실패 (서버 혼잡 · 503) · 잠시 후 다시 시도하세요 (1차 분석 가사 유지)";
+    }
+    if (code === "gemini_rate_limited") {
+      return "AI 정합 실패 (요청 한도 초과 · 429) · 잠시 후 다시 시도하세요 (1차 분석 가사 유지)";
     }
     if (code === "gemini_api_error") {
       return "AI 정합 실패 (Gemini API 오류) · 1차 분석 가사 유지";

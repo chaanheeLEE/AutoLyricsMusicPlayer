@@ -9,6 +9,8 @@ function classifyAlignError(failureStage, err) {
     return "scrape_not_found";
   }
   if (failureStage === "gemini") {
+    if (/503|UNAVAILABLE|high demand|overloaded/i.test(msg)) return "gemini_overloaded";
+    if (/429|RESOURCE_EXHAUSTED|quota|rate limit/i.test(msg)) return "gemini_rate_limited";
     if (/timed out/i.test(msg)) return "gemini_timeout";
     return "gemini_api_error";
   }
@@ -77,7 +79,13 @@ async function alignAndInterpolateLyrics(payload, runtimeOptions = {}) {
     failureStage = "gemini";
     emitProgress({ type: "progress", stage: "align_gemini", percent: 0.55 });
     const geminiModel = settings?.geminiModel || "gemini-3.5-flash-lite";
-    const alignment = await alignFn(apiKey, officialLines, whisperLyrics, geminiModel, maxDuration, { signal });
+    const alignment = await alignFn(apiKey, officialLines, whisperLyrics, geminiModel, maxDuration, {
+      signal,
+      onFallback: ({ fromModel, toModel }) => {
+        console.warn(`[Aligner] Model ${fromModel} overloaded/unavailable, falling back to ${toModel}`);
+        emitProgress({ type: "progress", stage: "align_gemini_fallback", percent: 0.65 });
+      }
+    });
 
     if (signal?.aborted) {
       return { ok: false, cancelled: true, error: "cancelled" };

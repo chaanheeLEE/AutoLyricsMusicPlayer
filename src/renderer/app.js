@@ -396,7 +396,7 @@ function switchView(viewName) {
 
 const settingsView = new SettingsView(state, {
   onSave: (savedSettings) => {
-    const engineText = savedSettings.sttEngine === "gemini" ? `Gemini API (${savedSettings.geminiModel || "gemini-3.1-flash-lite"})` : `Local Whisper (${savedSettings.model})`;
+    const engineText = savedSettings.sttEngine === "gemini" ? `Gemini API (${savedSettings.geminiModel || "gemini-3.5-flash-lite"})` : `Local Whisper (${savedSettings.model})`;
     trackStatus.textContent = `Settings saved. Engine: ${engineText}, Language: ${savedSettings.language || "auto"}.`;
     updateAlignButtonState();
     updateVocalIsolationChipUI();
