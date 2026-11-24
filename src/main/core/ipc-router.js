@@ -15,7 +15,19 @@ const modelManager = require("../services/model-manager");
 const cudaManager = require("../services/cuda-manager");
 const vocalModelManager = require("../services/vocal-model-manager");
 
-let activeJob = null;
+let activeTranscriptionJob = null;
+let activeAlignController = null;
+
+function cancelAllActiveJobs() {
+  if (activeTranscriptionJob) {
+    activeTranscriptionJob.cancel();
+    activeTranscriptionJob = null;
+  }
+  if (activeAlignController) {
+    activeAlignController.abort();
+    activeAlignController = null;
+  }
+}
 
 async function createTrackObject(filePath) {
   try {
@@ -210,13 +222,17 @@ function registerIpcHandlers(windowManager) {
 
   ipcMain.handle("transcription:start", async (event, payload) => {
     const mainWindow = windowManager.getMainWindow();
-    if (activeJob) {
-      activeJob.cancel();
-      activeJob = null;
-    }
+    cancelAllActiveJobs();
 
     const track = payload?.track;
     const options = payload?.options || {};
+    const jobId = options.jobId ?? null;
+
+    const sendJobProgress = (jobRef, msg) => {
+      if (activeTranscriptionJob === jobRef && mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("transcription:progress", { ...msg, jobId });
+      }
+    };
 
     if (!track?.path) {
       return { ok: false, error: "missing_track_path" };
@@ -228,62 +244,61 @@ function registerIpcHandlers(windowManager) {
         return { ok: false, error: "missing_api_key" };
       }
 
-      let cancelled = false;
-      activeJob = {
+      const abortController = new AbortController();
+      const jobRef = {
         cancel() {
-          cancelled = true;
+          abortController.abort();
         }
       };
+      activeTranscriptionJob = jobRef;
 
       try {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send("transcription:progress", {
-            type: "progress",
-            stage: "gemini_uploading",
-            percent: 0.2
-          });
-        }
+        sendJobProgress(jobRef, {
+          type: "progress",
+          stage: "gemini_uploading",
+          percent: 0.2
+        });
 
-        if (cancelled) throw new Error("cancelled");
+        if (abortController.signal.aborted) {
+          return { ok: false, cancelled: true, error: "cancelled" };
+        }
 
         const { transcribeAudioWithGemini } = require("../services/gemini-service");
 
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send("transcription:progress", {
-            type: "progress",
-            stage: "gemini_transcribing",
-            percent: 0.5
-          });
+        sendJobProgress(jobRef, {
+          type: "progress",
+          stage: "gemini_transcribing",
+          percent: 0.5
+        });
+
+        const lines = await transcribeAudioWithGemini(
+          apiKey,
+          track.path,
+          track.duration,
+          options.geminiModel || "gemini-3.5-flash-lite",
+          { signal: abortController.signal }
+        );
+
+        if (abortController.signal.aborted) {
+          return { ok: false, cancelled: true, error: "cancelled" };
         }
 
-        if (cancelled) throw new Error("cancelled");
+        sendJobProgress(jobRef, {
+          type: "progress",
+          stage: "saving",
+          percent: 1.0
+        });
 
-        const lines = await transcribeAudioWithGemini(apiKey, track.path, track.duration, options.geminiModel || "gemini-3.5-flash-lite");
-
-        if (cancelled) throw new Error("cancelled");
-
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send("transcription:progress", {
-            type: "progress",
-            stage: "saving",
-            percent: 1.0
-          });
-        }
-
-        activeJob = null;
         return { ok: true, lyrics: lines };
       } catch (err) {
-        activeJob = null;
-        if (err.message === "cancelled") {
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send("transcription:progress", {
-              type: "progress",
-              stage: "cancelled"
-            });
-          }
-          return { ok: false, error: "cancelled" };
+        if (err?.cancelled || err?.message === "cancelled" || abortController.signal.aborted) {
+          return { ok: false, cancelled: true, error: "cancelled" };
         }
         return { ok: false, error: err.message };
+      } finally {
+        if (activeTranscriptionJob === jobRef) {
+          activeTranscriptionJob = null;
+        }
       }
     }
 
@@ -298,31 +313,50 @@ function registerIpcHandlers(windowManager) {
     }
 
     return new Promise((resolve) => {
-      const job = startTranscription(track, workerOptions, (msg) => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send("transcription:progress", msg);
+      let jobCancelled = false;
+      const jobHolder = {
+        job: null,
+        cancel() {
+          jobCancelled = true;
+          if (this.job) {
+            this.job.cancel();
+          }
+        }
+      };
+      activeTranscriptionJob = jobHolder;
+
+      jobHolder.job = startTranscription(track, workerOptions, (msg) => {
+        if (!jobCancelled) {
+          sendJobProgress(jobHolder, msg);
         }
       });
 
-      activeJob = job;
-
-      job.promise
+      jobHolder.job.promise
         .then((lines) => {
-          activeJob = null;
+          if (activeTranscriptionJob === jobHolder) {
+            activeTranscriptionJob = null;
+          }
+          if (jobCancelled) {
+            resolve({ ok: false, cancelled: true, error: "cancelled" });
+            return;
+          }
           resolve({ ok: true, lyrics: lines });
         })
         .catch((err) => {
-          activeJob = null;
+          if (activeTranscriptionJob === jobHolder) {
+            activeTranscriptionJob = null;
+          }
+          if (jobCancelled || err?.cancelled || err?.message === "cancelled") {
+            resolve({ ok: false, cancelled: true, error: "cancelled" });
+            return;
+          }
           resolve({ ok: false, error: err.message });
         });
     });
   });
 
   ipcMain.handle("transcription:cancel", () => {
-    if (activeJob) {
-      activeJob.cancel();
-      activeJob = null;
-    }
+    cancelAllActiveJobs();
     return { ok: true };
   });
 
@@ -347,7 +381,35 @@ function registerIpcHandlers(windowManager) {
   });
 
   ipcMain.handle("lyrics:align", async (_event, payload) => {
-    return await lyricsAligner.alignAndInterpolateLyrics(payload);
+    const mainWindow = windowManager.getMainWindow();
+    if (activeAlignController) {
+      activeAlignController.abort();
+      activeAlignController = null;
+    }
+
+    const abortController = new AbortController();
+    activeAlignController = abortController;
+    const jobId = payload?.jobId ?? null;
+
+    try {
+      return await lyricsAligner.alignAndInterpolateLyrics(payload, {
+        signal: abortController.signal,
+        onProgress: (msg) => {
+          if (
+            !abortController.signal.aborted &&
+            activeAlignController === abortController &&
+            mainWindow &&
+            !mainWindow.isDestroyed()
+          ) {
+            mainWindow.webContents.send("transcription:progress", { ...msg, jobId });
+          }
+        }
+      });
+    } finally {
+      if (activeAlignController === abortController) {
+        activeAlignController = null;
+      }
+    }
   });
 
   // Whisper 모델 관리 IPC

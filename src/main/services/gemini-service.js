@@ -5,49 +5,213 @@ const os = require("node:os");
 const crypto = require("node:crypto");
 const { transcribeSystemInstruction, alignSystemInstruction } = require("./gemini-prompts");
 
-/**
- * Gemini 모델을 호출하여 공식 가사와 Whisper STT 결과를 정밀 정렬합니다.
- * 공식 Google GenAI SDK를 활용해 스키마 번역 오류를 완벽히 해소하고, Exponential Backoff를 통한 재시도를 수행합니다.
- */
-async function callGeminiApiWithRetry(apiKey, contents, systemInstruction, responseSchema, geminiModel = "gemini-3.5-flash-lite", retries = 3, delay = 1000) {
-  const ai = new GoogleGenAI({ apiKey: apiKey });
+const GEMINI_FALLBACK_MODELS = [
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-flash-lite",
+  "gemini-3.8-flash",
+];
 
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      const response = await ai.models.generateContent({
-        model: geminiModel,
-        contents: contents,
-        config: {
-          systemInstruction: systemInstruction,
-          responseMimeType: "application/json",
-          responseSchema: responseSchema
-        }
-      });
+function createCancelledError() {
+  const err = new Error("cancelled");
+  err.cancelled = true;
+  return err;
+}
 
-      const responseText = response.text;
-      if (!responseText) {
-        throw new Error("Empty text returned from Gemini API");
-      }
-
-      // JSON 파싱 검증
-      const parsedJson = JSON.parse(responseText);
-      return parsedJson;
-
-    } catch (err) {
-      console.warn(`Gemini API call attempt ${attempt} failed: ${err.message}`);
-      if (attempt === retries) {
-        throw new Error(`Gemini API failed after ${retries} attempts: ${err.message}`);
-      }
-      // Exponential Backoff 대기
-      await new Promise((r) => setTimeout(r, delay * attempt));
+function buildModelFallbackChain(primaryModel) {
+  const first = (typeof primaryModel === "string" && primaryModel.trim())
+    ? primaryModel.trim()
+    : GEMINI_FALLBACK_MODELS[0];
+  const chain = [first];
+  for (const model of GEMINI_FALLBACK_MODELS) {
+    if (!chain.includes(model)) {
+      chain.push(model);
     }
   }
+  return chain;
+}
+
+function isAuthOrBadRequestError(err) {
+  const status = Number(err?.status || err?.code || 0);
+  if ([400, 401, 403].includes(status)) {
+    return true;
+  }
+  const msg = String(err?.message || "");
+  return /API_KEY_INVALID|INVALID_ARGUMENT|PERMISSION_DENIED|\b(400|401|403)\b/i.test(msg);
+}
+
+function isModelNotFoundError(err) {
+  const status = Number(err?.status || err?.code || 0);
+  if (status === 404) {
+    return true;
+  }
+  const msg = String(err?.message || "");
+  return /NOT_FOUND|\b404\b|is not found/i.test(msg);
+}
+
+function isOverloadOrRateLimitError(err) {
+  const status = Number(err?.status || err?.code || 0);
+  if (status === 429 || status === 503) {
+    return true;
+  }
+  const msg = String(err?.message || "");
+  return /\b(429|503)\b|UNAVAILABLE|RESOURCE_EXHAUSTED|high demand|overloaded|try again later/i.test(msg);
+}
+
+function sleepWithSignal(ms, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(createCancelledError());
+      return;
+    }
+    const timer = setTimeout(() => {
+      if (signal) signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(createCancelledError());
+    };
+    if (signal) {
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
+  });
+}
+
+async function withAbortAndTimeout(promiseFactory, { signal, timeoutMs = 45000 } = {}) {
+  if (signal?.aborted) {
+    throw createCancelledError();
+  }
+
+  let timer = null;
+  let onAbort = null;
+
+  const racePromises = [promiseFactory()];
+
+  if (timeoutMs > 0) {
+    racePromises.push(new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        reject(new Error(`Gemini API request timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+    }));
+  }
+
+  if (signal) {
+    racePromises.push(new Promise((_, reject) => {
+      onAbort = () => reject(createCancelledError());
+      signal.addEventListener("abort", onAbort, { once: true });
+    }));
+  }
+
+  try {
+    return await Promise.race(racePromises);
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (signal && onAbort) signal.removeEventListener("abort", onAbort);
+  }
+}
+
+async function generateWithFallback({
+  apiKey,
+  aiInstance = null,
+  contents,
+  config,
+  primaryModel = "gemini-3.5-flash-lite",
+  retries = 2,
+  delay = 1500,
+  signal = null,
+  timeoutMs = 45000,
+  onFallback = null,
+  generateContentFn = null,
+  parseJson = false
+}) {
+  const modelChain = buildModelFallbackChain(primaryModel);
+  const ai = generateContentFn ? null : (aiInstance || new GoogleGenAI({ apiKey }));
+  const callModel = generateContentFn || ((req) => ai.models.generateContent(req));
+
+  let lastError = null;
+
+  for (let modelIdx = 0; modelIdx < modelChain.length; modelIdx++) {
+    const model = modelChain[modelIdx];
+    if (modelIdx > 0 && typeof onFallback === "function") {
+      onFallback({
+        fromModel: modelChain[modelIdx - 1],
+        toModel: model,
+        reason: lastError?.message || "unavailable"
+      });
+    }
+
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      if (signal?.aborted) {
+        throw createCancelledError();
+      }
+
+      try {
+        const response = await withAbortAndTimeout(
+          () => callModel({ model, contents, config }),
+          { signal, timeoutMs }
+        );
+
+        const responseText = response?.text;
+        if (!responseText) {
+          throw new Error("Empty text returned from Gemini API");
+        }
+
+        return parseJson ? JSON.parse(responseText) : responseText;
+      } catch (err) {
+        if (err?.cancelled || signal?.aborted) {
+          throw createCancelledError();
+        }
+        if (isAuthOrBadRequestError(err)) {
+          throw err;
+        }
+
+        lastError = err;
+        if (isModelNotFoundError(err)) {
+          console.warn(`[Gemini] Model ${model} unavailable (404/not found); switching to fallback model.`);
+          break;
+        }
+
+        console.warn(`[Gemini] ${model} attempt ${attempt}/${retries} failed: ${err.message}`);
+        if (attempt < retries) {
+          const jitter = isOverloadOrRateLimitError(err) ? Math.floor(Math.random() * 500) : 0;
+          await sleepWithSignal(delay * attempt + jitter, signal);
+        }
+      }
+    }
+  }
+
+  throw new Error(`Gemini API failed across models [${modelChain.join(", ")}]: ${lastError?.message || "unknown error"}`);
+}
+
+/**
+ * Gemini 모델을 호출하여 공식 가사와 Whisper STT 결과를 정밀 정렬합니다.
+ * 503/429 등 과부하 발생 시 재시도 및 대체 모델(3.1-flash-lite 등) 자동 폴백을 수행합니다.
+ */
+async function callGeminiApiWithRetry(apiKey, contents, systemInstruction, responseSchema, geminiModel = "gemini-3.5-flash-lite", retries = 2, delay = 1500, options = {}) {
+  const { signal, timeoutMs = 45000, onFallback, generateContentFn } = options || {};
+  return await generateWithFallback({
+    apiKey,
+    contents,
+    config: {
+      systemInstruction,
+      responseMimeType: "application/json",
+      responseSchema
+    },
+    primaryModel: geminiModel,
+    retries,
+    delay,
+    signal,
+    timeoutMs,
+    onFallback,
+    generateContentFn,
+    parseJson: true
+  });
 }
 
 /**
  * 공식 가사 라인 배열과 Whisper 분석 결과를 받아 정렬을 수행합니다.
  */
-async function alignLyricsWithGemini(apiKey, officialLines, whisperLyrics, geminiModel = "gemini-3.5-flash-lite", duration = null) {
+async function alignLyricsWithGemini(apiKey, officialLines, whisperLyrics, geminiModel = "gemini-3.5-flash-lite", duration = null, options = {}) {
   const systemInstruction = alignSystemInstruction;
 
   const formatTime = (t) => (t !== null && t !== undefined && !isNaN(t)) ? `${t.toFixed(2)}s` : "unknown";
@@ -76,7 +240,7 @@ async function alignLyricsWithGemini(apiKey, officialLines, whisperLyrics, gemin
     }
   };
 
-  return await callGeminiApiWithRetry(apiKey, contents, systemInstruction, responseSchema, geminiModel);
+  return await callGeminiApiWithRetry(apiKey, contents, systemInstruction, responseSchema, geminiModel, 2, 1500, options);
 }
 
 /**
@@ -174,7 +338,12 @@ function parseTranscriptionResponse(rawText) {
  * Gemini File API와 GenerateContent를 활용하여 로컬 오디오 파일을 텍스트(STT)로 변환합니다.
  * 타임스탬프 정보를 정확하게 JSON 형식으로 반환받습니다.
  */
-async function transcribeAudioWithGemini(apiKey, filePath, duration = null, geminiModel = "gemini-3.5-flash-lite") {
+async function transcribeAudioWithGemini(apiKey, filePath, duration = null, geminiModel = "gemini-3.5-flash-lite", options = {}) {
+  const { signal, timeoutMs = 90000 } = options || {};
+  if (signal?.aborted) {
+    throw createCancelledError();
+  }
+
   const ai = new GoogleGenAI({ apiKey: apiKey });
 
   const ext = path.extname(filePath).toLowerCase();
@@ -193,14 +362,20 @@ async function transcribeAudioWithGemini(apiKey, filePath, duration = null, gemi
   try {
     console.log(`[Gemini STT] Copying file to temp path to bypass non-ASCII path issues: ${tempFilePath}`);
     await fs.copyFile(filePath, tempFilePath);
+    if (signal?.aborted) {
+      throw createCancelledError();
+    }
 
     console.log(`[Gemini STT] Uploading file to Gemini File API: ${tempFilePath} (${mimeType})`);
-    
-    uploadResult = await ai.files.upload({
-      file: tempFilePath,
-      mimeType: mimeType
-    });
-    
+
+    uploadResult = await withAbortAndTimeout(
+      () => ai.files.upload({
+        file: tempFilePath,
+        mimeType: mimeType
+      }),
+      { signal, timeoutMs }
+    );
+
     console.log(`[Gemini STT] Upload complete. File URI: ${uploadResult.uri}`);
 
     // File API 업로드 후 ACTIVE 상태 대기
@@ -208,11 +383,24 @@ async function transcribeAudioWithGemini(apiKey, filePath, duration = null, gemi
     let fileInfo = uploadResult;
     let attempts = 0;
     while (fileState === "PROCESSING" && attempts < 15) {
+      if (signal?.aborted) {
+        throw createCancelledError();
+      }
       console.log(`[Gemini STT] File is processing, waiting 2s...`);
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      fileInfo = await ai.files.get({ name: uploadResult.name });
+      await sleepWithSignal(2000, signal);
+      if (signal?.aborted) {
+        throw createCancelledError();
+      }
+      fileInfo = await withAbortAndTimeout(
+        () => ai.files.get({ name: uploadResult.name }),
+        { signal, timeoutMs: 15000 }
+      );
       fileState = fileInfo.state;
       attempts++;
+    }
+
+    if (signal?.aborted) {
+      throw createCancelledError();
     }
 
     if (fileState !== "ACTIVE") {
@@ -252,8 +440,9 @@ async function transcribeAudioWithGemini(apiKey, filePath, duration = null, gemi
       }
     };
 
-    const response = await ai.models.generateContent({
-      model: geminiModel || "gemini-3.5-flash-lite",
+    const text = await generateWithFallback({
+      apiKey,
+      aiInstance: ai,
       contents: [{
         role: "user",
         parts: [
@@ -265,12 +454,24 @@ async function transcribeAudioWithGemini(apiKey, filePath, duration = null, gemi
         systemInstruction,
         responseMimeType: "application/json",
         responseSchema
-      }
+      },
+      primaryModel: geminiModel || GEMINI_FALLBACK_MODELS[0],
+      retries: 2,
+      delay: 1500,
+      signal,
+      timeoutMs,
+      onFallback: ({ fromModel, toModel, reason }) => {
+        console.warn(`[Gemini STT] Model ${fromModel} overloaded/unavailable (${reason}), falling back to ${toModel}`);
+        if (typeof options?.onFallback === "function") {
+          options.onFallback({ fromModel, toModel, reason });
+        }
+      },
+      generateContentFn: options?.generateContentFn || null,
+      parseJson: false
     });
 
-    const text = response.text;
-    if (!text) {
-      throw new Error("No transcription returned from Gemini");
+    if (signal?.aborted) {
+      throw createCancelledError();
     }
 
     const segments = parseTranscriptionResponse(text);
@@ -300,6 +501,9 @@ async function transcribeAudioWithGemini(apiKey, filePath, duration = null, gemi
 }
 
 module.exports = {
+  GEMINI_FALLBACK_MODELS,
+  buildModelFallbackChain,
+  callGeminiApiWithRetry,
   alignLyricsWithGemini,
   transcribeAudioWithGemini
 };

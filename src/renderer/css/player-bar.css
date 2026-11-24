@@ -77,12 +77,12 @@
   height: 12px;
 }
 
-/* 2. 메인 바 내용 (3구역 분할: 좌측 정보 / 중앙 5버튼 컨트롤 / 우측 볼륨·도구) */
+/* 2. 메인 바 내용 (3구역 대칭 그리드: 좌측 정보 / 중앙 5버튼 컨트롤 / 우측 볼륨·도구) */
 .player-bar-body {
   flex: 1;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   padding: 0 24px 6px;
   gap: 20px;
 }
@@ -92,9 +92,9 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  min-width: 200px;
+  min-width: 0;
   max-width: 320px;
-  flex: 1 1 0;
+  justify-self: start;
 }
 
 .player-bar-art-wrap {
@@ -156,6 +156,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  justify-self: center;
 }
 
 .player-bar-controls {
@@ -182,7 +183,6 @@
 }
 
 .bar-btn svg,
-.bar-pill-btn svg,
 .volume-icon-btn svg {
   display: block;
   pointer-events: none;
@@ -240,8 +240,8 @@
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
-  min-width: 200px;
-  flex: 1 1 0;
+  min-width: 0;
+  justify-self: end;
 }
 
 .volume-box {
@@ -299,33 +299,16 @@
   transform: scale(1.18);
 }
 
-.bar-pill-btn {
-  border: 1px solid var(--border-subtle);
-  background: var(--surface-hover);
+.bar-action-icon-btn {
+  width: 34px;
+  height: 34px;
+  color: var(--text-secondary);
+}
+
+.bar-action-icon-btn:hover:not(:disabled) {
   color: var(--text-primary);
-  border-radius: var(--radius-sm);
-  height: 30px;
-  padding: 0 10px;
-  font-size: 0.76rem;
-  font-weight: 500;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  cursor: pointer;
-  transition: all 120ms ease;
 }
 
-.bar-pill-btn:hover:not(:disabled) {
-  border-color: var(--accent);
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.bar-pill-btn:active:not(:disabled) {
-  transform: scale(0.97);
-}
-
-.bar-pill-btn.active {
-  border-color: var(--accent);
+.bar-action-icon-btn.active {
   color: var(--accent);
-  background: var(--surface-selected);
 }

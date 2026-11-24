@@ -311,10 +311,8 @@ def main():
             nonlocal prepared_vocal_audio, vocal_separation_attempted
 
             def format_ort_provider(provider_name):
-                if provider_name == "DmlExecutionProvider":
-                    return "GPU · DirectML"
-                if provider_name == "CUDAExecutionProvider":
-                    return "GPU · CUDA"
+                if provider_name in ("DmlExecutionProvider", "CUDAExecutionProvider"):
+                    return "GPU"
                 return "CPU"
 
             if args.vocal_model and os.path.exists(args.vocal_model) and not vocal_separation_attempted:
@@ -365,7 +363,7 @@ def main():
                     emit({"type": "info", "message": f"Vocal separation failed ({str(sep_exc)}); falling back to original audio."})
 
             audio_input = prepared_vocal_audio if prepared_vocal_audio is not None else args.audio_path
-            whisper_device_label = "GPU · CUDA" if resolved_device == "cuda" else "CPU"
+            whisper_device_label = "GPU" if resolved_device == "cuda" else "CPU"
             emit({
                 "type": "progress",
                 "stage": "transcribing",

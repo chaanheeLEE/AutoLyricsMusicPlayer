@@ -4,6 +4,43 @@
 
 ---
 
+## 2026-11-24 — 트랙 프리페치·셔플 덱 고도화, 자동화 진입 속도 개선 및 설정·용어 정비
+- **순차·셔플 다음 트랙 프리페치 및 가사 즉시 로딩 (`app.js`, `cache-manager.js`, `lyrics-core.js`, `player-controller.js`)**:
+  - `state.playlist` 기준 프리페치를 복구하고 미보유 가사도 RAM 캐시(`null`)에 기록해 중복 디스크 스캔을 제거했습니다.
+  - Fisher-Yates 기반 비반복 셔플 순서표(`syncShuffleQueue`)와 앞으로가기 스택(`forwardHistory`)을 도입해, 랜덤 재생에서도 다음 예정 곡을 정확히 사전 적재하고 `이전 곡 → 다음 곡` 이동 시 원래 곡으로 일관되게 복귀하도록 개선했습니다.
+  - 곡 전환 시 이전 작업 취소(`cancelPromise`) 대기와 가사 캐시 로드를 분리해 싱크 가사를 즉시 렌더링하고, 프리페치(`180ms`)와 자동 분석 진입(`200ms` 디바운스)을 비동기로 예약해 연속 스킵 시 반응 속도를 높였습니다.
+- **자동화 설정 탭 통합, `AI 정합` 용어 통일 및 버튼 상태 정밀화 (`index.html`, `settings-view.js`, `lyrics-job-manager.js`, `lyrics-viewer.js`, `embed-manager.js`)**:
+  - `자동화 워크플로우` 카드를 `AI 및 음성 분석` 탭으로 통합하고 Gemini API Key 입력 여부에 따른 동적 안내 문구를 추가했습니다.
+  - 가사 편집 화면과 설정 창의 `AI 정렬` / 영문 혼용 라벨을 `AI 가사 분석` · `AI 재분석` · `분석 취소` · `AI 정합` · `AI 재정합`으로 통일했습니다.
+  - 곡 전환 시 가사 상태 초기화 순서를 바로잡고 가사 출처(`state.lyricsSource`)를 구분해, 미분석 곡이나 내장/외부 LRC 곡에 `AI 재분석`이 오표시되던 문제를 해결했습니다.
+
+---
+
+## 2026-11-24 — 메인 화면 UI·UX 정리 및 상단 창 드래그 영역 확대
+- **상단 글로벌 바 창 드래그 영역 확대 (`layout.css`)**:
+  - `.app-nav` 내 컨테이너(`.nav-brand`, `.nav-tabs`, `.nav-actions`, `.window-controls`)의 `no-drag`를 해제하고 실제 버튼·입력 요소에만 `no-drag`를 제한해 상단 바 빈 공간 전체에서 창 이동이 가능하도록 개선했습니다.
+- **우측 하단 재생바 간소화, 대기열 토글 일원화 및 중앙 정렬 (`index.html`, `app.js`, `player-bar.css`)**:
+  - 상단 바의 중복 대기열 버튼(`#navQueueToggleBtn`)을 제거하고 우측 하단 재생바에 플로팅 가사창(`#floatingButton`)·재생 대기열(`#queueToggleButton`) 아이콘 전용 버튼을 나란히 배치했습니다.
+  - `.player-bar-body`를 3열 대칭 그리드(`minmax(0, 1fr) auto minmax(0, 1fr)`)로 재구성해 좌우 트랙 정보·액션 길이에 무관하게 중앙 5버튼 컨트롤이 항상 화면 정중앙에 오도록 맞췄습니다.
+- **좌측 감상 패널 곡 정보 ↔ AI 제어 영역 위계 분리 및 좌우 대칭 보정 (`index.html`, `layout.css`)**:
+  - 곡 메타정보와 하단 AI 상태 배지·버튼 영역(`.track-ai-section`) 사이에 여백 및 은은한 구분선(`border-top`)을 추가해 가독성을 높였습니다.
+  - 감상 화면 좌측 컬럼 너비를 `272px`(`.track-copy` `max-width: 240px`)로 고정해 좌측 여백(`32px`)과 우측 구분선 앞 여백(`32px`)을 대칭으로 맞췄습니다.
+
+---
+
+## 2026-11-24 — AI 분석·정합 안정화, Cross-track 오염 차단 및 Gemini 멀티 모델 폴백
+- **곡 전환 시 Cross-track 가사 오염 차단 (`lyrics-job-manager.js`, `app.js`, `ipc-router.js`, `transcription-worker.js`)**:
+  - 분석·정합 시작 시 대상 트랙·설정·내장 가사를 스냅샷으로 고정하고 작업 토큰(`jobId`)으로 진행률·결과 이벤트를 격리해, 작업 중 곡을 넘겨도 새 곡의 가사/상태를 덮어쓰지 않고 완료된 결과만 원곡 캐시에 안전 저장하도록 개선했습니다.
+  - `persistLyricsSoon()`을 트랙별 `saveTimers` 스냅샷 저장으로 전환하고, `selectPlaylistItem()`에 시퀀스 가드·자동 분석 타이머 정리·이전 작업 취소(`ffmpeg`/Whisper/Gemini/Align 통합 중단) 병행 대기를 적용했습니다.
+- **AI 분석·정합 자동화 라인 및 검색·진단 강화 (`lyrics-aligner.js`, `lyrics-scraper.js`, `transcribe.py`, `layout.css`)**:
+  - `autoAnalyzeMode === "align"` 시 DOM `.click()`·`500ms` 우회를 제거하고 `_runAlignment()` 직접 체이닝으로 전환했으며, 수동 1차 분석 완료 및 정합 폴백·실패 시 `AI 정합` 버튼 시각 강조(`.align-suggested`)와 재시도 안내 문구를 제공합니다.
+  - LRCLIB 다중 쿼리(`아티스트 + 곡명` → `정제 곡명` → `Artist - Title` 분할), 다국어 유니코드(`\p{L}\p{N}`) 유사도 매칭·최고 유사도 후보 선택, 12초 타임아웃 및 0건 매칭 시 Whisper 안전 폴백을 적용했습니다.
+  - 분석 진행 표시의 장치 안내를 `GPU` / `CPU`로 단순화했습니다.
+- **Gemini 3.1 Flash-Lite 추가 및 503/429 멀티 모델 자동 폴백 (`gemini-service.js`, `index.html`, `test/alignment-pipeline.test.js`)**:
+  - 설정 창 Gemini 모델 선택지에 `gemini-3.1-flash-lite`를 추가하고, `503`/`429` 과부하 발생 시 `3.5-flash-lite ↔ 3.1-flash-lite ↔ 3.8-flash` 간 자동 폴백과 상태 메시지 구분(`503` 서버 혼잡 / `429` 한도 초과)을 구현했습니다.
+
+---
+
 ## 2026-11-22 — 경량 ONNX 보컬 분리(Vocal Separation) 전처리 & DirectML GPU 가속
 - **순수 `numpy` + `onnxruntime-directml` 보컬 분리 모듈 (`src/main/services/vocal_separator.py`, `transcribe.py`)**:
   - PyTorch/Demucs 없이 `onnxruntime-directml`(`+11.13 MB`) 기반 `CUDA → DirectML(NVIDIA·AMD·Intel GPU) → CPU` 자동 가속 파이프라인을 구축해 `UVR-MDX-NET-Voc_FT.onnx`로 44.1kHz 스테레오 보컬 스템을 추출하고 `16kHz float32` 파형으로 Whisper에 전달합니다.

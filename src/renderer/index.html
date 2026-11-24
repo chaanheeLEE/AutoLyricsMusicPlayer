@@ -19,16 +19,6 @@
       <div class="nav-actions">
         <button id="navEditLyricsBtn" class="nav-btn accent-pill" type="button" title="가사 편집 화면으로 전환">가사 편집</button>
         <button id="openTrackButton" class="nav-btn" type="button">+ 음악 추가</button>
-        <button id="navQueueToggleBtn" class="nav-icon-btn active" type="button" aria-label="재생 대기열" title="재생 대기열 (Up next)">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <line x1="8" y1="6" x2="21" y2="6"/>
-            <line x1="8" y1="12" x2="21" y2="12"/>
-            <line x1="8" y1="18" x2="15" y2="18"/>
-            <line x1="3" y1="6" x2="3.01" y2="6"/>
-            <line x1="3" y1="12" x2="3.01" y2="12"/>
-            <line x1="3" y1="18" x2="3.01" y2="18"/>
-          </svg>
-        </button>
         <button id="settingsButton" class="nav-icon-btn" type="button" aria-label="Settings" title="설정">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
@@ -69,27 +59,29 @@
               <h2 id="trackTitle"><span>No track selected</span></h2>
               <p id="trackArtist" class="track-artist">-</p>
               <p id="trackAlbumMeta" class="track-album-meta" style="display: none;"></p>
-              <span id="trackStatusBadge" class="track-status-badge">대기 중</span>
-              <div id="mainAnalysisActions" class="main-analysis-actions">
-                <button id="mainAnalyzeButton" class="edit-btn primary main-action-btn" type="button" disabled title="AI 음성 인식으로 가사를 분석합니다">
-                  AI 가사 분석
-                </button>
-                <button id="mainCancelButton" class="edit-btn danger main-action-btn" type="button" disabled style="display: none;" title="진행 중인 AI 분석을 취소합니다">
-                  분석 취소
-                </button>
-                <button id="mainAlignButton" class="edit-btn accent main-action-btn" type="button" disabled title="Gemini AI로 공식 가사와 타임스탬프를 정밀 정합합니다">
-                  AI 정합
-                </button>
-              </div>
-              <button id="mainVocalIsolationToggle" class="vocal-isolation-chip" type="button" style="display: none;" aria-pressed="false" title="로컬 Whisper 분석 전 반주에서 보컬을 분리합니다 (처리 시간 증가)">
-                <span class="vocal-chip-dot" aria-hidden="true"></span>
-                <span class="vocal-chip-label">보컬 분리: OFF</span>
-              </button>
-              <div id="mainTranscriptionProgress" class="transcription-progress main-transcription-progress" style="display: none;">
-                <div class="progress-bar-wrap">
-                  <div id="mainProgressBar" class="progress-bar" style="width: 0%;"></div>
+              <div class="track-ai-section">
+                <span id="trackStatusBadge" class="track-status-badge">대기 중</span>
+                <div id="mainAnalysisActions" class="main-analysis-actions">
+                  <button id="mainAnalyzeButton" class="edit-btn primary main-action-btn" type="button" disabled title="AI 음성 인식으로 가사를 분석합니다">
+                    AI 가사 분석
+                  </button>
+                  <button id="mainCancelButton" class="edit-btn danger main-action-btn" type="button" disabled style="display: none;" title="진행 중인 AI 분석을 취소합니다">
+                    분석 취소
+                  </button>
+                  <button id="mainAlignButton" class="edit-btn accent main-action-btn" type="button" disabled title="Gemini AI로 공식 가사와 타임스탬프를 정밀 정합합니다">
+                    AI 정합
+                  </button>
                 </div>
-                <p id="mainProgressLabel" class="progress-label">준비 중…</p>
+                <button id="mainVocalIsolationToggle" class="vocal-isolation-chip" type="button" style="display: none;" aria-pressed="false" title="로컬 Whisper 분석 전 반주에서 보컬을 분리합니다 (처리 시간 증가)">
+                  <span class="vocal-chip-dot" aria-hidden="true"></span>
+                  <span class="vocal-chip-label">보컬 분리: OFF</span>
+                </button>
+                <div id="mainTranscriptionProgress" class="transcription-progress main-transcription-progress" style="display: none;">
+                  <div class="progress-bar-wrap">
+                    <div id="mainProgressBar" class="progress-bar" style="width: 0%;"></div>
+                  </div>
+                  <p id="mainProgressLabel" class="progress-label">준비 중…</p>
+                </div>
               </div>
               <p id="trackStatus" style="display:none;">Add track(s) to start playback.</p>
             </div>
@@ -214,18 +206,18 @@
 
             <!-- 섹션 3: 접이식 AI 분석 도구 -->
             <details id="editAnalysisDetails" class="edit-analysis-details" open>
-              <summary class="edit-section-summary">AI 분석 및 정렬 도구 (Analysis tools)</summary>
+              <summary class="edit-section-summary">AI 가사 분석 및 정합 도구</summary>
               <div class="edit-analysis-body">
-                <p class="edit-section-desc">음성 인식(Whisper/Gemini)으로 타임스탬프를 추출하거나 공식 가사와 대조 정렬합니다.</p>
+                <p class="edit-section-desc">AI 음성 인식으로 가사 타임스탬프를 추출하거나 공식 가사와 정밀 정합합니다.</p>
                 <div class="edit-btn-row">
                   <button id="analyzeButton" class="edit-btn primary" type="button" disabled style="flex: 1;">
-                    AI 가사 분석 (Analyze)
+                    AI 가사 분석
                   </button>
                   <button id="cancelButton" class="edit-btn danger" type="button" disabled style="display: none;">
-                    취소 (Cancel)
+                    분석 취소
                   </button>
                   <button id="alignButton" class="edit-btn accent" type="button" disabled style="flex: 1;">
-                    AI 정밀 정합 (AI Align)
+                    AI 정합
                   </button>
                 </div>
 
@@ -400,24 +392,22 @@
             </span>
             <input id="volumeBar" type="range" min="0" max="1" step="0.01" value="0.85" title="볼륨 조절" />
           </div>
-          <button id="floatingButton" class="bar-pill-btn" type="button" disabled title="외부 투명 플로팅 가사창 열기">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <button id="floatingButton" class="bar-btn bar-action-icon-btn" type="button" disabled title="외부 투명 플로팅 가사창 열기" aria-label="외부 투명 플로팅 가사창 열기" aria-pressed="false">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect x="3" y="4" width="18" height="14" rx="2"/>
               <path d="M7 10h6"/>
               <path d="M7 14h10"/>
             </svg>
-            <span>가사 창</span>
           </button>
-          <button id="queueToggleButton" class="bar-pill-btn active" type="button" title="재생 대기열 열기/닫기">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <button id="queueToggleButton" class="bar-btn bar-action-icon-btn active" type="button" title="재생 대기열 (Up next)" aria-label="재생 대기열 (Up next)" aria-pressed="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <line x1="8" y1="6" x2="21" y2="6"/>
               <line x1="8" y1="12" x2="21" y2="12"/>
-              <line x1="8" y1="18" x2="21" y2="18"/>
+              <line x1="8" y1="18" x2="15" y2="18"/>
               <line x1="3" y1="6" x2="3.01" y2="6"/>
               <line x1="3" y1="12" x2="3.01" y2="12"/>
               <line x1="3" y1="18" x2="3.01" y2="18"/>
             </svg>
-            <span>대기열</span>
           </button>
         </div>
       </div>
@@ -448,7 +438,7 @@
           </div>
         </div>
 
-        <!-- 1. General App Tab Content (일반: 테마, 자동화, 캐시) -->
+        <!-- 1. General App Tab Content (일반: 테마, 캐시) -->
         <div id="tabAppContent" class="tab-content active">
           <div class="settings-card">
             <div class="settings-card-header">화면 및 테마</div>
@@ -462,24 +452,6 @@
                 <select id="settingTheme" name="theme">
                   <option value="lyra" selected>Lyra Lavender (라벤더 다크)</option>
                   <option value="emerald">Emerald Dark (에메랄드 다크)</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <div class="settings-card">
-            <div class="settings-card-header">자동화 워크플로우</div>
-
-            <div class="settings-item">
-              <div class="settings-info">
-                <label for="settingAutoAnalyzeMode">곡 로드 시 자동 분석</label>
-                <p>가사가 없는 곡을 재생할 때 백그라운드에서 자동으로 가사를 추출합니다.</p>
-              </div>
-              <div class="settings-control">
-                <select id="settingAutoAnalyzeMode" name="autoAnalyzeMode">
-                  <option value="off">사용 안 함 (수동 분석)</option>
-                  <option value="analyze">가사 자동 분석만 수행 (선택 엔진)</option>
-                  <option value="align">가사 자동 분석 + AI 정렬 동시 수행 (Gemini 필요)</option>
                 </select>
               </div>
             </div>
@@ -536,7 +508,26 @@
             </div>
           </div>
 
-          <!-- Card 2: Local Whisper Engine & CUDA Acceleration -->
+          <!-- Card 2: Automation Workflow -->
+          <div class="settings-card">
+            <div class="settings-card-header">자동화 워크플로우</div>
+
+            <div class="settings-item">
+              <div class="settings-info">
+                <label for="settingAutoAnalyzeMode">곡 전환 시 자동 분석</label>
+                <p id="autoAnalyzeDesc">가사(또는 싱크)가 없는 곡으로 전환하면 자동으로 AI 가사 분석을 시작합니다.</p>
+              </div>
+              <div class="settings-control">
+                <select id="settingAutoAnalyzeMode" name="autoAnalyzeMode">
+                  <option value="off">사용 안 함 (수동 분석)</option>
+                  <option value="analyze">1차 가사 분석만 자동 수행</option>
+                  <option value="align">1차 가사 분석 + AI 정합 자동 수행 (Gemini 필요)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 3: Local Whisper Engine & CUDA Acceleration -->
           <div class="settings-card" id="whisperSettingsCard">
             <div class="settings-card-header">로컬 Whisper 엔진 및 하드웨어 가속</div>
 
@@ -630,14 +621,14 @@
             </div>
           </div>
 
-          <!-- Card 3: Gemini Cloud & AI Alignment -->
+          <!-- Card 4: Gemini Cloud & AI Alignment -->
           <div class="settings-card" id="geminiSettingsCard">
-            <div class="settings-card-header">Gemini 클라우드 & AI 정렬</div>
+            <div class="settings-card-header">Gemini 클라우드 & AI 정합</div>
             
             <div class="settings-item">
               <div class="settings-info">
                 <label for="settingGeminiKey">Gemini API Key</label>
-                <p>클라우드 음성 인식(STT) 및 정밀 가사 대조(AI Align)에 필요합니다.</p>
+                <p>클라우드 음성 인식(STT) 및 공식 가사 정합(AI 정합)에 필요합니다.</p>
               </div>
               <div class="settings-control">
                 <input type="password" id="settingGeminiKey" placeholder="API 키 입력" />
@@ -647,11 +638,12 @@
             <div class="settings-item" id="settingGeminiModelGroup">
               <div class="settings-info">
                 <label for="settingGeminiModel">Gemini AI 모델</label>
-                <p>클라우드 전사 및 AI 가사 정렬 시 사용할 모델입니다.</p>
+                <p>클라우드 전사 및 AI 가사 정합 시 사용할 모델입니다.</p>
               </div>
               <div class="settings-control">
                 <select id="settingGeminiModel" name="geminiModel">
                   <option value="gemini-3.5-flash-lite" selected>gemini-3.5-flash-lite (초고속 & 고효율)</option>
+                  <option value="gemini-3.1-flash-lite">gemini-3.1-flash-lite (경량 & 안정 백업)</option>
                   <option value="gemini-3.8-flash">gemini-3.8-flash (고정밀 플래그십)</option>
                 </select>
               </div>

@@ -4,7 +4,8 @@ const {
   getActiveLineIndex,
   serializeLrc,
   serializeVtt,
-  resolveTrackMeta
+  resolveTrackMeta,
+  syncShuffleQueue
 } = require("../src/shared/lyrics-core");
 
 const lyrics = [
@@ -48,4 +49,37 @@ test("resolves rich track metadata and falls back to filename", () => {
   assert.equal(fallback.title, "Slow Motion");
   assert.equal(fallback.artist, "Luna Park");
   assert.equal(fallback.album, "");
+});
+
+test("syncShuffleQueue plays every other track once per cycle without repeating currentTrack", () => {
+  const tracks = [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }];
+  let current = tracks[0];
+  let queue = syncShuffleQueue(tracks, current, [], () => 0.42);
+
+  assert.equal(queue.length, 3);
+  assert.ok(!queue.includes(current));
+
+  const cycleVisited = [];
+  for (let i = 0; i < 3; i++) {
+    const next = queue[0];
+    assert.notEqual(next, current);
+    cycleVisited.push(next);
+    current = next;
+    queue = queue.filter((t) => t !== current);
+  }
+
+  assert.equal(new Set(cycleVisited).size, 3);
+  assert.equal(queue.length, 0);
+
+  // When exhausted, new deck still avoids immediately replaying the current track
+  const replenished = syncShuffleQueue(tracks, current, queue, () => 0.77);
+  assert.equal(replenished.length, 3);
+  assert.notEqual(replenished[0], current);
+
+  // Prunes removed tracks and preserves remaining valid order
+  const reducedPlaylist = tracks.filter((t) => t !== replenished[0]);
+  const pruned = syncShuffleQueue(reducedPlaylist, current, replenished);
+  assert.equal(pruned.length, 2);
+  assert.ok(!pruned.includes(replenished[0]));
+  assert.deepEqual(pruned, replenished.slice(1));
 });

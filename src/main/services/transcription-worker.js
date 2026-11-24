@@ -123,9 +123,18 @@ function resolvePython() {
   );
 }
 
-function runFfmpeg(ffmpegBin, args) {
+function createCancelledError() {
+  const err = new Error("cancelled");
+  err.cancelled = true;
+  return err;
+}
+
+function runFfmpeg(ffmpegBin, args, onSpawn = null) {
   return new Promise((resolve, reject) => {
     const proc = spawn(ffmpegBin, args, { stdio: ["ignore", "pipe", "pipe"] });
+    if (typeof onSpawn === "function") {
+      onSpawn(proc);
+    }
 
     let stderr = "";
     proc.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
@@ -156,7 +165,7 @@ function runFfmpeg(ffmpegBin, args) {
  * @param {string} outputPath
  * @returns {Promise<void>}
  */
-async function convertAudio(inputPath, outputPath, stereo44k = false) {
+async function convertAudio(inputPath, outputPath, stereo44k = false, onSpawn = null) {
   const ffmpegBin = resolveFfmpeg();
   const sampleRate = stereo44k ? "44100" : "16000";
   const channels = stereo44k ? "2" : "1";
@@ -168,7 +177,7 @@ async function convertAudio(inputPath, outputPath, stereo44k = false) {
     "-ac", channels,
     "-f", "wav",
     outputPath,
-  ]);
+  ], onSpawn);
 }
 
 /**
@@ -196,139 +205,163 @@ function startTranscription(track, options, onProgress) {
   let cancelled = false;
   let activeProc = null;
 
+  const safeOnProgress = (msg) => {
+    if (!cancelled && typeof onProgress === "function") {
+      onProgress(msg);
+    }
+  };
+
   async function cleanup() {
     try { await fs.unlink(tmpWav); } catch { /* ignore */ }
   }
 
   const promise = (async () => {
+    if (cancelled) {
+      throw createCancelledError();
+    }
+
     // --- Stage 1: converting ---
-    onProgress({ type: "progress", stage: "converting", percent: 0 });
+    safeOnProgress({ type: "progress", stage: "converting", percent: 0 });
 
     try {
-      await convertAudio(track.path, tmpWav, useVocalIsolation);
+      await convertAudio(track.path, tmpWav, useVocalIsolation, (proc) => {
+        activeProc = proc;
+        if (cancelled && proc && !proc.killed) {
+          proc.kill("SIGTERM");
+        }
+      });
     } catch (err) {
+      await cleanup();
       if (cancelled) {
-        onProgress({ type: "progress", stage: "cancelled" });
-        return [];
+        throw createCancelledError();
       }
-      onProgress({ type: "error", stage: "converting", message: err.message });
+      safeOnProgress({ type: "error", stage: "converting", message: err.message });
       throw err;
+    } finally {
+      activeProc = null;
     }
 
     if (cancelled) {
       await cleanup();
-      onProgress({ type: "progress", stage: "cancelled" });
-      return [];
+      throw createCancelledError();
     }
 
     // --- Stage 2: transcribing ---
-    onProgress({ type: "progress", stage: "transcribing", percent: 0.1 });
+    safeOnProgress({ type: "progress", stage: "transcribing", percent: 0.1 });
 
     const lines = [];
 
-    await new Promise((resolve, reject) => {
-      const packedTranscribe = process.resourcesPath
-        ? path.join(process.resourcesPath, "bin", "transcribe.exe")
-        : "";
-      const devTranscribe = path.join(__dirname, "..", "..", "..", "bin", "win32", "transcribe.exe");
+    try {
+      await new Promise((resolve, reject) => {
+        const packedTranscribe = process.resourcesPath
+          ? path.join(process.resourcesPath, "bin", "transcribe.exe")
+          : "";
+        const devTranscribe = path.join(__dirname, "..", "..", "..", "bin", "win32", "transcribe.exe");
 
-      let cmd, args;
-      if (packedTranscribe && existsSync(packedTranscribe)) {
-        cmd = packedTranscribe;
-        args = [tmpWav, "--model", model];
-      } else {
-        try {
-          cmd = resolvePython();
-          args = [TRANSCRIBE_SCRIPT, tmpWav, "--model", model];
-        } catch (pyErr) {
-          if (existsSync(devTranscribe)) {
-            console.warn("[Transcription Worker] Python faster-whisper unavailable in dev mode, falling back to bin/win32/transcribe.exe");
-            cmd = devTranscribe;
-            args = [tmpWav, "--model", model];
+        let cmd, args;
+        if (packedTranscribe && existsSync(packedTranscribe)) {
+          cmd = packedTranscribe;
+          args = [tmpWav, "--model", model];
+        } else {
+          try {
+            cmd = resolvePython();
+            args = [TRANSCRIBE_SCRIPT, tmpWav, "--model", model];
+          } catch (pyErr) {
+            if (existsSync(devTranscribe)) {
+              console.warn("[Transcription Worker] Python faster-whisper unavailable in dev mode, falling back to bin/win32/transcribe.exe");
+              cmd = devTranscribe;
+              args = [tmpWav, "--model", model];
+            } else {
+              throw pyErr;
+            }
+          }
+        }
+        args.push("--device", whisperDevice);
+        if (language) args.push("--language", language);
+        if (initialPrompt) args.push("--initial_prompt", initialPrompt);
+        if (beamSize) args.push("--beam_size", String(beamSize));
+        if (useVocalIsolation) args.push("--vocal_model", vocalModelPath);
+
+        const proc = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
+        activeProc = proc;
+        if (cancelled && !proc.killed) {
+          proc.kill("SIGTERM");
+        }
+
+        let stderrBuf = "";
+        let lastPythonError = null;
+        proc.stderr.on("data", (chunk) => { stderrBuf += chunk.toString(); });
+
+        proc.stdout.on("data", (chunk) => {
+          if (cancelled) return;
+          const rawLines = chunk.toString().split("\n");
+          for (const raw of rawLines) {
+            const trimmed = raw.trim();
+            if (!trimmed) continue;
+            let msg;
+            try { msg = JSON.parse(trimmed); } catch { continue; }
+
+            if (msg.type === "info") {
+              console.log(`[Transcription Worker] ${msg.message}`);
+            }
+
+            if (msg.type === "error") {
+              lastPythonError = msg.message;
+            }
+
+            if (msg.type === "segment") {
+              lines.push({
+                id: msg.id,
+                start: msg.start,
+                end: msg.end,
+                text: msg.text,
+                confidence: msg.confidence ?? 0.9,
+              });
+            }
+            // forward all events to caller
+            safeOnProgress(msg);
+          }
+        });
+
+        proc.on("close", (code) => {
+          activeProc = null;
+          if (cancelled) {
+            reject(createCancelledError());
+          } else if (code === 0) {
+            resolve();
           } else {
-            throw pyErr;
+            // Write stderr & lastPythonError to a log file in the workspace for easier debugging
+            const logPath = path.join(process.cwd(), "transcribe_error.log");
+            fs.writeFile(logPath, `Exit Code: ${code}\n\nPython Error:\n${lastPythonError || "None"}\n\nStderr:\n${stderrBuf}\n`)
+              .catch((writeErr) => console.error("Failed to write transcribe_error.log:", writeErr));
+            
+            reject(new Error(
+              lastPythonError || `transcription process exited with code ${code}.\n${stderrBuf.slice(-400)}`
+            ));
           }
-        }
-      }
-      args.push("--device", whisperDevice);
-      if (language) args.push("--language", language);
-      if (initialPrompt) args.push("--initial_prompt", initialPrompt);
-      if (beamSize) args.push("--beam_size", String(beamSize));
-      if (useVocalIsolation) args.push("--vocal_model", vocalModelPath);
+        });
 
-      const proc = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
-      activeProc = proc;
-
-      let stderrBuf = "";
-      let lastPythonError = null;
-      proc.stderr.on("data", (chunk) => { stderrBuf += chunk.toString(); });
-
-      proc.stdout.on("data", (chunk) => {
-        const rawLines = chunk.toString().split("\n");
-        for (const raw of rawLines) {
-          const trimmed = raw.trim();
-          if (!trimmed) continue;
-          let msg;
-          try { msg = JSON.parse(trimmed); } catch { continue; }
-
-          if (msg.type === "info") {
-            console.log(`[Transcription Worker] ${msg.message}`);
+        proc.on("error", (err) => {
+          activeProc = null;
+          if (cancelled) {
+            reject(createCancelledError());
+          } else if (err.code === "ENOENT") {
+            reject(new Error("python not found. Please ensure Python is installed and in PATH."));
+          } else {
+            reject(err);
           }
-
-          if (msg.type === "error") {
-            lastPythonError = msg.message;
-          }
-
-          if (msg.type === "segment") {
-            lines.push({
-              id: msg.id,
-              start: msg.start,
-              end: msg.end,
-              text: msg.text,
-              confidence: msg.confidence ?? 0.9,
-            });
-          }
-          // forward all events to caller
-          onProgress(msg);
-        }
+        });
       });
-
-      proc.on("close", (code) => {
-        activeProc = null;
-        if (cancelled) {
-          resolve();
-        } else if (code === 0) {
-          resolve();
-        } else {
-          // Write stderr & lastPythonError to a log file in the workspace for easier debugging
-          const logPath = path.join(process.cwd(), "transcribe_error.log");
-          fs.writeFile(logPath, `Exit Code: ${code}\n\nPython Error:\n${lastPythonError || "None"}\n\nStderr:\n${stderrBuf}\n`)
-            .catch((writeErr) => console.error("Failed to write transcribe_error.log:", writeErr));
-          
-          reject(new Error(
-            lastPythonError || `transcription process exited with code ${code}.\n${stderrBuf.slice(-400)}`
-          ));
-        }
-      });
-
-      proc.on("error", (err) => {
-        activeProc = null;
-        if (err.code === "ENOENT") {
-          reject(new Error("python not found. Please ensure Python is installed and in PATH."));
-        } else {
-          reject(err);
-        }
-      });
-    });
-
-    await cleanup();
-
-    if (cancelled) {
-      onProgress({ type: "progress", stage: "cancelled" });
-      return [];
+    } finally {
+      activeProc = null;
+      await cleanup();
     }
 
-    onProgress({ type: "progress", stage: "saving", percent: 1 });
+    if (cancelled) {
+      throw createCancelledError();
+    }
+
+    safeOnProgress({ type: "progress", stage: "saving", percent: 1 });
     return lines;
   })();
 

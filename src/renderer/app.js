@@ -37,7 +37,6 @@ const playerBarTitle = document.querySelector("#playerBarTitle");
 const playerBarArtist = document.querySelector("#playerBarArtist");
 const playerBarArt = document.querySelector("#playerBarArt");
 const playerBarPlaceholder = document.querySelector("#playerBarPlaceholder");
-const queueToggleButton = document.querySelector("#queueToggleButton");
 
 // Views & Edit Toolbar Elements
 const nowPlayingView = document.querySelector("#nowPlayingView");
@@ -45,7 +44,7 @@ const lyricsEditView = document.querySelector("#lyricsEditView");
 const libraryView = document.querySelector("#libraryView");
 const queueDrawer = document.querySelector("#queueDrawer");
 const queueCloseBtn = document.querySelector("#queueCloseBtn");
-const navQueueToggleBtn = document.querySelector("#navQueueToggleBtn");
+const queueToggleButton = document.querySelector("#queueToggleButton");
 const editTrackTitle = document.querySelector("#editTrackTitle");
 const editTrackArt = document.querySelector("#editTrackArt");
 const editTrackArtPlaceholder = document.querySelector("#editTrackArtPlaceholder");
@@ -62,6 +61,7 @@ const state = {
   currentIndex: -1,
   track: null,
   lyrics: [],
+  lyricsSource: null,
   activeLineId: null,
   syncOffset: 0,
   floatingVisible: false,
@@ -70,14 +70,39 @@ const state = {
   settings: { theme: "lyra", model: "base", language: null, geminiApiKey: "", autoAnalyzeMode: "off", vocalIsolation: false },
   editMode: false,
   shuffle: false,
+  shuffleQueue: [],
   repeatMode: "all",
   isAutoAnalyzing: false,
+  alignSuggestedTrackKey: null,
   embeddedLyricsLines: null,
   history: [],
+  forwardHistory: [],
   playlistFilter: "",
 };
 
-let saveTimer = null;
+const saveTimers = new Map();
+const AUTO_ANALYZE_DEBOUNCE_MS = 200;
+const PREFETCH_DELAY_MS = 180;
+let trackSelectionSeq = 0;
+let autoAnalyzeTimer = null;
+let prefetchTimer = null;
+
+function scheduleAutoAnalyze(selectionSeq, track, cancelPromise = null) {
+  if (autoAnalyzeTimer) {
+    clearTimeout(autoAnalyzeTimer);
+    autoAnalyzeTimer = null;
+  }
+  autoAnalyzeTimer = setTimeout(async () => {
+    autoAnalyzeTimer = null;
+    if (cancelPromise) {
+      await cancelPromise.catch(() => {});
+    }
+    if (selectionSeq !== trackSelectionSeq || state.track !== track || state.isTranscribing) {
+      return;
+    }
+    lyricsJobManager.handleAnalyzeClick({ isAuto: true, expectedTrackKey: track.cacheKey });
+  }, AUTO_ANALYZE_DEBOUNCE_MS);
+}
 
 // escapeHtml은 window.lyricsCore.escapeHtml로 일원화되었습니다.
 
@@ -195,36 +220,68 @@ function applyActiveTrackInfoUI(track) {
   updateMediaSessionMetadata(track);
 }
 
-function persistLyricsSoon() {
-  if (!state.track || state.lyrics.length === 0) {
-    return;
+function buildLyricsSaveSnapshot(explicitPayload = null) {
+  const track = explicitPayload?.track || state.track;
+  const rawLyrics = explicitPayload?.lyrics !== undefined ? explicitPayload.lyrics : state.lyrics;
+  if (!track?.cacheKey || !Array.isArray(rawLyrics) || rawLyrics.length === 0) {
+    return null;
   }
 
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    window.lyricsPlayer.saveCachedLyrics({
-      track: state.track,
-      lyrics: state.lyrics,
-      syncOffset: state.syncOffset,
-      embeddedPlainLyrics: state.embeddedLyricsLines,
-      metadata: { source: "local" }
-    });
-  }, 250);
+  const embeddedPlainLyrics = explicitPayload?.embeddedPlainLyrics !== undefined
+    ? explicitPayload.embeddedPlainLyrics
+    : state.embeddedLyricsLines;
+
+  return {
+    track: { ...track },
+    lyrics: rawLyrics.map((line) => ({ ...line })),
+    syncOffset: explicitPayload?.syncOffset !== undefined ? explicitPayload.syncOffset : state.syncOffset,
+    embeddedPlainLyrics: Array.isArray(embeddedPlainLyrics) ? [...embeddedPlainLyrics] : null,
+    metadata: explicitPayload?.metadata || { source: "local" }
+  };
 }
 
-function persistLyricsImmediately() {
-  if (!state.track || state.lyrics.length === 0) {
+function persistLyricsSoon(explicitPayload = null) {
+  const snapshot = buildLyricsSaveSnapshot(explicitPayload);
+  if (!snapshot) {
     return;
   }
 
-  clearTimeout(saveTimer);
-  return window.lyricsPlayer.saveCachedLyrics({
-    track: state.track,
-    lyrics: state.lyrics,
-    syncOffset: state.syncOffset,
-    embeddedPlainLyrics: state.embeddedLyricsLines,
-    metadata: { source: "local" }
-  });
+  const cacheKey = snapshot.track.cacheKey;
+  const existing = saveTimers.get(cacheKey);
+  if (existing) {
+    clearTimeout(existing.timerId);
+  }
+
+  const timerId = setTimeout(() => {
+    saveTimers.delete(cacheKey);
+    window.lyricsPlayer.saveCachedLyrics(snapshot);
+  }, 250);
+
+  saveTimers.set(cacheKey, { timerId, snapshot });
+}
+
+function persistLyricsImmediately(explicitPayload = null) {
+  const snapshot = buildLyricsSaveSnapshot(explicitPayload);
+  if (!snapshot) {
+    return;
+  }
+
+  const cacheKey = snapshot.track.cacheKey;
+  const existing = saveTimers.get(cacheKey);
+  if (existing) {
+    clearTimeout(existing.timerId);
+    saveTimers.delete(cacheKey);
+  }
+
+  return window.lyricsPlayer.saveCachedLyrics(snapshot);
+}
+
+function flushPendingLyricsSaves() {
+  for (const [cacheKey, entry] of saveTimers.entries()) {
+    clearTimeout(entry.timerId);
+    saveTimers.delete(cacheKey);
+    window.lyricsPlayer.saveCachedLyrics(entry.snapshot).catch(() => {});
+  }
 }
 
 // -------------------------------------------------------------
@@ -244,22 +301,33 @@ const player = new PlayerController(state, {
     if (state.repeatMode === "off" && !state.shuffle && state.currentIndex === state.playlist.length - 1) {
       return;
     }
-    selectPlaylistItem(getNextIndex());
+    selectPlaylistItem(getNextIndex(), true, "next");
   },
   onPrev: () => {
     if (state.playlist.length === 0) return;
     if (state.history.length > 0) {
+      if (state.currentIndex >= 0) {
+        state.forwardHistory.push(state.currentIndex);
+        if (state.forwardHistory.length > 50) {
+          state.forwardHistory.shift();
+        }
+      }
       const prevIndex = state.history.pop();
-      selectPlaylistItem(prevIndex, player.isPlaying(), true);
+      selectPlaylistItem(prevIndex, player.isPlaying(), "prev");
     } else {
       let idx = state.currentIndex - 1;
       if (idx < 0) idx = state.playlist.length - 1;
-      selectPlaylistItem(idx, player.isPlaying());
+      selectPlaylistItem(idx, player.isPlaying(), "prev");
     }
   },
   onNext: () => {
     if (state.playlist.length === 0) return;
-    selectPlaylistItem(getNextIndex(), player.isPlaying());
+    selectPlaylistItem(getNextIndex(), player.isPlaying(), "next");
+  },
+  onShuffleChange: () => {
+    state.shuffleQueue = [];
+    state.forwardHistory = [];
+    prefetchNextTrack();
   }
 });
 
@@ -269,6 +337,7 @@ const playlist = new PlaylistManager(state, {
   },
   onPlaylistChange: () => {
     updateAlignButtonState();
+    prefetchNextTrack();
   },
   onTrackMetadataUpdated: (updatedTrack) => {
     if (state.track === updatedTrack) {
@@ -276,6 +345,22 @@ const playlist = new PlaylistManager(state, {
     }
   },
   onClearPlaylist: () => {
+    if (autoAnalyzeTimer) {
+      clearTimeout(autoAnalyzeTimer);
+      autoAnalyzeTimer = null;
+    }
+    if (prefetchTimer) {
+      clearTimeout(prefetchTimer);
+      prefetchTimer = null;
+    }
+    state.alignSuggestedTrackKey = null;
+    state.lyricsSource = null;
+    state.history = [];
+    state.forwardHistory = [];
+    state.shuffleQueue = [];
+    flushPendingLyricsSaves();
+    lyricsJobManager.cancelActiveJob({ silent: true }).catch(() => {});
+
     // 플레이리스트 전체 비우기 시의 동기화 처리
     player.setEnabled(false);
     player.loadTrack({ url: "" }, false);
@@ -353,14 +438,13 @@ function switchView(viewName) {
 
 const settingsView = new SettingsView(state, {
   onSave: (savedSettings) => {
-    const engineText = savedSettings.sttEngine === "gemini" ? `Gemini API (${savedSettings.geminiModel || "gemini-3.1-flash-lite"})` : `Local Whisper (${savedSettings.model})`;
+    const engineText = savedSettings.sttEngine === "gemini" ? `Gemini API (${savedSettings.geminiModel || "gemini-3.5-flash-lite"})` : `Local Whisper (${savedSettings.model})`;
     trackStatus.textContent = `Settings saved. Engine: ${engineText}, Language: ${savedSettings.language || "auto"}.`;
     updateAlignButtonState();
     updateVocalIsolationChipUI();
 
     if (state.settings.autoAnalyzeMode !== "off" && state.track && state.lyrics.length === 0 && !state.isTranscribing) {
-      state.isAutoAnalyzing = true;
-      lyricsJobManager.handleAnalyzeClick();
+      lyricsJobManager.handleAnalyzeClick({ isAuto: true, expectedTrackKey: state.track.cacheKey });
     }
   },
   onVocalModelStatusChange: (status) => {
@@ -371,10 +455,12 @@ const settingsView = new SettingsView(state, {
 
 const lyricsJobManager = new LyricsJobManager(state, player, lyricsViewer, settingsView, {
   persistLyricsSoon,
+  persistLyricsImmediately,
   updateAlignButtonState,
   updateAnalyzeButtonState,
   updateVocalIsolationChipUI,
-  updateTrackStatusBadge
+  updateTrackStatusBadge,
+  updateDeleteCacheButtonState
 });
 
 const embedManager = new EmbedManager(state, trackStatus, updateAlignButtonState);
@@ -387,17 +473,49 @@ const onboardingManager = new OnboardingManager(state);
 
 function getNextIndex() {
   if (state.playlist.length <= 1) return 0;
-  if (state.shuffle) {
-    let randIdx;
-    do {
-      randIdx = Math.floor(Math.random() * state.playlist.length);
-    } while (randIdx === state.currentIndex);
-    return randIdx;
-  } else {
-    let nextIdx = state.currentIndex + 1;
-    if (nextIdx >= state.playlist.length) nextIdx = 0;
-    return nextIdx;
+
+  if (Array.isArray(state.forwardHistory) && state.forwardHistory.length > 0) {
+    for (let i = state.forwardHistory.length - 1; i >= 0; i--) {
+      const candidateIdx = state.forwardHistory[i];
+      if (candidateIdx >= 0 && candidateIdx < state.playlist.length && candidateIdx !== state.currentIndex) {
+        return candidateIdx;
+      }
+    }
   }
+
+  if (state.shuffle) {
+    state.shuffleQueue = window.lyricsCore.syncShuffleQueue(
+      state.playlist,
+      state.track,
+      state.shuffleQueue
+    );
+    const nextTrack = state.shuffleQueue[0];
+    const nextIdx = nextTrack ? state.playlist.indexOf(nextTrack) : -1;
+    if (nextIdx !== -1) {
+      return nextIdx;
+    }
+  }
+  let nextIdx = state.currentIndex + 1;
+  if (nextIdx >= state.playlist.length) nextIdx = 0;
+  return nextIdx;
+}
+
+function prefetchNextTrack() {
+  if (prefetchTimer) {
+    clearTimeout(prefetchTimer);
+    prefetchTimer = null;
+  }
+  if (!Array.isArray(state.playlist) || state.playlist.length <= 1 || !window.lyricsPlayer?.prefetchTrack) {
+    return;
+  }
+  const nextIndex = getNextIndex();
+  const nextTrack = nextIndex !== state.currentIndex ? state.playlist[nextIndex] : null;
+  if (!nextTrack) return;
+
+  prefetchTimer = setTimeout(() => {
+    prefetchTimer = null;
+    window.lyricsPlayer.prefetchTrack(nextTrack).catch(() => {});
+  }, PREFETCH_DELAY_MS);
 }
 
 function updateTitleMarquee() {
@@ -443,19 +561,50 @@ function updateMediaSessionMetadata(track) {
   });
 }
 
-async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false) {
+async function selectPlaylistItem(index, autoPlay = true, navMode = "manual") {
   if (index < 0 || index >= state.playlist.length) return;
+  const mode = navMode === true ? "prev" : (navMode || "manual");
+  const selectionSeq = ++trackSelectionSeq;
   state.activeLineId = null;
+  state.alignSuggestedTrackKey = null;
 
-  if (state.isTranscribing) {
-    lyricsJobManager.handleCancelClick().catch(() => {});
+  if (autoAnalyzeTimer) {
+    clearTimeout(autoAnalyzeTimer);
+    autoAnalyzeTimer = null;
+  }
+  if (prefetchTimer) {
+    clearTimeout(prefetchTimer);
+    prefetchTimer = null;
   }
 
-  // 히스토리 기록
-  if (!isFromHistory && state.currentIndex >= 0 && state.currentIndex !== index) {
-    state.history.push(state.currentIndex);
-    if (state.history.length > 50) {
-      state.history.shift();
+  // 새 곡 전환 시 이전 가사 상태를 즉시 초기화하여 버튼 라벨('AI 재분석' 오표시)과 렌더 경합 차단
+  state.lyrics = [];
+  state.lyricsSource = null;
+  state.embeddedLyricsLines = null;
+
+  flushPendingLyricsSaves();
+  const cancelPromise = lyricsJobManager.cancelActiveJob({ silent: true }).catch(() => {});
+
+  // 히스토리 및 앞으로가기 스택 관리
+  if (mode === "manual") {
+    if (state.currentIndex >= 0 && state.currentIndex !== index) {
+      state.history.push(state.currentIndex);
+      if (state.history.length > 50) {
+        state.history.shift();
+      }
+    }
+    state.forwardHistory = [];
+  } else if (mode === "next") {
+    if (state.currentIndex >= 0 && state.currentIndex !== index) {
+      state.history.push(state.currentIndex);
+      if (state.history.length > 50) {
+        state.history.shift();
+      }
+    }
+    if (Array.isArray(state.forwardHistory) && state.forwardHistory.length > 0 && state.forwardHistory[state.forwardHistory.length - 1] === index) {
+      state.forwardHistory.pop();
+    } else {
+      state.forwardHistory = [];
     }
   }
 
@@ -464,6 +613,9 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
   
   const track = state.playlist[index];
   state.track = track;
+  state.shuffleQueue = Array.isArray(state.shuffleQueue)
+    ? state.shuffleQueue.filter((t) => t !== track)
+    : [];
 
   // 오디오 소스 설정
   player.loadTrack(track, autoPlay);
@@ -522,28 +674,18 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
     }
   }
 
-  // 다음 트랙 사전 적재 (백그라운드 프리페치)
-  if (Array.isArray(state.tracks) && state.tracks.length > 1) {
-    const currentIndex = state.tracks.indexOf(track);
-    if (currentIndex !== -1 && currentIndex + 1 < state.tracks.length) {
-      const nextTrack = state.tracks[currentIndex + 1];
-      if (nextTrack && window.lyricsPlayer?.prefetchTrack) {
-        window.lyricsPlayer.prefetchTrack(nextTrack).catch(() => {});
-      }
-    }
-  }
-
   setControlsEnabled(true);
 
-  // 캐시 가사 정보 로드 전 UI 및 상태 즉시 초기화
-  state.lyrics = [];
-  state.embeddedLyricsLines = null;
   lyricsViewer.setOffset(0);
   lyricsViewer.render();
 
-  // 캐시 가사 정보 로드
+  // 캐시 가사 정보 즉시 로드 (이전 작업 취소 완료를 기다리지 않고 바로 렌더링)
   trackStatus.textContent = "Loading cached lyrics…";
   const cached = await window.lyricsPlayer.loadCachedLyrics(track);
+
+  if (selectionSeq !== trackSelectionSeq || state.track !== track) {
+    return;
+  }
 
   // 내장 가사 존재 여부에 따른 Embed 버튼 하이라이트 지정
   const hasEmbedded = typeof cached?.hasEmbeddedLyrics === "boolean"
@@ -560,8 +702,9 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
 
   if (cached?.lyrics && cached.metadata?.source === "embedded_plain") {
     state.lyrics = [];
+    state.lyricsSource = "embedded_plain";
     lyricsViewer.setOffset(0);
-    trackStatus.textContent = `내장 가사 ${state.embeddedLyricsLines.length}줄 감지됨. Analyze 실행 후 AI Align으로 싱크 적용 가능.`;
+    trackStatus.textContent = `내장 가사 ${state.embeddedLyricsLines.length}줄 감지됨. 'AI 가사 분석' 실행 후 'AI 정합'으로 싱크 적용 가능.`;
 
     const shouldAutoAnalyze =
       !state.isTranscribing && (
@@ -570,27 +713,23 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
       );
 
     if (shouldAutoAnalyze) {
-      state.isAutoAnalyzing = true;
-      setTimeout(() => {
-        lyricsJobManager.handleAnalyzeClick();
-      }, 100);
+      scheduleAutoAnalyze(selectionSeq, track, cancelPromise);
     }
   } else if (cached?.lyrics) {
     state.lyrics = cached.lyrics;
+    state.lyricsSource = cached.metadata?.source || "local";
     lyricsViewer.setOffset(cached.syncOffset || 0);
     trackStatus.textContent = state.embeddedLyricsLines
       ? `Loaded cached lyrics. (내장 평문 가사 보존됨)`
       : `Loaded cached lyrics.`;
   } else {
     state.lyrics = [];
+    state.lyricsSource = null;
     lyricsViewer.setOffset(0);
     trackStatus.textContent = "No cached lyrics. Press Analyze to generate.";
 
     if (state.settings.autoAnalyzeMode !== "off" && !state.isTranscribing) {
-      state.isAutoAnalyzing = true;
-      setTimeout(() => {
-        lyricsJobManager.handleAnalyzeClick();
-      }, 100);
+      scheduleAutoAnalyze(selectionSeq, track, cancelPromise);
     }
   }
 
@@ -600,6 +739,9 @@ async function selectPlaylistItem(index, autoPlay = true, isFromHistory = false)
   playlist.render();
   updateActionButtonsState();
   updateDeleteCacheButtonState();
+
+  // 현재 곡 가사 렌더링이 완료된 후 다음 트랙 백그라운드 프리페치 예약
+  prefetchNextTrack();
 
   const activeItem = playlistList.querySelector(".playlist-item.active");
   if (activeItem) {
@@ -622,7 +764,9 @@ if (deleteCacheButton) {
       const res = await window.lyricsPlayer.deleteTrackCache(state.track);
       if (res?.ok) {
         state.lyrics = [];
+        state.lyricsSource = null;
         state.syncOffset = 0;
+        state.alignSuggestedTrackKey = null;
         lyricsViewer.setOffset(0);
         lyricsViewer.render();
         trackStatus.textContent = "Cache deleted. Press Analyze to generate lyrics.";
@@ -636,15 +780,18 @@ if (deleteCacheButton) {
 }
 
 function updateAnalyzeButtonState() {
-  const hasLyrics = state.lyrics && state.lyrics.length > 0;
-  if (analyzeButton) {
-    analyzeButton.classList.toggle("reanalyze-state", hasLyrics);
-    analyzeButton.textContent = hasLyrics ? "AI 재분석 (Reanalyze)" : "AI 가사 분석 (Analyze)";
-  }
-  if (mainAnalyzeButton) {
-    mainAnalyzeButton.classList.toggle("reanalyze-state", hasLyrics);
-    mainAnalyzeButton.textContent = hasLyrics ? "AI 재분석" : "AI 가사 분석";
-    mainAnalyzeButton.title = hasLyrics
+  const hasLyrics = Boolean(state.lyrics && state.lyrics.length > 0);
+  const isAiAnalyzed =
+    hasLyrics &&
+    state.lyricsSource !== "embedded_lrc" &&
+    state.lyricsSource !== "external_lrc" &&
+    state.lyricsSource !== "embedded_plain";
+
+  for (const btn of [analyzeButton, mainAnalyzeButton]) {
+    if (!btn) continue;
+    btn.classList.toggle("reanalyze-state", isAiAnalyzed);
+    btn.textContent = isAiAnalyzed ? "AI 재분석" : "AI 가사 분석";
+    btn.title = isAiAnalyzed
       ? "현재 곡의 가사를 다시 AI로 분석합니다"
       : "AI 음성 인식으로 가사를 생성합니다";
   }
@@ -652,32 +799,29 @@ function updateAnalyzeButtonState() {
 
 function updateAlignButtonState() {
   const hasApiKey = !!(state.settings?.geminiApiKey || "").trim();
-  const hasLyrics = state.lyrics && state.lyrics.length > 0;
+  const hasLyrics = Boolean(state.lyrics && state.lyrics.length > 0);
   const isAligned = hasLyrics && state.lyrics[0]?.id?.startsWith("align_");
+  const isSuggested = !state.isTranscribing && hasApiKey && hasLyrics && !isAligned && state.alignSuggestedTrackKey === state.track?.cacheKey;
 
-  const targets = [
-    { btn: alignButton, baseLabel: "AI Align", realignLabel: "AI Realign" },
-    { btn: mainAlignButton, baseLabel: "AI 정합", realignLabel: "AI 재정합" },
-  ];
-
-  for (const { btn, baseLabel, realignLabel } of targets) {
+  for (const btn of [alignButton, mainAlignButton]) {
     if (!btn) continue;
     btn.classList.toggle("realign-state", isAligned);
+    btn.classList.toggle("align-suggested", isSuggested);
 
     if (state.isTranscribing) {
       btn.disabled = true;
     } else if (!hasApiKey || !hasLyrics) {
       btn.disabled = true;
       btn.title = !hasApiKey
-        ? "Gemini API Key is required. Please set it in settings."
-        : "No lyrics to align. Please analyze the track first.";
-      btn.textContent = baseLabel;
+        ? "Gemini API Key가 필요합니다. 설정에서 입력해주세요."
+        : "정합할 가사가 없습니다. 먼저 AI 가사 분석을 실행해주세요.";
+      btn.textContent = "AI 정합";
     } else {
       btn.disabled = false;
       btn.title = isAligned
-        ? "Re-run AI Alignment using Gemini"
-        : "AI Align Lyrics using Gemini";
-      btn.textContent = isAligned ? realignLabel : baseLabel;
+        ? "Gemini AI로 공식 가사와 타임스탬프를 다시 정합합니다"
+        : "Gemini AI로 공식 가사와 타임스탬프를 정밀 정합합니다";
+      btn.textContent = isAligned ? "AI 재정합" : "AI 정합";
     }
   }
 }
@@ -755,10 +899,8 @@ function updateFloatingButtonUI(visible) {
   if (!floatingButton) return;
   floatingButton.classList.toggle("active", visible);
   floatingButton.title = visible ? "외부 플로팅 가사창 닫기" : "외부 투명 플로팅 가사창 열기";
-  const labelSpan = floatingButton.querySelector("span");
-  if (labelSpan) {
-    labelSpan.textContent = visible ? "가사 창 닫기" : "가사 창";
-  }
+  floatingButton.setAttribute("aria-label", floatingButton.title);
+  floatingButton.setAttribute("aria-pressed", String(visible));
 }
 
 floatingButton.addEventListener("click", async () => {
@@ -852,15 +994,11 @@ function initMediaSession() {
   });
 
   navigator.mediaSession.setActionHandler("previoustrack", () => {
-    if (state.playlist.length === 0) return;
-    let idx = state.currentIndex - 1;
-    if (idx < 0) idx = state.playlist.length - 1;
-    selectPlaylistItem(idx, player.isPlaying());
+    player.prev();
   });
 
   navigator.mediaSession.setActionHandler("nexttrack", () => {
-    if (state.playlist.length === 0) return;
-    selectPlaylistItem(getNextIndex(), player.isPlaying());
+    player.next();
   });
 
   navigator.mediaSession.setActionHandler("seekto", (details) => {
@@ -1036,22 +1174,18 @@ function initMediaSession() {
     }
   });
 
-  // 재생 대기열 토글 및 닫기 버튼 핸들러 (상단 nav + 하단 바 + 닫기 버튼 동기화)
+  // 재생 대기열 토글 및 닫기 버튼 핸들러 (우측 하단 재생바 + 닫기 버튼 동기화)
   function setQueueDrawerOpen(open) {
     if (!queueDrawer) return;
     queueDrawer.classList.toggle("open", open);
-    if (queueToggleButton) queueToggleButton.classList.toggle("active", open);
-    if (navQueueToggleBtn) navQueueToggleBtn.classList.toggle("active", open);
+    if (queueToggleButton) {
+      queueToggleButton.classList.toggle("active", open);
+      queueToggleButton.setAttribute("aria-pressed", String(open));
+    }
   }
 
   if (queueToggleButton && queueDrawer) {
     queueToggleButton.addEventListener("click", () => {
-      setQueueDrawerOpen(!queueDrawer.classList.contains("open"));
-    });
-  }
-
-  if (navQueueToggleBtn && queueDrawer) {
-    navQueueToggleBtn.addEventListener("click", () => {
       setQueueDrawerOpen(!queueDrawer.classList.contains("open"));
     });
   }

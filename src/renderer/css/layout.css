@@ -16,18 +16,31 @@
   z-index: 900;
   user-select: none;
   -webkit-app-region: drag;
+  app-region: drag;
 }
 
-.nav-brand,
-.nav-tabs,
-.nav-actions,
+.app-nav .nav-brand,
+.app-nav .brand-name,
+.app-nav .nav-tabs,
+.app-nav .nav-actions,
+.app-nav .window-controls,
+.app-nav .nav-divider {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+.app-nav button,
+.app-nav input,
+.app-nav select,
+.app-nav a,
+.nav-tab,
 .nav-btn,
 .nav-icon-btn,
-.window-controls,
 .win-control-btn,
 button,
 input {
   -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
 
 .nav-brand {
@@ -255,7 +268,7 @@ input {
    ========================================================================== */
 #nowPlayingView.app-view.active {
   display: grid;
-  grid-template-columns: minmax(270px, 320px) minmax(0, 1fr);
+  grid-template-columns: 272px minmax(0, 1fr);
   gap: 0;
   height: 100%;
 }
@@ -381,8 +394,9 @@ h2 {
   align-items: flex-start;
   gap: 5px;
   width: 100%;
+  max-width: 240px;
   min-width: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .track-copy h2 {
@@ -443,6 +457,30 @@ h2 {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.track-ai-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+  max-width: 240px;
+  margin-top: 10px;
+  padding: 12px 2px 4px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.track-ai-section .track-status-badge {
+  margin-top: 0;
+}
+
+.track-ai-section .main-analysis-actions {
+  margin-top: 4px;
+}
+
+.track-ai-section .vocal-isolation-chip {
+  margin-top: 2px;
 }
 
 .track-status-badge {
@@ -543,9 +581,25 @@ h2 {
   font-weight: 600;
 }
 
+@keyframes alignSuggestPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 28%, transparent);
+  }
+}
+
 #mainAlignButton.realign-state {
   border-color: color-mix(in srgb, var(--accent) 40%, var(--border-subtle));
   color: var(--text-primary);
+}
+
+#mainAlignButton.align-suggested {
+  background: var(--surface-selected);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  animation: alignSuggestPulse 1.6s ease-in-out 3;
 }
 
 #mainAlignButton:hover:not(:disabled) {
@@ -673,6 +727,13 @@ input[type="range"] {
   border-color: var(--accent);
   color: var(--accent);
   background: var(--surface-selected);
+}
+
+#alignButton.align-suggested {
+  background: var(--surface-selected);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  animation: alignSuggestPulse 1.6s ease-in-out 3;
 }
 
 #embedAudioButton.highlight-blue {

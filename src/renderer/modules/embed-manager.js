@@ -138,7 +138,7 @@ class EmbedManager {
         }
 
         if (this.trackStatus) {
-          this.trackStatus.textContent = "음원 파일에 가사 내장 완료! [AI Align]을 누르면 내장된 가사로 AI 정렬이 시작됩니다.";
+          this.trackStatus.textContent = "음원 파일에 가사 내장 완료! [AI 정합]을 누르면 내장된 가사로 정밀 정합이 시작됩니다.";
         }
         alert("음원 파일 메타데이터에 가사가 성공적으로 내장되었습니다.");
       } else {
