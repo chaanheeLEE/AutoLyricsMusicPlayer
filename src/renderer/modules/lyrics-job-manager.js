@@ -133,25 +133,25 @@ class LyricsJobManager {
   _formatAlignFallbackMessage(result) {
     const code = result?.errorCode;
     if (code === "scrape_timeout") {
-      return "AI 정합 실패 (공식 가사 검색 시간 초과) · 1차 분석 가사 유지";
+      return "AI 정합 실패 (공식 가사 검색 시간 초과) · 'AI 정합'으로 다시 시도할 수 있습니다";
     }
     if (code === "scrape_not_found" || code === "empty_official_lyrics") {
-      return "AI 정합 실패 (일치하는 공식 가사 미발견) · 1차 분석 가사 유지";
+      return "AI 정합 실패 (일치하는 공식 가사 미발견) · 'AI 정합'으로 다시 시도할 수 있습니다";
     }
     if (code === "gemini_timeout") {
-      return "AI 정합 실패 (Gemini 응답 시간 초과) · 1차 분석 가사 유지";
+      return "AI 정합 실패 (Gemini 응답 시간 초과) · 'AI 정합'으로 다시 시도할 수 있습니다";
     }
     if (code === "gemini_overloaded") {
-      return "AI 정합 실패 (서버 혼잡 · 503) · 잠시 후 다시 시도하세요 (1차 분석 가사 유지)";
+      return "AI 정합 실패 (서버 혼잡 · 503) · 잠시 후 'AI 정합'으로 다시 시도하세요";
     }
     if (code === "gemini_rate_limited") {
-      return "AI 정합 실패 (요청 한도 초과 · 429) · 잠시 후 다시 시도하세요 (1차 분석 가사 유지)";
+      return "AI 정합 실패 (요청 한도 초과 · 429) · 잠시 후 'AI 정합'으로 다시 시도하세요";
     }
     if (code === "gemini_api_error") {
-      return "AI 정합 실패 (Gemini API 오류) · 1차 분석 가사 유지";
+      return "AI 정합 실패 (Gemini API 오류) · 'AI 정합'으로 다시 시도할 수 있습니다";
     }
     if (code === "no_valid_matches") {
-      return "AI 정합 실패 (가사 싱크 매칭 불가) · 1차 분석 가사 유지";
+      return "AI 정합 실패 (가사 싱크 매칭 불가) · 'AI 정합'으로 다시 시도할 수 있습니다";
     }
     const detail = result?.errorMessage || result?.errorDetail?.split("\n")[0] || "unknown error";
     return `AI Alignment Failed: ${detail}`;
@@ -173,7 +173,10 @@ class LyricsJobManager {
         }
       });
       alignButtons.forEach((btn) => {
-        if (btn) btn.disabled = true;
+        if (btn) {
+          btn.disabled = true;
+          btn.classList.remove("align-suggested");
+        }
       });
     } else {
       cancelButtons.forEach((btn) => {
@@ -487,6 +490,7 @@ class LyricsJobManager {
             `[Aligner] Fallback to whisper active (stage=${result.failureStage}, code=${result.errorCode}):\n`,
             result.errorDetail
           );
+          this.state.alignSuggestedTrackKey = originalTrackKey;
           this.trackStatus.textContent = this._formatAlignFallbackMessage(result);
         } else {
           const sourceLabel = result.lyricsSource === "embedded" ? "내장 가사" : "웹 가사";
@@ -509,11 +513,13 @@ class LyricsJobManager {
         }
       } else {
         console.error("[JobManager] Alignment failed:", result?.error);
+        this.state.alignSuggestedTrackKey = originalTrackKey;
         this.trackStatus.textContent = `AI Alignment failed: ${result?.error || "unknown error"}`;
       }
     } catch (error) {
       console.error("[JobManager] Alignment exception:", error);
       if (this._isCurrentJob(jobId, originalTrackKey)) {
+        this.state.alignSuggestedTrackKey = originalTrackKey;
         this.trackStatus.textContent = `AI Alignment failed: ${error.message}`;
       }
     } finally {

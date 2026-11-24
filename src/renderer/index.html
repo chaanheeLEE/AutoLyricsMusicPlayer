@@ -19,16 +19,6 @@
       <div class="nav-actions">
         <button id="navEditLyricsBtn" class="nav-btn accent-pill" type="button" title="가사 편집 화면으로 전환">가사 편집</button>
         <button id="openTrackButton" class="nav-btn" type="button">+ 음악 추가</button>
-        <button id="navQueueToggleBtn" class="nav-icon-btn active" type="button" aria-label="재생 대기열" title="재생 대기열 (Up next)">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <line x1="8" y1="6" x2="21" y2="6"/>
-            <line x1="8" y1="12" x2="21" y2="12"/>
-            <line x1="8" y1="18" x2="15" y2="18"/>
-            <line x1="3" y1="6" x2="3.01" y2="6"/>
-            <line x1="3" y1="12" x2="3.01" y2="12"/>
-            <line x1="3" y1="18" x2="3.01" y2="18"/>
-          </svg>
-        </button>
         <button id="settingsButton" class="nav-icon-btn" type="button" aria-label="Settings" title="설정">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         </button>
@@ -390,7 +380,7 @@
           </div>
         </div>
 
-        <!-- 우측: 볼륨, 플로팅 가사창 -->
+        <!-- 우측: 볼륨, 플로팅 가사창, 대기열 토글 -->
         <div class="player-bar-actions">
           <div class="volume-box">
             <span id="volumeIcon" class="volume-icon-btn" title="음소거" role="button" tabindex="0" aria-label="음소거 토글">
@@ -407,6 +397,16 @@
               <rect x="3" y="4" width="18" height="14" rx="2"/>
               <path d="M7 10h6"/>
               <path d="M7 14h10"/>
+            </svg>
+          </button>
+          <button id="queueToggleButton" class="bar-btn bar-action-icon-btn active" type="button" title="재생 대기열 (Up next)" aria-label="재생 대기열 (Up next)" aria-pressed="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="8" y1="6" x2="21" y2="6"/>
+              <line x1="8" y1="12" x2="21" y2="12"/>
+              <line x1="8" y1="18" x2="15" y2="18"/>
+              <line x1="3" y1="6" x2="3.01" y2="6"/>
+              <line x1="3" y1="12" x2="3.01" y2="12"/>
+              <line x1="3" y1="18" x2="3.01" y2="18"/>
             </svg>
           </button>
         </div>

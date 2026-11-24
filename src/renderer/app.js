@@ -44,7 +44,7 @@ const lyricsEditView = document.querySelector("#lyricsEditView");
 const libraryView = document.querySelector("#libraryView");
 const queueDrawer = document.querySelector("#queueDrawer");
 const queueCloseBtn = document.querySelector("#queueCloseBtn");
-const navQueueToggleBtn = document.querySelector("#navQueueToggleBtn");
+const queueToggleButton = document.querySelector("#queueToggleButton");
 const editTrackTitle = document.querySelector("#editTrackTitle");
 const editTrackArt = document.querySelector("#editTrackArt");
 const editTrackArtPlaceholder = document.querySelector("#editTrackArtPlaceholder");
@@ -1174,15 +1174,18 @@ function initMediaSession() {
     }
   });
 
-  // 재생 대기열 토글 및 닫기 버튼 핸들러 (상단 nav + 닫기 버튼 동기화)
+  // 재생 대기열 토글 및 닫기 버튼 핸들러 (우측 하단 재생바 + 닫기 버튼 동기화)
   function setQueueDrawerOpen(open) {
     if (!queueDrawer) return;
     queueDrawer.classList.toggle("open", open);
-    if (navQueueToggleBtn) navQueueToggleBtn.classList.toggle("active", open);
+    if (queueToggleButton) {
+      queueToggleButton.classList.toggle("active", open);
+      queueToggleButton.setAttribute("aria-pressed", String(open));
+    }
   }
 
-  if (navQueueToggleBtn && queueDrawer) {
-    navQueueToggleBtn.addEventListener("click", () => {
+  if (queueToggleButton && queueDrawer) {
+    queueToggleButton.addEventListener("click", () => {
       setQueueDrawerOpen(!queueDrawer.classList.contains("open"));
     });
   }

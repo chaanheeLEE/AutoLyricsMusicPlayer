@@ -77,12 +77,12 @@
   height: 12px;
 }
 
-/* 2. 메인 바 내용 (3구역 분할: 좌측 정보 / 중앙 5버튼 컨트롤 / 우측 볼륨·도구) */
+/* 2. 메인 바 내용 (3구역 대칭 그리드: 좌측 정보 / 중앙 5버튼 컨트롤 / 우측 볼륨·도구) */
 .player-bar-body {
   flex: 1;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   padding: 0 24px 6px;
   gap: 20px;
 }
@@ -92,9 +92,9 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  min-width: 200px;
+  min-width: 0;
   max-width: 320px;
-  flex: 1 1 0;
+  justify-self: start;
 }
 
 .player-bar-art-wrap {
@@ -156,6 +156,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  justify-self: center;
 }
 
 .player-bar-controls {
@@ -233,14 +234,14 @@
   transform: scale(0.96) !important;
 }
 
-/* 2.3 우측 액션 (채움 볼륨 슬라이더, 플로팅 가사창) */
+/* 2.3 우측 액션 (채움 볼륨 슬라이더, 플로팅 가사창, 대기열) */
 .player-bar-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
-  min-width: 200px;
-  flex: 1 1 0;
+  min-width: 0;
+  justify-self: end;
 }
 
 .volume-box {

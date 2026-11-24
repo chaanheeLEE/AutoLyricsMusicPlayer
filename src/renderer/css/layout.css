@@ -268,7 +268,7 @@ input {
    ========================================================================== */
 #nowPlayingView.app-view.active {
   display: grid;
-  grid-template-columns: minmax(270px, 320px) minmax(0, 1fr);
+  grid-template-columns: 272px minmax(0, 1fr);
   gap: 0;
   height: 100%;
 }
@@ -394,6 +394,7 @@ h2 {
   align-items: flex-start;
   gap: 5px;
   width: 100%;
+  max-width: 240px;
   min-width: 0;
   overflow: visible;
 }
