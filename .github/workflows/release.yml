@@ -95,7 +95,7 @@ jobs:
 
       - name: Build Electron App
         if: steps.meta.outputs.should_release == 'true'
-        run: npm run build -- -c.publish=never
+        run: npm run build
 
       - name: Package CUDA GPU Acceleration Pack
         if: steps.meta.outputs.should_release == 'true'
