@@ -88,10 +88,10 @@ jobs:
           npm run check
           npm test
 
-      - name: Extract Release Notes from updated.md
+      - name: Extract Release Notes
         id: notes
         if: steps.meta.outputs.should_release == 'true'
-        run: node scripts/release-notes.js extract --out release-notes.md
+        run: node scripts/release-notes.js extract --version ${{ steps.meta.outputs.tag }} --out release-notes.md
 
       - name: Build Electron App
         if: steps.meta.outputs.should_release == 'true'
@@ -115,7 +115,7 @@ jobs:
           git tag $env:RELEASE_TAG
           git push origin $env:RELEASE_TAG
 
-      - name: Publish Release Artifacts (with updated.md notes)
+      - name: Publish Release Artifacts (with release notes)
         if: steps.meta.outputs.should_release == 'true' && steps.notes.outputs.has_notes == 'true'
         uses: softprops/action-gh-release@v2
         with:
@@ -147,47 +147,3 @@ jobs:
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Archive CHANGELOG.md, Reset updated.md, and Sync main & develop
-        if: steps.meta.outputs.should_release == 'true'
-        shell: pwsh
-        env:
-          RELEASE_TAG: ${{ steps.meta.outputs.tag }}
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git fetch origin main
-          git checkout -B main origin/main
-
-          node scripts/release-notes.js archive --version $env:RELEASE_TAG
-
-          $changed = git status --porcelain updated.md CHANGELOG.md
-          if ($changed) {
-            git add updated.md CHANGELOG.md
-            git commit -m "chore: archive changelog and reset updated.md for $env:RELEASE_TAG [skip ci]"
-            git push origin main
-            Write-Host "Archived CHANGELOG.md and reset updated.md on main."
-          } else {
-            Write-Host "No changes in updated.md or CHANGELOG.md to commit."
-          }
-
-          git ls-remote --exit-code --heads origin develop *> $null
-          if ($LASTEXITCODE -eq 0) {
-            $global:LASTEXITCODE = 0
-            git fetch origin develop
-            git checkout -B develop origin/develop
-            git merge origin/main --no-edit
-            if ($LASTEXITCODE -eq 0) {
-              git push origin develop
-              Write-Host "Successfully synced main -> develop."
-            } else {
-              git merge --abort *> $null
-              $global:LASTEXITCODE = 0
-              Write-Host "::warning::Auto-sync main -> develop encountered a merge conflict. Release succeeded, please merge main into develop manually."
-            }
-          } else {
-            $global:LASTEXITCODE = 0
-            Write-Host "origin/develop branch not found on remote; skipping develop sync."
-          }
-          exit 0

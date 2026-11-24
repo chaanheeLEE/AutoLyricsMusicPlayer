@@ -117,6 +117,38 @@ function prependToChangelog(existingChangelog, versionTag, notesBody, dateStr) {
   return `${trimmed}${sep}${entry}\n`;
 }
 
+/**
+ * Extract release notes for a specific version tag from CHANGELOG.md.
+ * Returns trimmed Markdown notes body, or "" when that version section is missing.
+ * @param {string} changelogMarkdown
+ * @param {string} versionTag - e.g. "v1.1.0"
+ * @returns {string}
+ */
+function extractReleaseNotesFromChangelog(changelogMarkdown, versionTag) {
+  const normalized = normalizeNewlines(changelogMarkdown).trim();
+  const tag = String(versionTag || "").trim();
+  if (!normalized || !tag) return "";
+
+  const lines = normalized.split("\n");
+  const startRegex = new RegExp(`^##\\s+${escapeRegExp(tag)}(?:\\s+\\([^)]*\\)|\\s|$)`);
+  const startIdx = lines.findIndex((line) => startRegex.test(line.trim()));
+  if (startIdx === -1) return "";
+
+  const nextVersionRegex = /^##\s+v\d+\.\d+\.\d+(?:[-.\w]*)(?:\s+\([^)]*\)|\s|$)/;
+  let endIdx = lines.length;
+  for (let i = startIdx + 1; i < lines.length; i += 1) {
+    if (nextVersionRegex.test(lines[i].trim())) {
+      endIdx = i;
+      break;
+    }
+  }
+
+  let body = lines.slice(startIdx + 1, endIdx).join("\n");
+  body = body.replace(/^(?:\s*---\s*\n)+/, "");
+  body = body.replace(/(?:\n\s*---\s*)+$/, "");
+  return body.trim();
+}
+
 function appendGithubOutput(key, value) {
   const outFile = process.env.GITHUB_OUTPUT;
   if (outFile) {
@@ -143,6 +175,12 @@ function readUpdatedFile(cwd) {
   return fs.readFileSync(updatedPath, "utf8");
 }
 
+function readChangelogFile(cwd) {
+  const changelogPath = path.join(cwd, "CHANGELOG.md");
+  if (!fs.existsSync(changelogPath)) return "";
+  return fs.readFileSync(changelogPath, "utf8");
+}
+
 function parseArgValue(args, flag) {
   const idx = args.indexOf(flag);
   if (idx !== -1 && idx + 1 < args.length) {
@@ -158,7 +196,14 @@ function runCli() {
 
   if (cmd === "extract") {
     const outPath = parseArgValue(args, "--out");
-    const notes = extractReleaseNotes(readUpdatedFile(cwd));
+    const rawVersion = parseArgValue(args, "--version") || `v${readPackageVersion(cwd)}`;
+    const versionTag = rawVersion.startsWith("v") ? rawVersion : `v${rawVersion}`;
+
+    const updatedNotes = extractReleaseNotes(readUpdatedFile(cwd));
+    const changelogNotes = updatedNotes
+      ? ""
+      : extractReleaseNotesFromChangelog(readChangelogFile(cwd), versionTag);
+    const notes = updatedNotes || changelogNotes;
     const hasNotes = notes.length > 0;
 
     if (hasNotes && outPath) {
@@ -167,25 +212,31 @@ function runCli() {
     appendGithubOutput("has_notes", String(hasNotes));
     console.log(
       hasNotes
-        ? `Extracted release notes (${notes.length} chars) from updated.md.`
-        : "updated.md contains no pending release notes; falling back to auto-generated notes."
+        ? `Extracted release notes (${notes.length} chars) from ${updatedNotes ? "updated.md" : `CHANGELOG.md (${versionTag})`}.`
+        : `No release notes found in updated.md or CHANGELOG.md (${versionTag}); falling back to auto-generated notes.`
     );
     return;
   }
 
   if (cmd === "check") {
     const version = readPackageVersion(cwd);
-    const notes = extractReleaseNotes(readUpdatedFile(cwd));
+    const versionTag = `v${version}`;
+    const updatedNotes = extractReleaseNotes(readUpdatedFile(cwd));
+    const changelogNotes = updatedNotes
+      ? ""
+      : extractReleaseNotesFromChangelog(readChangelogFile(cwd), versionTag);
+    const notes = updatedNotes || changelogNotes;
     const hasNotes = notes.length > 0;
+    const sourceLabel = updatedNotes ? "updated.md" : `CHANGELOG.md (${versionTag})`;
 
-    console.log(`Package version: v${version}`);
+    console.log(`Package version: ${versionTag}`);
     if (hasNotes) {
       const lineCount = notes.split("\n").length;
-      console.log(`Release notes ready in updated.md (${lineCount} lines, ${notes.length} chars).`);
-      appendStepSummary(`### Release Notes Preview (\`v${version}\`)\n\n${notes}\n`);
+      console.log(`Release notes ready in ${sourceLabel} (${lineCount} lines, ${notes.length} chars).`);
+      appendStepSummary(`### Release Notes Preview (\`${versionTag}\` · ${sourceLabel})\n\n${notes}\n`);
     } else {
-      console.log("Warning: updated.md has no release notes yet. Release will use GitHub auto-generated notes if merged now.");
-      appendStepSummary(`### Release Notes Preview (\`v${version}\`)\n\n> **Note:** \`updated.md\`에 작성된 릴리즈 노트가 없습니다. 머지 시 GitHub 자동 생성 노트로 폴백됩니다.\n`);
+      console.log("Warning: No release notes found in updated.md or CHANGELOG.md yet. Release will use GitHub auto-generated notes if merged now.");
+      appendStepSummary(`### Release Notes Preview (\`${versionTag}\`)\n\n> **Note:** \`updated.md\` 및 \`CHANGELOG.md (${versionTag})\`에 작성된 릴리즈 노트가 없습니다. 머지 시 GitHub 자동 생성 노트로 폴백됩니다.\n`);
     }
     return;
   }
@@ -223,6 +274,7 @@ if (require.main === module) {
 
 module.exports = {
   extractReleaseNotes,
+  extractReleaseNotesFromChangelog,
   buildEmptyUpdatedTemplate,
   prependToChangelog,
 };

@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   extractReleaseNotes,
+  extractReleaseNotesFromChangelog,
   buildEmptyUpdatedTemplate,
   prependToChangelog,
 } = require("../scripts/release-notes");
@@ -57,4 +58,35 @@ test("prepends release notes cleanly to empty and existing CHANGELOG.md and stay
   const fromInitial = prependToChangelog(initialTemplate, "v1.0.2", notes102, "2026-11-22");
   assert.match(fromInitial, /---\n\n## v1\.0\.2 \(2026-11-22\)/);
   assert.doesNotMatch(fromInitial, /---\n\n---/);
+});
+
+test("extracts version-specific release notes from CHANGELOG.md without bleeding into older versions", () => {
+  const sampleChangelog = [
+    "# Changelog — Auto Lyrics Player (ALP)",
+    "",
+    "---",
+    "",
+    "## v1.1.0 (2026-11-24)",
+    "",
+    "## 2026-11-24 — UI 개선",
+    "- 첫 번째 묶음",
+    "",
+    "---",
+    "",
+    "## 2026-11-23 — 안정화",
+    "- 두 번째 묶음",
+    "",
+    "---",
+    "",
+    "## v1.0.2 (2026-11-22)",
+    "",
+    "- 이전 버전 내역",
+    "",
+  ].join("\n");
+
+  const extracted = extractReleaseNotesFromChangelog(sampleChangelog, "v1.1.0");
+  assert.match(extracted, /^## 2026-11-24 — UI 개선/);
+  assert.match(extracted, /- 두 번째 묶음$/);
+  assert.doesNotMatch(extracted, /이전 버전 내역/);
+  assert.equal(extractReleaseNotesFromChangelog(sampleChangelog, "v9.9.9"), "");
 });
