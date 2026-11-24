@@ -42,6 +42,7 @@ jobs:
 
           git rev-parse -q --verify "refs/tags/$tag" *> $null
           $tagExists = ($LASTEXITCODE -eq 0)
+          $global:LASTEXITCODE = 0
 
           if ($tagExists -and $env:GITHUB_EVENT_NAME -ne "workflow_dispatch") {
             Write-Host "Tag $tag already exists. Skipping release build on main."
@@ -54,6 +55,7 @@ jobs:
             "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
             "tag_exists=$($tagExists.ToString().ToLower())" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           }
+          exit 0
 
       - name: Setup Node.js
         if: steps.meta.outputs.should_release == 'true'
@@ -172,6 +174,7 @@ jobs:
 
           git ls-remote --exit-code --heads origin develop *> $null
           if ($LASTEXITCODE -eq 0) {
+            $global:LASTEXITCODE = 0
             git fetch origin develop
             git checkout -B develop origin/develop
             git merge origin/main --no-edit
@@ -180,8 +183,11 @@ jobs:
               Write-Host "Successfully synced main -> develop."
             } else {
               git merge --abort *> $null
+              $global:LASTEXITCODE = 0
               Write-Host "::warning::Auto-sync main -> develop encountered a merge conflict. Release succeeded, please merge main into develop manually."
             }
           } else {
+            $global:LASTEXITCODE = 0
             Write-Host "origin/develop branch not found on remote; skipping develop sync."
           }
+          exit 0
