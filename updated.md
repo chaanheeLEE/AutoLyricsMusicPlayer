@@ -19,10 +19,12 @@
 ## 2026-11-24 — 메인 화면 UI·UX 정리 및 상단 창 드래그 영역 확대
 - **상단 글로벌 바 창 드래그 영역 확대 (`layout.css`)**:
   - `.app-nav` 내 컨테이너(`.nav-brand`, `.nav-tabs`, `.nav-actions`, `.window-controls`)의 `no-drag`를 해제하고 실제 버튼·입력 요소에만 `no-drag`를 제한해 상단 바 빈 공간 전체에서 창 이동이 가능하도록 개선했습니다.
-- **우측 하단 재생바 간소화 (`index.html`, `app.js`, `player-bar.css`)**:
-  - 상단 바와 중복되는 하단 대기열 버튼(`#queueToggleButton`)을 제거하고, 플로팅 가사창 버튼(`#floatingButton`)을 텍스트 없는 아이콘 전용 버튼으로 정리했습니다.
-- **좌측 감상 패널 곡 정보 ↔ AI 제어 영역 위계 분리 (`index.html`, `layout.css`)**:
+- **우측 하단 재생바 간소화, 대기열 토글 일원화 및 중앙 정렬 (`index.html`, `app.js`, `player-bar.css`)**:
+  - 상단 바의 중복 대기열 버튼(`#navQueueToggleBtn`)을 제거하고 우측 하단 재생바에 플로팅 가사창(`#floatingButton`)·재생 대기열(`#queueToggleButton`) 아이콘 전용 버튼을 나란히 배치했습니다.
+  - `.player-bar-body`를 3열 대칭 그리드(`minmax(0, 1fr) auto minmax(0, 1fr)`)로 재구성해 좌우 트랙 정보·액션 길이에 무관하게 중앙 5버튼 컨트롤이 항상 화면 정중앙에 오도록 맞췄습니다.
+- **좌측 감상 패널 곡 정보 ↔ AI 제어 영역 위계 분리 및 좌우 대칭 보정 (`index.html`, `layout.css`)**:
   - 곡 메타정보와 하단 AI 상태 배지·버튼 영역(`.track-ai-section`) 사이에 여백 및 은은한 구분선(`border-top`)을 추가해 가독성을 높였습니다.
+  - 감상 화면 좌측 컬럼 너비를 `272px`(`.track-copy` `max-width: 240px`)로 고정해 좌측 여백(`32px`)과 우측 구분선 앞 여백(`32px`)을 대칭으로 맞췄습니다.
 
 ---
 
@@ -31,7 +33,7 @@
   - 분석·정합 시작 시 대상 트랙·설정·내장 가사를 스냅샷으로 고정하고 작업 토큰(`jobId`)으로 진행률·결과 이벤트를 격리해, 작업 중 곡을 넘겨도 새 곡의 가사/상태를 덮어쓰지 않고 완료된 결과만 원곡 캐시에 안전 저장하도록 개선했습니다.
   - `persistLyricsSoon()`을 트랙별 `saveTimers` 스냅샷 저장으로 전환하고, `selectPlaylistItem()`에 시퀀스 가드·자동 분석 타이머 정리·이전 작업 취소(`ffmpeg`/Whisper/Gemini/Align 통합 중단) 병행 대기를 적용했습니다.
 - **AI 분석·정합 자동화 라인 및 검색·진단 강화 (`lyrics-aligner.js`, `lyrics-scraper.js`, `transcribe.py`, `layout.css`)**:
-  - `autoAnalyzeMode === "align"` 시 DOM `.click()`·`500ms` 우회를 제거하고 `_runAlignment()` 직접 체이닝으로 전환했으며, 수동 1차 분석 완료 시 `AI 정합` 버튼 시각 강조(`.align-suggested`)와 안내 문구를 제공합니다.
+  - `autoAnalyzeMode === "align"` 시 DOM `.click()`·`500ms` 우회를 제거하고 `_runAlignment()` 직접 체이닝으로 전환했으며, 수동 1차 분석 완료 및 정합 폴백·실패 시 `AI 정합` 버튼 시각 강조(`.align-suggested`)와 재시도 안내 문구를 제공합니다.
   - LRCLIB 다중 쿼리(`아티스트 + 곡명` → `정제 곡명` → `Artist - Title` 분할), 다국어 유니코드(`\p{L}\p{N}`) 유사도 매칭·최고 유사도 후보 선택, 12초 타임아웃 및 0건 매칭 시 Whisper 안전 폴백을 적용했습니다.
   - 분석 진행 표시의 장치 안내를 `GPU` / `CPU`로 단순화했습니다.
 - **Gemini 3.1 Flash-Lite 추가 및 503/429 멀티 모델 자동 폴백 (`gemini-service.js`, `index.html`, `test/alignment-pipeline.test.js`)**:
