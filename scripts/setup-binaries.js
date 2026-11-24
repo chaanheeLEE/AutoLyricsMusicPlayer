@@ -1,7 +1,43 @@
-const { execSync } = require("child_process");
+const { execSync, execFileSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+
+/**
+ * Download and extract a zip archive without relying on PowerShell's Expand-Archive
+ * (which breaks when pwsh 7's PSModulePath leaks into child powershell 5.1 processes).
+ */
+function downloadAndExtractZip(url, tempZip, tempExtract) {
+  if (fs.existsSync(tempZip)) {
+    fs.rmSync(tempZip, { force: true });
+  }
+  if (fs.existsSync(tempExtract)) {
+    fs.rmSync(tempExtract, { recursive: true, force: true });
+  }
+  fs.mkdirSync(tempExtract, { recursive: true });
+
+  console.log(`Downloading: ${url}`);
+  try {
+    execFileSync("curl.exe", ["-fsSL", "--retry", "3", "-o", tempZip, url], { stdio: "inherit" });
+  } catch {
+    execFileSync(
+      "powershell",
+      ["-NoProfile", "-Command", `$ProgressPreference = 'SilentlyContinue'; Invoke-WebRequest -Uri '${url}' -OutFile '${tempZip}'`],
+      { stdio: "inherit" }
+    );
+  }
+
+  console.log("Extracting...");
+  try {
+    execFileSync("tar.exe", ["-xf", tempZip, "-C", tempExtract], { stdio: "inherit" });
+  } catch {
+    execFileSync(
+      "powershell",
+      ["-NoProfile", "-Command", `Add-Type -AssemblyName System.IO.Compression.FileSystem; [System.IO.Compression.ZipFile]::ExtractToDirectory('${tempZip}', '${tempExtract}')`],
+      { stdio: "inherit" }
+    );
+  }
+}
 
 const binDir = path.join(__dirname, "..", "bin", "win32");
 
@@ -78,13 +114,7 @@ if (!fs.existsSync(ffmpegDest)) {
     const tempExtract = path.join(os.tmpdir(), "ffmpeg_temp_extracted");
 
     try {
-      console.log(`Downloading: ${zipUrl}`);
-      execSync(`powershell -Command "Invoke-WebRequest -Uri '${zipUrl}' -OutFile '${tempZip}'"`, { stdio: "inherit" });
-      console.log("Extracting...");
-      if (fs.existsSync(tempExtract)) {
-        fs.rmSync(tempExtract, { recursive: true, force: true });
-      }
-      execSync(`powershell -Command "Expand-Archive -Path '${tempZip}' -DestinationPath '${tempExtract}'"`, { stdio: "inherit" });
+      downloadAndExtractZip(zipUrl, tempZip, tempExtract);
 
       const searchForBinary = (dir, name) => {
         const files = fs.readdirSync(dir);
@@ -135,11 +165,7 @@ function compressWithUpx(binPath) {
     const upxUrl = "https://github.com/upx/upx/releases/download/v4.2.4/upx-4.2.4-win64.zip";
     const tempZip = path.join(os.tmpdir(), "upx_temp.zip");
     try {
-      if (fs.existsSync(tempExtract)) {
-        fs.rmSync(tempExtract, { recursive: true, force: true });
-      }
-      execSync(`powershell -Command "Invoke-WebRequest -Uri '${upxUrl}' -OutFile '${tempZip}'"`, { stdio: "inherit" });
-      execSync(`powershell -Command "Expand-Archive -Path '${tempZip}' -DestinationPath '${tempExtract}'"`, { stdio: "inherit" });
+      downloadAndExtractZip(upxUrl, tempZip, tempExtract);
       
       const searchForUpx = (dir) => {
         const files = fs.readdirSync(dir);
