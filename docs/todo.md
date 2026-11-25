@@ -74,15 +74,24 @@
 ---
 
 ## 6. 코드 아키텍처 및 모듈 리팩토링
-- [ ] **[P2] 렌더러 메인 오케스트레이터(`src/renderer/app.js`, 약 1,300줄) 역할 분리**:
-  - 트랙 전환·히스토리·프리페치·가사 캐시 스냅샷 저장 로직(`track-controller.js`)과 전역 단축키·`MediaSession`·커스텀 윈도우 제어(`shell-controls.js`)를 분리해 `app.js`를 초기화 및 모듈 연결 엔트리로 경량화
-- [ ] **[P2] 설정 뷰(`src/renderer/modules/settings-view.js`, 약 920줄) 및 모델·가속 팩 다운로드 모듈 공통화**:
-  - Whisper 모델·CUDA 가속 팩·ONNX 보컬 분리 모델의 다운로드 진행률·취소·삭제 UI 렌더링을 공통 헬퍼로 통합하고, 메인 프로세스(`model-manager.js`, `cuda-manager.js`, `vocal-model-manager.js`)의 다운로드/취소/상태 관리 중복 코드 정리
-- [ ] **[P2] 비동기 작업 관리자(`src/renderer/modules/lyrics-job-manager.js`) 경계 정밀화 및 특성화 테스트 보강**:
-  - DOM 의존성이 없는 진행률·오류·폴백 메시지 변환 및 `jobId`·트랙 유효성 판별 순수 함수를 분리하고, `analyze` ↔ `align` 전환 및 원곡 캐시 저장 회귀 테스트 보강
-- [ ] **[P2] 대기열·라이브러리 뷰 모듈 분리 (`src/renderer/modules/playlist-manager.js`, 약 610줄)**:
-  - `library`/`queue` 데이터 모델 분리 작업(`v1.2.0`)과 연계해 우측 대기열 드로어(`Up next`), 라이브러리 테이블 뷰, 곡 상세 정보 모달(`#trackInfoModal`)을 개별 모듈로 분리
-- [ ] **[P3] 메인 프로세스 IPC 라우터(`src/main/core/ipc-router.js`, 약 510줄) 도메인별 분할**:
-  - 단일 파일에 집중된 핸들러를 `track/media`, `lyrics-cache/export/embed`, `transcription/align/models`, `window/floating/settings` 도메인 단위로 분리하고 채널 상수 일원화
-- [ ] **[P3] Python 전사 스크립트(`src/main/services/transcribe.py`, 약 520줄) 및 대형 스타일시트(`layout.css`, 약 885줄) 구조화**:
-  - `transcribe.py` 내 CUDA 런타임 탐지·HuggingFace 다운로드·언어 감지·단어 단위 세그먼트 분할을 역할별로 모듈화하고, `layout.css`에서 상단 내비게이션·감상 패널·공통 모달 스타일을 분리
+- [ ] **[P2] 정적 검사(`npm run check`) 안전망 보강 및 가사 출처 계약 정리 (`package.json`, `lyrics-core.js`)**:
+  - `package.json` `check` 스크립트에 누락된 Main JS 6개(`cache-manager.js`, `settings-manager.js`, `lyrics-sources.js`, `model-manager.js`, `media-helper.js`, `lyrics-tagger.js`) 추가
+  - `lyricsSource` 상수 일원화 검토 및 확인된 출처 표기 불일치(`.lrc`/`txt_plain` 버튼 상태, 평문 가사 라벨)는 리팩토링과 분리해 별도 확인·수정
+- [ ] **[P2] 렌더러 메인 오케스트레이터(`src/renderer/app.js`, 약 1,303줄) 역할 분리**:
+  - **Unit 1-A (`shell-controls.js`)**: 전역 단축키·`MediaSession`·커스텀 윈도우 제어·뷰/드로어/드롭다운/음소거 토글 분리
+  - **Unit 1-B (`track-controller.js`)**: 트랙 전환(`trackSelectionSeq`)·히스토리(`forwardHistory`)·프리페치·트랙별 디바운스 캐시 스냅샷(`saveTimers`) 분리 및 특성화 테스트 추가
+- [ ] **[P2] 비동기 작업 관리자(`src/renderer/modules/lyrics-job-manager.js`, 약 553줄) 경계 정밀화 및 특성화 테스트 보강**:
+  - DOM 비의존 순수 로직(적응형 `beamSize`·`openingHint`·`persistedPlainLyrics` 판별·진행률/폴백 메시지 변환·`jobId`/트랙 유효성 검사)을 UMD 헬퍼로 추출하고 `test/lyrics-job-manager.test.js` 비동기 회귀 테스트 구축
+- [ ] **[P2] Main 다운로드·런타임 헬퍼 공통화 및 설정 뷰(`src/renderer/modules/settings-view.js`, 약 923줄) 분리**:
+  - **Main**: `download-helper.js`(`formatBytes`, `getDirectorySize`, `downloadFileWithRedirects`) 통합, `resolvePython`/`hasFasterWhisper`(`transcription-worker.js`↔`model-manager.js`) 및 `createCancelledError`(`gemini-service.js`·`lyrics-scraper.js`·`transcription-worker.js`) 중복 제거 + 단위 테스트
+  - **Renderer**: `settings-view.js`의 Whisper 모델·CUDA 팩·ONNX 보컬 분리 모델 관리 UI(~460줄)를 `model-settings-panel.js`로 분리하고 진행률/배지 갱신 공통화
+- [ ] **[P2] AI 정합·로컬 소스 파이프라인 내부 구조화 (`lyrics-aligner.js`, `lyrics-sources.js`, `lyrics-scraper.js`)**:
+  - `lyrics-aligner.js`(약 332줄) `alignAndInterpolateLyrics()` 내부 순수 후처리(역행 무효화·연속 중복 분할·선형 보간·길이 가드) 함수 분해 및 중복 탐색/미사용 변수 정리
+  - `lyrics-sources.js`(약 284줄) 내장/사이드카 공통 텍스트 파서 추출·헤더 주석 최신화, `lyrics-scraper.js`(약 391줄) 거절 로그 이중 유사도 계산 정리
+- [ ] **[P2] 대기열·라이브러리 뷰 모듈 분리 (`src/renderer/modules/playlist-manager.js`, 약 526줄)**:
+  - `v1.2.0` `library`/`queue` 데이터 모델 분리 작업과 연계해 우측 대기열 드로어(`Up next`), 라이브러리 테이블 뷰, 곡 상세 정보 모달(`#trackInfoModal`)을 개별 모듈로 분리
+- [ ] **[P3] 메인 프로세스 IPC 라우터(`src/main/core/ipc-router.js`, 약 513줄) 도메인별 분할**:
+  - `src/main/ipc/` 아래 `track/media`, `lyrics-cache/export/embed`, `transcription/align`, `models/cuda/vocal`, `window/floating/settings` 도메인으로 분리하고 채널 상수 일원화
+- [ ] **[P3] Python 전사 스크립트(`transcribe.py`, 약 562줄)·Gemini 서비스(`gemini-service.js`, 약 533줄)·대형 스타일시트(`settings.css` 약 845줄, `layout.css` 약 774줄) 구조화**:
+  - `transcribe.py`는 PyInstaller `--onefile` 호환을 위해 다중 파일 분할은 보류하고 1차로 `main()` 내부 중첩 클로저(8개)를 동일 파일 최상위 함수로 승격(상주 워커 도입 시 모듈화 재검토)
+  - `gemini-service.js`는 오디오 경량 인코딩(A-5) 착수 시점에 업로드 준비 계층 분리, `settings.css`·`layout.css`는 UI 안정기에 별도 분리
