@@ -7,10 +7,7 @@ const trackStatus = document.querySelector("#trackStatus");
 const albumArt = document.querySelector("#albumArt");
 const albumArtPlaceholder = document.querySelector("#albumArtPlaceholder");
 
-// Global Navigation Elements
-const navNowPlayingBtn = document.querySelector("#navNowPlayingBtn");
-const navLibraryBtn = document.querySelector("#navLibraryBtn");
-const navEditLyricsBtn = document.querySelector("#navEditLyricsBtn");
+// Action & Lyrics Bar Elements
 const analyzeButton = document.querySelector("#analyzeButton");
 const cancelButton = document.querySelector("#cancelButton");
 const alignButton = document.querySelector("#alignButton");
@@ -19,7 +16,6 @@ const mainCancelButton = document.querySelector("#mainCancelButton");
 const mainAlignButton = document.querySelector("#mainAlignButton");
 const mainVocalIsolationToggle = document.querySelector("#mainVocalIsolationToggle");
 const editVocalIsolationToggle = document.querySelector("#editVocalIsolationToggle");
-const floatingButton = document.querySelector("#floatingButton");
 const syncBackButton = document.querySelector("#syncBackButton");
 const syncFineBackButton = document.querySelector("#syncFineBackButton");
 const syncFineForwardButton = document.querySelector("#syncFineForwardButton");
@@ -38,20 +34,10 @@ const playerBarArtist = document.querySelector("#playerBarArtist");
 const playerBarArt = document.querySelector("#playerBarArt");
 const playerBarPlaceholder = document.querySelector("#playerBarPlaceholder");
 
-// Views & Edit Toolbar Elements
-const nowPlayingView = document.querySelector("#nowPlayingView");
-const lyricsEditView = document.querySelector("#lyricsEditView");
-const libraryView = document.querySelector("#libraryView");
-const queueDrawer = document.querySelector("#queueDrawer");
-const queueCloseBtn = document.querySelector("#queueCloseBtn");
-const queueToggleButton = document.querySelector("#queueToggleButton");
+// Edit Header Elements
 const editTrackTitle = document.querySelector("#editTrackTitle");
 const editTrackArt = document.querySelector("#editTrackArt");
 const editTrackArtPlaceholder = document.querySelector("#editTrackArtPlaceholder");
-const exitEditModeBtn = document.querySelector("#exitEditModeBtn");
-const saveEditBtn = document.querySelector("#saveEditBtn");
-const exportDropdownBtn = document.querySelector("#exportDropdownBtn");
-const exportDropdownMenu = document.querySelector("#exportDropdownMenu");
 
 const { formatClock, escapeHtml } = window.lyricsCore;
 
@@ -219,7 +205,7 @@ function applyActiveTrackInfoUI(track) {
   updateTitleMarquee();
   updatePlayerBarInfo(track);
   updateEditHeaderInfo(track);
-  updateMediaSessionMetadata(track);
+  shellControls.updateMediaSessionMetadata(track);
 }
 
 function buildLyricsSaveSnapshot(explicitPayload = null) {
@@ -412,35 +398,9 @@ const lyricsViewer = new LyricsViewer(state, {
     return player.getCurrentTime();
   },
   onToggleEditView: (isEdit) => {
-    switchView(isEdit ? "lyrics-edit" : "now-playing");
+    shellControls.switchView(isEdit ? "lyrics-edit" : "now-playing");
   }
 });
-
-function switchView(viewName) {
-  if (nowPlayingView) nowPlayingView.classList.remove("active");
-  if (lyricsEditView) lyricsEditView.classList.remove("active");
-  if (libraryView) libraryView.classList.remove("active");
-
-  if (viewName === "lyrics-edit") {
-    if (lyricsEditView) lyricsEditView.classList.add("active");
-    updateEditHeaderInfo(state.track);
-    if (lyricsViewer) lyricsViewer.renderEditView();
-  } else if (viewName === "library") {
-    if (libraryView) libraryView.classList.add("active");
-    if (navLibraryBtn) navLibraryBtn.classList.add("active");
-    if (navNowPlayingBtn) navNowPlayingBtn.classList.remove("active");
-    if (state.editMode) {
-      state.editMode = false;
-    }
-    if (playlist) playlist.renderLibraryTable();
-  } else {
-    // "now-playing"
-    if (nowPlayingView) nowPlayingView.classList.add("active");
-    if (navNowPlayingBtn) navNowPlayingBtn.classList.add("active");
-    if (navLibraryBtn) navLibraryBtn.classList.remove("active");
-    if (lyricsViewer) lyricsViewer.render();
-  }
-}
 
 const settingsView = new SettingsView(state, {
   onSave: (savedSettings) => {
@@ -472,6 +432,18 @@ const lyricsJobManager = new LyricsJobManager(state, player, lyricsViewer, setti
 const embedManager = new EmbedManager(state, trackStatus, updateAlignButtonState);
 
 const onboardingManager = new OnboardingManager(state);
+
+const shellControls = new ShellControls({
+  state,
+  player,
+  lyricsViewer,
+  playlist,
+  callbacks: {
+    onEnterEditView: () => updateEditHeaderInfo(state.track),
+    onSaveEdit: () => persistLyricsImmediately()
+  }
+});
+shellControls.init();
 
 // -------------------------------------------------------------
 // Orchestrator 핵심 비즈니스 로직
@@ -543,29 +515,6 @@ function updateTitleMarquee() {
 }
 
 window.addEventListener("resize", updateTitleMarquee);
-
-function updateMediaSessionMetadata(track) {
-  if (!("mediaSession" in navigator)) return;
-
-  const artwork = [];
-  if (track.albumArt) {
-    const isPng = track.albumArt.startsWith("data:image/png");
-    artwork.push({
-      src: track.albumArt,
-      sizes: "512x512",
-      type: isPng ? "image/png" : "image/jpeg"
-    });
-  }
-
-  const meta = window.lyricsCore.resolveTrackMeta(track);
-
-  navigator.mediaSession.metadata = new MediaMetadata({
-    title: meta.title,
-    artist: meta.artist === "-" ? "Local Track" : meta.artist,
-    album: meta.album || "ALP",
-    artwork: artwork
-  });
-}
 
 async function selectPlaylistItem(index, autoPlay = true, navMode = "manual") {
   if (index < 0 || index >= state.playlist.length) return;
@@ -893,7 +842,7 @@ function setControlsEnabled(enabled) {
 
   if (analyzeButton) analyzeButton.disabled = !enabled;
   if (mainAnalyzeButton) mainAnalyzeButton.disabled = !enabled;
-  floatingButton.disabled = !enabled;
+  shellControls.setFloatingEnabled(enabled);
   syncBackButton.disabled = !enabled;
   syncFineBackButton.disabled = !enabled;
   syncFineForwardButton.disabled = !enabled;
@@ -906,24 +855,8 @@ function setControlsEnabled(enabled) {
   updateActionButtonsState();
 }
 
-// showProgress, hideProgress, align, analyze, cancel 관련 로직은 LyricsJobManager가 관리하므로 제거합니다.
-
-function updateFloatingButtonUI(visible) {
-  if (!floatingButton) return;
-  floatingButton.classList.toggle("active", visible);
-  floatingButton.title = visible ? "외부 플로팅 가사창 닫기" : "외부 투명 플로팅 가사창 열기";
-  floatingButton.setAttribute("aria-label", floatingButton.title);
-  floatingButton.setAttribute("aria-pressed", String(visible));
-}
-
-floatingButton.addEventListener("click", async () => {
-  state.floatingVisible = !state.floatingVisible;
-  const visible = await window.lyricsPlayer.toggleFloating(state.floatingVisible);
-  state.floatingVisible = visible;
-  updateFloatingButtonUI(visible);
-  lyricsViewer.updateActive(player.getCurrentTime(), player.isPlaying());
-  localStorage.setItem("floating_visible", String(visible));
-});
+// showProgress, hideProgress, align, analyze, cancel 관련 로직은 LyricsJobManager가 관리하고,
+// 전역 단축키, MediaSession, 뷰/드로어 전환, 플로팅 버튼 및 윈도우 제어는 ShellControls가 관리합니다.
 
 syncBackButton.addEventListener("click", () => {
   lyricsViewer.setOffset(state.syncOffset - 0.5);
@@ -968,67 +901,12 @@ exportVttButton.addEventListener("click", () => {
   exportLyrics("vtt");
 });
 
-window.lyricsPlayer.onFloatingClosed(() => {
-  state.floatingVisible = false;
-  updateFloatingButtonUI(false);
-  localStorage.setItem("floating_visible", "false");
-});
-
-window.lyricsPlayer.onPlaybackCommand((command) => {
-  if (command === "toggle-play") {
-    player.togglePlay();
-  }
-
-  if (command === "prev-track") {
-    player.prev();
-  }
-
-  if (command === "next-track") {
-    player.next();
-  }
-
-  if (command === "close-floating") {
-    if (state.floatingVisible) {
-      floatingButton.click();
-    }
-  }
-});
-
-function initMediaSession() {
-  if (!("mediaSession" in navigator)) return;
-
-  navigator.mediaSession.setActionHandler("play", () => {
-    if (state.playlist.length === 0) return;
-    player.play();
-  });
-
-  navigator.mediaSession.setActionHandler("pause", () => {
-    player.pause();
-  });
-
-  navigator.mediaSession.setActionHandler("previoustrack", () => {
-    player.prev();
-  });
-
-  navigator.mediaSession.setActionHandler("nexttrack", () => {
-    player.next();
-  });
-
-  navigator.mediaSession.setActionHandler("seekto", (details) => {
-    if (Number.isFinite(player.getDuration())) {
-      let seekTime = details.seekTime;
-      player.setCurrentTime(seekTime);
-      player.updatePlaybackPosition();
-    }
-  });
-}
-
 // -------------------------------------------------------------
 // App Initialization
 // -------------------------------------------------------------
 
 (async () => {
-  initMediaSession();
+  shellControls.initMediaSession();
 
   // 초기 테마 즉시 적용 (깜빡임 방지)
   document.documentElement.dataset.theme = localStorage.getItem("theme") || "lyra";
@@ -1091,7 +969,7 @@ function initMediaSession() {
     state.floatingVisible = true;
     const visible = await window.lyricsPlayer.toggleFloating(true);
     state.floatingVisible = visible;
-    updateFloatingButtonUI(visible);
+    shellControls.updateFloatingButtonUI(visible);
     lyricsViewer.updateActive(player.getCurrentTime(), player.isPlaying());
   }
 
@@ -1102,213 +980,5 @@ function initMediaSession() {
     setTimeout(() => {
       onboardingManager.show();
     }, 400);
-  }
-})();
-
-// --- Shortcuts & Global UI Controls ---
-(() => {
-  // -------------------------------------------------------------
-  // 단축키 제어 (Keyboard Shortcuts)
-  // -------------------------------------------------------------
-  const DEFAULT_SHORTCUTS = {
-    togglePlay: "Space",
-    seekBackward: "ArrowLeft",
-    seekForward: "ArrowRight",
-    volumeUp: "ArrowUp",
-    volumeDown: "ArrowDown",
-    prevTrack: "KeyP",
-    nextTrack: "KeyN",
-    toggleMute: "KeyM",
-    toggleFloating: "KeyF",
-  };
-
-  document.addEventListener("keydown", (e) => {
-    // 입력창에 포커스가 있는 경우 단축키 동작 무시
-    const activeEl = document.activeElement;
-    if (activeEl && (
-      (activeEl.tagName === "INPUT" && (activeEl.type === "text" || activeEl.type === "password" || activeEl.type === "number")) ||
-      activeEl.tagName === "TEXTAREA" ||
-      activeEl.isContentEditable
-    )) {
-      return;
-    }
-
-    const shortcuts = state.settings?.shortcuts || DEFAULT_SHORTCUTS;
-
-    switch (e.code) {
-      case shortcuts.togglePlay:
-        e.preventDefault(); // 스페이스바 브라우저 스크롤 방지
-        player.togglePlay();
-        break;
-      case shortcuts.seekBackward:
-        e.preventDefault();
-        const curTimeLeft = player.getCurrentTime();
-        if (Number.isFinite(curTimeLeft)) {
-          player.setCurrentTime(Math.max(0, curTimeLeft - 5));
-        }
-        break;
-      case shortcuts.seekForward:
-        e.preventDefault();
-        const curTimeRight = player.getCurrentTime();
-        const duration = player.getDuration();
-        if (Number.isFinite(curTimeRight) && Number.isFinite(duration)) {
-          player.setCurrentTime(Math.min(duration, curTimeRight + 5));
-        }
-        break;
-      case shortcuts.volumeUp:
-        e.preventDefault();
-        const curVolUp = player.audio.volume;
-        player.setVolume(Math.min(1.0, Number((curVolUp + 0.05).toFixed(2))));
-        break;
-      case shortcuts.volumeDown:
-        e.preventDefault();
-        const curVolDown = player.audio.volume;
-        player.setVolume(Math.max(0.0, Number((curVolDown - 0.05).toFixed(2))));
-        break;
-      case shortcuts.nextTrack:
-        player.next();
-        break;
-      case shortcuts.prevTrack:
-        player.prev();
-        break;
-      case shortcuts.toggleMute:
-        if (player.audio.volume > 0) {
-          state.savedVolume = player.audio.volume;
-          player.setVolume(0);
-        } else {
-          player.setVolume(state.savedVolume || 0.85);
-        }
-        break;
-      case shortcuts.toggleFloating:
-        if (!floatingButton.disabled) {
-          floatingButton.click();
-        }
-        break;
-    }
-  });
-
-  // 재생 대기열 토글 및 닫기 버튼 핸들러 (우측 하단 재생바 + 닫기 버튼 동기화)
-  function setQueueDrawerOpen(open) {
-    if (!queueDrawer) return;
-    queueDrawer.classList.toggle("open", open);
-    if (queueToggleButton) {
-      queueToggleButton.classList.toggle("active", open);
-      queueToggleButton.setAttribute("aria-pressed", String(open));
-    }
-  }
-
-  if (queueToggleButton && queueDrawer) {
-    queueToggleButton.addEventListener("click", () => {
-      setQueueDrawerOpen(!queueDrawer.classList.contains("open"));
-    });
-  }
-
-  if (queueCloseBtn && queueDrawer) {
-    queueCloseBtn.addEventListener("click", () => {
-      setQueueDrawerOpen(false);
-    });
-  }
-
-  // 하단 바 볼륨 아이콘 클릭 시 음소거 토글
-  const volumeIcon = document.querySelector("#volumeIcon");
-  if (volumeIcon) {
-    volumeIcon.style.cursor = "pointer";
-    volumeIcon.addEventListener("click", () => {
-      if (player.audio.volume > 0) {
-        state.savedVolume = player.audio.volume;
-        player.setVolume(0);
-      } else {
-        player.setVolume(state.savedVolume || 0.85);
-      }
-    });
-  }
-  // 상단 내비게이션 바 탭 이벤트
-  if (navNowPlayingBtn && navLibraryBtn) {
-    navNowPlayingBtn.addEventListener("click", () => {
-      if (state.editMode) {
-        lyricsViewer.toggleEditMode(false);
-      } else {
-        switchView("now-playing");
-      }
-    });
-
-    navLibraryBtn.addEventListener("click", () => {
-      switchView("library");
-    });
-  }
-
-  if (navEditLyricsBtn) {
-    navEditLyricsBtn.addEventListener("click", () => {
-      lyricsViewer.toggleEditMode(true);
-    });
-  }
-
-  // 가사 전용 편집 화면 툴바 이벤트
-  if (exitEditModeBtn) {
-    exitEditModeBtn.addEventListener("click", () => {
-      lyricsViewer.toggleEditMode(false);
-    });
-  }
-
-  if (saveEditBtn) {
-    saveEditBtn.addEventListener("click", () => {
-      persistLyricsImmediately();
-      lyricsViewer.toggleEditMode(false);
-    });
-  }
-
-  if (exportDropdownBtn && exportDropdownMenu) {
-    exportDropdownBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      exportDropdownMenu.classList.toggle("show");
-    });
-
-    document.addEventListener("click", (e) => {
-      if (!e.target.closest(".dropdown-wrap")) {
-        exportDropdownMenu.classList.remove("show");
-      }
-    });
-
-    exportDropdownMenu.addEventListener("click", () => {
-      exportDropdownMenu.classList.remove("show");
-    });
-  }
-
-  // 커스텀 윈도우 제어 버튼 (최소화 / 최대화 / 닫기)
-  const winMinimizeBtn = document.querySelector("#winMinimizeBtn");
-  const winMaximizeBtn = document.querySelector("#winMaximizeBtn");
-  const winCloseBtn = document.querySelector("#winCloseBtn");
-
-  const ICON_MAXIMIZE = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="8" height="8" rx="1"/></svg>`;
-  const ICON_RESTORE = `<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" aria-hidden="true"><rect x="1.8" y="3.5" width="6.5" height="6.5" rx="0.8"/><path d="M3.8 3.5V2.4a.8.8 0 0 1 .8-.8h5a.8.8 0 0 1 .8.8v5a.8.8 0 0 1-.8.8H8.3"/></svg>`;
-
-  function updateMaximizeButtonUI(isMaximized) {
-    if (!winMaximizeBtn) return;
-    winMaximizeBtn.innerHTML = isMaximized ? ICON_RESTORE : ICON_MAXIMIZE;
-    winMaximizeBtn.title = isMaximized ? "이전 크기로 복원" : "최대화";
-    winMaximizeBtn.setAttribute("aria-label", winMaximizeBtn.title);
-  }
-
-  if (winMinimizeBtn && window.lyricsPlayer?.minimizeWindow) {
-    winMinimizeBtn.addEventListener("click", () => window.lyricsPlayer.minimizeWindow());
-  }
-
-  if (winMaximizeBtn && window.lyricsPlayer?.toggleMaximizeWindow) {
-    winMaximizeBtn.addEventListener("click", async () => {
-      const res = await window.lyricsPlayer.toggleMaximizeWindow();
-      if (typeof res?.isMaximized === "boolean") {
-        updateMaximizeButtonUI(res.isMaximized);
-      }
-    });
-  }
-
-  if (winCloseBtn && window.lyricsPlayer?.closeWindow) {
-    winCloseBtn.addEventListener("click", () => window.lyricsPlayer.closeWindow());
-  }
-
-  if (window.lyricsPlayer?.onWindowMaximizedChanged) {
-    window.lyricsPlayer.onWindowMaximizedChanged((isMaximized) => {
-      updateMaximizeButtonUI(isMaximized);
-    });
   }
 })();

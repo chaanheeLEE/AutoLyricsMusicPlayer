@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-11-26 — 렌더러 셸 컨트롤 모듈 분리 (`v1.1.1` Stage 1 Unit 1-A)
+- **`src/renderer/modules/shell-controls.js` 추출 및 특성화 테스트 추가 (`app.js`, `index.html`, `package.json`, `test/shell-controls.test.js`)**:
+  - `app.js`에 혼재되어 있던 전역 키보드 단축키, `MediaSession` 메타데이터/액션 핸들러, 뷰 전환(`now-playing`·`library`·`lyrics-edit`), 대기열 드로어 토글, 플로팅 창 버튼·이벤트, 커스텀 윈도우 제어 버튼을 `ShellControls` 클래스 및 순수 헬퍼로 분리했습니다.
+  - `test/shell-controls.test.js`를 추가해 단축키 대상 판별·액션 매핑·음소거 토글 및 뷰/드로어/재생 명령 분기 동작을 검증했습니다.
+
+---
+
 ## 2026-11-26 — 정적 검사 안전망 보강 및 가사 출처 계약 일원화 (`v1.1.1` Stage 0)
 - **정적 검사(`npm run check`) 대상 보강 (`package.json`)**:
   - 누락되어 있던 Main JS 6개(`cache-manager.js`, `settings-manager.js`, `lyrics-sources.js`, `model-manager.js`, `media-helper.js`, `lyrics-tagger.js`)를 구문 검사 목록에 추가했습니다.

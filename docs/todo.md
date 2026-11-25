@@ -78,7 +78,7 @@
   - `package.json` `check` 스크립트에 누락된 Main JS 6개(`cache-manager.js`, `settings-manager.js`, `lyrics-sources.js`, `model-manager.js`, `media-helper.js`, `lyrics-tagger.js`) 추가 (`updated.md` 참고)
   - `lyricsSource` 상수·분류 헬퍼를 `lyrics-core.js`에 일원화하고 `.lrc`/`txt_plain` 버튼 상태 및 평문 가사 출처 라벨(`내장 가사`·`로컬 텍스트(.txt) 가사`·`웹 공식 가사`) 불일치 수정 (`updated.md` 참고)
 - [ ] **[P2] 렌더러 메인 오케스트레이터(`src/renderer/app.js`, 약 1,303줄) 역할 분리**:
-  - **Unit 1-A (`shell-controls.js`)**: 전역 단축키·`MediaSession`·커스텀 윈도우 제어·뷰/드로어/드롭다운/음소거 토글 분리
+  - **Unit 1-A (`shell-controls.js`)** *(완료 · `updated.md` 참고)*: 전역 단축키·`MediaSession`·커스텀 윈도우 제어·뷰/드로어/드롭다운/음소거 토글 분리
   - **Unit 1-B (`track-controller.js`)**: 트랙 전환(`trackSelectionSeq`)·히스토리(`forwardHistory`)·프리페치·트랙별 디바운스 캐시 스냅샷(`saveTimers`) 분리 및 특성화 테스트 추가
 - [ ] **[P2] 비동기 작업 관리자(`src/renderer/modules/lyrics-job-manager.js`, 약 553줄) 경계 정밀화 및 특성화 테스트 보강**:
   - DOM 비의존 순수 로직(적응형 `beamSize`·`openingHint`·`persistedPlainLyrics` 판별·진행률/폴백 메시지 변환·`jobId`/트랙 유효성 검사)을 UMD 헬퍼로 추출하고 `test/lyrics-job-manager.test.js` 비동기 회귀 테스트 구축
