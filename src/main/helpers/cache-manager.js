@@ -87,7 +87,7 @@ async function loadLyricsCache(track) {
       hasEmbeddedLyrics: isEmbeddedSource,
       metadata: { source: embeddedInfo.source }
     };
-    if (embeddedInfo.source === "embedded_plain") {
+    if (embeddedInfo.source === "embedded_plain" || embeddedInfo.source === "txt_plain") {
       result.embeddedPlainLyrics = embeddedInfo.lyrics.map(l => l.text);
     }
     lyricsRamCache.set(track.cacheKey, result);

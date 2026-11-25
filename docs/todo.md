@@ -3,15 +3,23 @@
 향후 추가하거나 개선할 기능 및 과제를 **주제별로 묶고 우선순위(`[P0]`~`[P3]`) 순으로 정렬**한 목록입니다. (완료된 내역은 [updated.md](../updated.md) 및 [CHANGELOG.md](../CHANGELOG.md) 참고)
 
 ## 버전 로드맵 요약
-- **`v1.1.0`** *(완료 · 배포 예정)*: `[P0]`·`[P1]` AI 분석·정합 안정화, UI·UX 전면 개선, 셔플 덱·프리페치 복구, CI/자동 릴리즈 파이프라인
-- **`v1.1.1`**: 코드 아키텍처 리팩토링(섹션 6), 가사 글씨체 커스텀·대기열 상단 버튼 배치 정돈·앱 아이콘 재디자인(섹션 2 `[P2]`), Gemini 프롬프트 고도화(섹션 1 `[P3]`)
-- **`v1.2.0`**: 라이브러리·재생 대기열 분리 및 플레이리스트·폴더 입출력(섹션 3)
-- **`v1.3.0`**: 가사 편집기 기능 확장 및 텍스트 기반 강제 정렬(섹션 4 + 강제 정렬)
+- **`v1.1.0`** *(배포 완료)*: `[P0]`·`[P1]` AI 분석·정합 안정화, UI·UX 전면 개선, 셔플 덱·프리페치 복구, CI/자동 릴리즈 파이프라인
+- **`v1.1.1`** *(진행 중)*: UI·UX 마감(완료), Gemini 프롬프트·후처리 안정화(완료), 평문 가사 자동 확보 고도화(완료), **핵심 코드 아키텍처 리팩토링**(섹션 6 `[P2]`)
+- **`v1.2.0`**: 라이브러리·재생 대기열 분리, 플레이리스트·폴더 입출력, 라이브러리 평문 가사 일괄 채우기 & 외부 다중 소스 폴백(섹션 1 `[P2]` + 섹션 3)
+- **`v1.3.0`**: AI 정합 속도·정확도 최적화, 가사 편집기 기능 확장 및 텍스트 기반 강제 정렬(섹션 1 `[P2]` + 섹션 4)
 - **`v1.4.0`**: 플로팅 가사창·데스크톱 통합 및 테마 확장(섹션 5 + 섹션 2 `[P3]`)
 
 ---
 
 ## 1. AI 분석·정합 파이프라인 및 자동화
+- [x] **평문 가사 자동 확보 고도화 및 로컬 `.txt` 사이드카 지원 (`lyrics-scraper.js`, `lyrics-sources.js`, `cache-manager.js`, `lyrics-aligner.js`, `lyrics-job-manager.js`, `app.js`)**:
+  - `artist`·`title`·`duration` 기반 LRCLIB `/api/get` 정확 조회 우선 및 `/api/search` 후보 선택 시 `duration` 차이·유사도 복합 점수로 TV Size·리믹스 오매칭 감소 (`updated.md` 참고)
+  - 확보한 공식 평문 가사를 트랙 캐시(`embeddedPlainLyrics`)에 재사용 가능하게 보관해 재시도·재정합 시 반복 조회 최소화 (`updated.md` 참고)
+  - 음원 파일과 동일 폴더의 `<파일명>.txt` 평문 가사 파일 자동 인식(`lyrics-sources.js`, `txt_plain`) 지원 (`updated.md` 참고)
+- [ ] **[P2] AI 정합 속도·정확도 최적화 (`lyrics-scraper.js`, `lyrics-aligner.js`, `gemini-service.js`)**:
+  - `autoAnalyzeMode === "align"` 시 Whisper 전사와 LRCLIB 가사 조회 병렬화, 정합 요청 ID 경량화(정수 인덱스) 및 단어 타임스탬프 공백 기반 병합 세그먼트 스냅 검토
+  - (선택 옵션) LRCLIB `syncedLyrics` + 트랙 길이 일치(`±3초`) 시 Whisper 중앙값 오프셋 보정 고속 정합 검토
+- [ ] **[P2] 외부 다중 가사 소스 폴백 체인 확장 (`lyrics-scraper.js`)**: LRCLIB 검색 실패 시 보조 공개 가사 API(`lyrics.ovh` 등) 순차 조회 후 Whisper 텍스트 유사도 검증을 통과한 평문 가사 자동 확보
 - [ ] **[P2] 가사 텍스트 기반 강제 정렬(Forced Alignment) 검토**: 음원 내장 평문 가사 또는 외부 가사 검색과 연동해 오타 없이 타임스탬프만 정밀 정렬하는 옵션 검토
 - [x] **Gemini 가사 전사·정합 프롬프트 고도화 (`src/main/services/gemini-prompts.js`)**:
   - 전사(`transcribeSystemInstruction`): 전주/간주 비가사 마커(`[간주]`, `♪`) 배제, 코러스·화음 중복 분리 억제 및 호흡 단위 소절 분할 정제 (`updated.md` 참고)
@@ -39,6 +47,7 @@
 
 ## 3. 라이브러리 및 재생 대기열 고도화
 - [ ] **[P2] 대기열과 라이브러리 데이터 모델 완전 분리**: 현재 공유 중인 `state.playlist`를 `library`와 `queue`로 분리하여 "대기열에서 제외"와 "라이브러리에서 제거" 동작 구분
+- [ ] **[P2] 라이브러리 평문 가사 일괄 채우기 & 원클릭 붙여넣기 정합**: 내장/캐시 평문 가사가 없는 곡들을 백그라운드로 일괄 조회해 캐시(음원 태그 내장은 안전을 위해 선택 옵션)하고, 실패 곡은 배너에서 클립보드 붙여넣기 후 즉시 AI 정합 실행
 - [ ] **[P2] 플레이리스트 저장 및 불러오기**: `.m3u` / JSON 형식의 사용자 재생목록 내보내기 및 가져오기
 - [ ] **[P2] 드래그 앤 드롭 및 폴더 추가**: 탐색기에서 오디오 파일이나 폴더를 앱 창으로 드래그하여 라이브러리/대기열에 일괄 등록
 
@@ -61,11 +70,13 @@
 ## 6. 코드 아키텍처 및 모듈 리팩토링
 - [ ] **[P2] 렌더러 메인 오케스트레이터(`src/renderer/app.js`, 약 1,300줄) 역할 분리**:
   - 트랙 전환·히스토리·프리페치·가사 캐시 스냅샷 저장 로직(`track-controller.js`)과 전역 단축키·`MediaSession`·커스텀 윈도우 제어(`shell-controls.js`)를 분리해 `app.js`를 초기화 및 모듈 연결 엔트리로 경량화
-- [ ] **[P2] 설정 뷰(`src/renderer/modules/settings-view.js`, 약 835줄) 및 모델·가속 팩 다운로드 모듈 공통화**:
+- [ ] **[P2] 설정 뷰(`src/renderer/modules/settings-view.js`, 약 920줄) 및 모델·가속 팩 다운로드 모듈 공통화**:
   - Whisper 모델·CUDA 가속 팩·ONNX 보컬 분리 모델의 다운로드 진행률·취소·삭제 UI 렌더링을 공통 헬퍼로 통합하고, 메인 프로세스(`model-manager.js`, `cuda-manager.js`, `vocal-model-manager.js`)의 다운로드/취소/상태 관리 중복 코드 정리
+- [ ] **[P2] 비동기 작업 관리자(`src/renderer/modules/lyrics-job-manager.js`) 경계 정밀화 및 특성화 테스트 보강**:
+  - DOM 의존성이 없는 진행률·오류·폴백 메시지 변환 및 `jobId`·트랙 유효성 판별 순수 함수를 분리하고, `analyze` ↔ `align` 전환 및 원곡 캐시 저장 회귀 테스트 보강
 - [ ] **[P2] 대기열·라이브러리 뷰 모듈 분리 (`src/renderer/modules/playlist-manager.js`, 약 610줄)**:
-  - `library`/`queue` 데이터 모델 분리 작업과 연계해 우측 대기열 드로어(`Up next`), 라이브러리 테이블 뷰, 곡 상세 정보 모달(`#trackInfoModal`)을 개별 모듈로 분리
-- [ ] **[P3] 메인 프로세스 IPC 라우터(`src/main/core/ipc-router.js`, 약 480줄) 도메인별 분할**:
+  - `library`/`queue` 데이터 모델 분리 작업(`v1.2.0`)과 연계해 우측 대기열 드로어(`Up next`), 라이브러리 테이블 뷰, 곡 상세 정보 모달(`#trackInfoModal`)을 개별 모듈로 분리
+- [ ] **[P3] 메인 프로세스 IPC 라우터(`src/main/core/ipc-router.js`, 약 510줄) 도메인별 분할**:
   - 단일 파일에 집중된 핸들러를 `track/media`, `lyrics-cache/export/embed`, `transcription/align/models`, `window/floating/settings` 도메인 단위로 분리하고 채널 상수 일원화
-- [ ] **[P3] Python 전사 스크립트(`src/main/services/transcribe.py`, 약 520줄) 및 대형 스타일시트(`layout.css`, 약 870줄) 구조화**:
+- [ ] **[P3] Python 전사 스크립트(`src/main/services/transcribe.py`, 약 520줄) 및 대형 스타일시트(`layout.css`, 약 885줄) 구조화**:
   - `transcribe.py` 내 CUDA 런타임 탐지·HuggingFace 다운로드·언어 감지·단어 단위 세그먼트 분할을 역할별로 모듈화하고, `layout.css`에서 상단 내비게이션·감상 패널·공통 모달 스타일을 분리

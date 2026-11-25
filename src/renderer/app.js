@@ -693,18 +693,20 @@ async function selectPlaylistItem(index, autoPlay = true, navMode = "manual") {
     : (cached?.metadata?.source === "embedded_lrc" || cached?.metadata?.source === "embedded_plain");
   embedManager.updateHighlight(hasEmbedded);
   
-  // 캐시 상태에 무관하게, 음원 자체에 내장된 평문 가사가 존재하면 항상 보관
+  // 캐시 상태에 무관하게, 음원 자체 또는 로컬 .txt 평문 가사가 존재하면 항상 보관
+  const isPlainOnlySource = cached?.metadata?.source === "embedded_plain" || cached?.metadata?.source === "txt_plain";
   if (cached?.embeddedPlainLyrics) {
     state.embeddedLyricsLines = cached.embeddedPlainLyrics;
-  } else if (cached?.lyrics && cached.metadata?.source === "embedded_plain") {
+  } else if (cached?.lyrics && isPlainOnlySource) {
     state.embeddedLyricsLines = cached.lyrics.map(l => l.text);
   }
 
-  if (cached?.lyrics && cached.metadata?.source === "embedded_plain") {
+  if (cached?.lyrics && isPlainOnlySource) {
     state.lyrics = [];
-    state.lyricsSource = "embedded_plain";
+    state.lyricsSource = cached.metadata.source;
     lyricsViewer.setOffset(0);
-    trackStatus.textContent = `내장 가사 ${state.embeddedLyricsLines.length}줄 감지됨. 'AI 가사 분석' 실행 후 'AI 정합'으로 싱크 적용 가능.`;
+    const plainOriginLabel = cached.metadata.source === "txt_plain" ? "로컬 텍스트(.txt) 가사" : "내장 가사";
+    trackStatus.textContent = `${plainOriginLabel} ${state.embeddedLyricsLines.length}줄 감지됨. 'AI 가사 분석' 실행 후 'AI 정합'으로 싱크 적용 가능.`;
 
     const shouldAutoAnalyze =
       !state.isTranscribing && (

@@ -469,9 +469,15 @@ class LyricsJobManager {
         embeddedLyricsLines: embeddedLyricsLines || null
       });
 
+      const persistedPlainLyrics = (Array.isArray(embeddedLyricsLines) && embeddedLyricsLines.length > 0)
+        ? embeddedLyricsLines
+        : (Array.isArray(result?.officialLyricsLines) && result.officialLyricsLines.length > 0
+          ? result.officialLyricsLines
+          : null);
+
       if (!this._isCurrentJob(jobId, originalTrackKey)) {
         if (!result?.cancelled && result?.ok && result.source === "gemini" && result.lyrics?.length > 0) {
-          await this._saveBackgroundResult(targetTrack, result.lyrics, embeddedLyricsLines, "gemini_align");
+          await this._saveBackgroundResult(targetTrack, result.lyrics, persistedPlainLyrics, "gemini_align");
         }
         return;
       }
@@ -481,6 +487,9 @@ class LyricsJobManager {
       }
 
       if (result?.ok && result.lyrics?.length > 0) {
+        if (persistedPlainLyrics) {
+          this.state.embeddedLyricsLines = persistedPlainLyrics;
+        }
         this.state.lyrics = result.lyrics;
         this.state.lyricsSource = result.warning === "fallback_to_whisper" ? "whisper" : "gemini_align";
         this.lyricsViewer.setOffset(0);
@@ -492,6 +501,15 @@ class LyricsJobManager {
           );
           this.state.alignSuggestedTrackKey = originalTrackKey;
           this.trackStatus.textContent = this._formatAlignFallbackMessage(result);
+          if ((!embeddedLyricsLines || embeddedLyricsLines.length === 0) && persistedPlainLyrics && this.callbacks.persistLyricsImmediately) {
+            await this.callbacks.persistLyricsImmediately({
+              track: targetTrack,
+              lyrics: result.lyrics,
+              syncOffset: 0,
+              embeddedPlainLyrics: persistedPlainLyrics,
+              metadata: { source: "whisper" }
+            });
+          }
         } else {
           const sourceLabel = result.lyricsSource === "embedded" ? "내장 가사" : "웹 가사";
           this.trackStatus.textContent = `AI 가사 정합 완료 (${result.lyrics.length}줄 · ${sourceLabel} 기준)`;
@@ -500,7 +518,7 @@ class LyricsJobManager {
                 track: targetTrack,
                 lyrics: result.lyrics,
                 syncOffset: 0,
-                embeddedPlainLyrics: embeddedLyricsLines,
+                embeddedPlainLyrics: persistedPlainLyrics,
                 metadata: { source: "gemini_align" }
               })
             : Promise.resolve());

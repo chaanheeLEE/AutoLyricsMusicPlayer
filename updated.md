@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-11-26 — 평문 가사 자동 확보 고도화 및 로컬 `.txt` 사이드카 지원 (`v1.1.1` Step 3)
+- **LRCLIB 정확 조회(`/api/get`) 및 `duration` 가중치 채점 (`lyrics-scraper.js`)**:
+  - 아티스트·곡명 메타데이터가 있는 곡은 `/api/get` 정확 조회를 우선 시도(404 시 `/api/search` 자동 폴백)하고, 검색 후보 평가에 텍스트 Bigram 유사도와 트랙 길이(`duration`) 차이를 함께 반영해 TV Size·리믹스 오매칭을 줄였습니다.
+- **로컬 `<파일명>.txt` 평문 가사 사이드카 자동 인식 (`lyrics-sources.js`, `cache-manager.js`, `app.js`)**:
+  - `.lrc` 파일과 음원 내장 태그에 이어 같은 폴더의 `<파일명>.txt` 파일도 자동 감지(UTF-8 BOM 제거 및 LRC 타임스탬프 포함 `.txt` 호환)해 AI 정합 기준 가사로 바로 활용할 수 있도록 연결했습니다.
+- **확보된 공식 평문 가사 캐시 보존·재사용 (`lyrics-aligner.js`, `lyrics-job-manager.js`)**:
+  - AI 정합 중 LRCLIB에서 확보한 평문 가사(`officialLyricsLines`)를 성공 및 폴백 시 모두 `embeddedPlainLyrics` 캐시에 보존해, 재시도나 재정합 시 외부 검색을 반복하지 않도록 개선했습니다.
+
+---
+
 ## 2026-11-26 — Gemini 가사 전사·정합 프롬프트 및 후처리 안정화 (`v1.1.1` Step 2)
 - **`transcribeSystemInstruction` 및 `alignSystemInstruction` 정밀 다듬기 (`src/main/services/gemini-prompts.js`)**:
   - 전사 시 전주·간주에 `[간주]` / `♪` 같은 비가사 마커를 생성하지 않고, 메인 보컬 뒤의 약한 화음/에코를 별도 줄로 중복 분리하지 않도록 기준을 보강했습니다.

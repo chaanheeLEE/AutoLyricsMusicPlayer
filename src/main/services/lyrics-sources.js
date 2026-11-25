@@ -220,6 +220,48 @@ async function loadEmbeddedLyrics(trackPath) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 3순위: 같은 폴더의 .txt 평문 가사 사이드카 파일 로드
+// ─────────────────────────────────────────────────────────────────────────────
+async function loadPlainTextFile(trackPath) {
+  const dir = path.dirname(trackPath);
+  const base = path.basename(trackPath, path.extname(trackPath));
+  const txtPath = path.join(dir, `${base}.txt`);
+
+  try {
+    const rawContent = await fs.readFile(txtPath, "utf8");
+    const content = rawContent.replace(/^\uFEFF/, "").trim();
+    if (!content) return null;
+
+    if (/\[\d{2}:\d{2}\.\d{2,3}\]/.test(content)) {
+      const lrcLyrics = parseLrc(content);
+      if (lrcLyrics.length > 0) {
+        console.log(`[LyricsSources] LRC-formatted .txt file loaded: ${txtPath} (${lrcLyrics.length} lines)`);
+        return { lyrics: lrcLyrics, source: "lrc" };
+      }
+    }
+
+    const lines = content
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+
+    if (lines.length >= 3) {
+      const lyrics = lines.map((text, i) => ({
+        id: `txt_${String(i + 1).padStart(3, "0")}`,
+        start: 0,
+        end: 0,
+        text
+      }));
+      console.log(`[LyricsSources] Plain .txt sidecar loaded: ${txtPath} (${lyrics.length} lines)`);
+      return { lyrics, source: "txt_plain" };
+    }
+  } catch {
+    // .txt 파일 없거나 읽기 실패 → 다음 소스로
+  }
+  return null;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 멀티 소스 통합 로더: 우선순위대로 순차 탐색
 // ─────────────────────────────────────────────────────────────────────────────
 async function loadLyricsFromSources(trackPath) {
@@ -231,8 +273,12 @@ async function loadLyricsFromSources(trackPath) {
   const embeddedResult = await loadEmbeddedLyrics(trackPath);
   if (embeddedResult) return embeddedResult;
 
-  // 3순위 이하(캐시, Whisper, AI)는 기존 앱 흐름이 담당
+  // 3순위: 같은 폴더의 .txt 평문 가사 파일
+  const txtResult = await loadPlainTextFile(trackPath);
+  if (txtResult) return txtResult;
+
+  // 4순위 이하(캐시, Whisper, AI)는 기존 앱 흐름이 담당
   return null;
 }
 
-module.exports = { loadLyricsFromSources, parseLrc, parseFfmetadata };
+module.exports = { loadLyricsFromSources, loadPlainTextFile, parseLrc, parseFfmetadata };

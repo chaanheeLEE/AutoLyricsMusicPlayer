@@ -1,9 +1,17 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs/promises");
+const os = require("node:os");
+const path = require("node:path");
 const {
   buildSearchQueries,
   calculateBigramSimilarity,
+  scrapeLyrics,
 } = require("../src/main/services/lyrics-scraper");
+const {
+  loadLyricsFromSources,
+  loadPlainTextFile,
+} = require("../src/main/services/lyrics-sources");
 const {
   alignAndInterpolateLyrics,
 } = require("../src/main/helpers/lyrics-aligner");
@@ -350,4 +358,97 @@ test("alignAndInterpolateLyrics guards non-contiguous duplicate whisper_id and a
   assert.equal(res.lyrics[2].start, 13.0);
   assert.ok(res.lyrics[3].start > 13.0 && res.lyrics[3].end === 20.0);
   assert.equal(res.lyrics[4].start, 20.0);
+  assert.equal(res.officialLyricsLines.length, 5);
+});
+
+test("scrapeLyrics prefers LRCLIB /api/get when exact match exists and falls back to /api/search on miss", async () => {
+  const exactLyrics = ["Line 1 exact", "Line 2 exact", "Line 3 exact", "Line 4 exact", "Line 5 exact"].join("\n");
+  let searchCalled = false;
+
+  const exactRes = await scrapeLyrics(
+    { title: "Night Sky", artist: "Luna", album: "Horizon", duration: 210 },
+    [{ id: "line_001", start: 1, end: 3, text: "Line 1 exact Line 2 exact Line 3 exact Line 4 exact Line 5 exact" }],
+    null,
+    {
+      fetchExactFn: async (params) => {
+        assert.equal(params.artistName, "Luna");
+        assert.equal(params.trackName, "Night Sky");
+        assert.equal(params.duration, 210);
+        return { artistName: "Luna", trackName: "Night Sky", plainLyrics: exactLyrics, duration: 210 };
+      },
+      fetchSearchFn: async () => {
+        searchCalled = true;
+        return [];
+      }
+    }
+  );
+  assert.equal(exactRes, exactLyrics);
+  assert.equal(searchCalled, false);
+
+  const fallbackRes = await scrapeLyrics(
+    { title: "Night Sky", artist: "Luna", duration: 210 },
+    [],
+    null,
+    {
+      fetchExactFn: async () => null,
+      fetchSearchFn: async () => {
+        searchCalled = true;
+        return [
+          { artistName: "Luna", trackName: "Night Sky (TV Size)", duration: 90, plainLyrics: ["TV 1", "TV 2", "TV 3", "TV 4", "TV 5"].join("\n") },
+          { artistName: "Luna", trackName: "Night Sky", duration: 211, plainLyrics: exactLyrics }
+        ];
+      }
+    }
+  );
+  assert.equal(searchCalled, true);
+  assert.equal(fallbackRes, exactLyrics);
+});
+
+test("loadLyricsFromSources detects UTF-8 BOM .txt plain sidecar lyrics", async () => {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "alp-txt-test-"));
+  try {
+    const audioPath = path.join(tmpDir, "Sample Song.mp3");
+    const txtPath = path.join(tmpDir, "Sample Song.txt");
+    await fs.writeFile(audioPath, "dummy-audio");
+    await fs.writeFile(txtPath, "\uFEFF첫 번째 줄\n두 번째 줄\n\n세 번째 줄\n네 번째 줄", "utf8");
+
+    const loaded = await loadPlainTextFile(audioPath);
+    assert.ok(loaded);
+    assert.equal(loaded.source, "txt_plain");
+    assert.deepEqual(loaded.lyrics.map((l) => l.text), [
+      "첫 번째 줄",
+      "두 번째 줄",
+      "세 번째 줄",
+      "네 번째 줄"
+    ]);
+
+    const viaMulti = await loadLyricsFromSources(audioPath);
+    assert.equal(viaMulti.source, "txt_plain");
+    assert.equal(viaMulti.lyrics.length, 4);
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("alignAndInterpolateLyrics exposes officialLyricsLines even when Gemini falls back to Whisper", async () => {
+  const scrapedPlain = ["Alpha one", "Beta two", "Gamma three", "Delta four", "Epsilon five"].join("\n");
+  const res = await alignAndInterpolateLyrics(
+    {
+      track: { title: "Fallback Test", duration: 100 },
+      whisperLyrics: [{ id: "line_001", start: 1.0, end: 4.0, text: "Alpha one Beta two" }],
+      settings: { geminiApiKey: "dummy-key" }
+    },
+    {
+      deps: {
+        scrapeLyrics: async () => scrapedPlain,
+        alignLyricsWithGemini: async () => {
+          throw new Error("503 UNAVAILABLE");
+        }
+      }
+    }
+  );
+
+  assert.equal(res.ok, true);
+  assert.equal(res.warning, "fallback_to_whisper");
+  assert.deepEqual(res.officialLyricsLines, ["Alpha one", "Beta two", "Gamma three", "Delta four", "Epsilon five"]);
 });

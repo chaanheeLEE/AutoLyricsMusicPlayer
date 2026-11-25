@@ -65,9 +65,9 @@ async function alignAndInterpolateLyrics(payload, runtimeOptions = {}) {
   }
 
   let failureStage = "unknown";
+  let officialLines = null;
 
   try {
-    let officialLines;
     let lyricsSource;
 
     if (embeddedLyricsLines && embeddedLyricsLines.length > 0) {
@@ -294,6 +294,7 @@ async function alignAndInterpolateLyrics(payload, runtimeOptions = {}) {
       lyrics: finalLyrics,
       source: "gemini",
       lyricsSource,
+      officialLyricsLines: officialLines,
       matchedCount: officialTimeMap.size,
       totalCount: finalLyrics.length
     };
@@ -317,6 +318,7 @@ async function alignAndInterpolateLyrics(payload, runtimeOptions = {}) {
       lyrics: fallbackLyrics,
       source: "whisper",
       warning: "fallback_to_whisper",
+      officialLyricsLines: Array.isArray(officialLines) && officialLines.length > 0 ? officialLines : null,
       failureStage,
       errorCode,
       errorMessage: err.message,
