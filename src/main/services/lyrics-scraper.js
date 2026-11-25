@@ -241,27 +241,36 @@ function getDurationAdjustment(trackDuration, candidateDuration) {
   return { adjustment, durationDiff: Number(diff.toFixed(1)) };
 }
 
-/**
- * 후보 가사의 텍스트 Bigram 유사도와 트랙 길이(duration) 일치도를 결합해 채점합니다.
- */
-function scoreLyricsCandidate(item, { whisperText = "", hasWhisper = false, trackDuration = null } = {}) {
+function evaluateLyricsCandidate(item, { whisperText = "", hasWhisper = false, trackDuration = null } = {}) {
   const lyrics = extractPlainLyricsFromCandidate(item);
-  if (!lyrics) return null;
+  if (!lyrics) {
+    return { candidate: null, rejectedSimilarity: null };
+  }
 
   const similarity = hasWhisper ? calculateBigramSimilarity(whisperText, lyrics) : 1;
   if (hasWhisper && similarity < 0.15) {
-    return null;
+    return { candidate: null, rejectedSimilarity: similarity };
   }
 
   const { adjustment, durationDiff } = getDurationAdjustment(trackDuration, item?.duration);
   return {
-    lyrics,
-    similarity,
-    score: similarity + adjustment,
-    durationDiff,
-    artistName: item.artistName || "",
-    trackName: item.trackName || ""
+    candidate: {
+      lyrics,
+      similarity,
+      score: similarity + adjustment,
+      durationDiff,
+      artistName: item.artistName || "",
+      trackName: item.trackName || ""
+    },
+    rejectedSimilarity: null
   };
+}
+
+/**
+ * 후보 가사의 텍스트 Bigram 유사도와 트랙 길이(duration) 일치도를 결합해 채점합니다.
+ */
+function scoreLyricsCandidate(item, options = {}) {
+  return evaluateLyricsCandidate(item, options).candidate;
 }
 
 /**
@@ -348,11 +357,10 @@ async function scrapeLyrics(track, whisperLyrics = [], customQuery = null, optio
     let bestCandidate = null;
 
     for (const item of results) {
-      const candidate = scoreLyricsCandidate(item, { whisperText, hasWhisper, trackDuration });
+      const { candidate, rejectedSimilarity } = evaluateLyricsCandidate(item, { whisperText, hasWhisper, trackDuration });
       if (!candidate) {
-        if (hasWhisper && extractPlainLyricsFromCandidate(item)) {
-          const sim = calculateBigramSimilarity(whisperText, extractPlainLyricsFromCandidate(item));
-          console.log(`[Scraper] Rejected mismatched lyrics from LRCLIB (${item.artistName} - ${item.trackName}) (Similarity: ${(sim * 100).toFixed(1)}%)`);
+        if (rejectedSimilarity !== null) {
+          console.log(`[Scraper] Rejected mismatched lyrics from LRCLIB (${item.artistName} - ${item.trackName}) (Similarity: ${(rejectedSimilarity * 100).toFixed(1)}%)`);
         }
         continue;
       }

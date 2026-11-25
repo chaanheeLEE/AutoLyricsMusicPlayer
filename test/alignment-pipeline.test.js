@@ -6,14 +6,19 @@ const path = require("node:path");
 const {
   buildSearchQueries,
   calculateBigramSimilarity,
+  scoreLyricsCandidate,
   scrapeLyrics,
 } = require("../src/main/services/lyrics-scraper");
 const {
   loadLyricsFromSources,
   loadPlainTextFile,
+  parseRawLyricsText,
 } = require("../src/main/services/lyrics-sources");
 const {
   alignAndInterpolateLyrics,
+  invalidateTimeReversals,
+  buildOfficialTimeMap,
+  clampLyricDurations,
 } = require("../src/main/helpers/lyrics-aligner");
 const {
   GEMINI_FALLBACK_MODELS,
@@ -483,4 +488,69 @@ test("alignAndInterpolateLyrics preserves explicit plainLyricsSource and keeps e
   );
   assert.equal(cachedWebRes.ok, true);
   assert.equal(cachedWebRes.lyricsSource, "lrclib_cached");
+});
+
+test("lyrics-aligner post-processing helpers invalidate inversions, build contiguous time maps, and clamp durations", () => {
+  const whisperMap = new Map([
+    ["w1", { id: "w1", start: 2.0, end: 6.0 }],
+    ["w2", { id: "w2", start: 10.0, end: 12.0 }]
+  ]);
+  const alignment = [
+    { official_index: 0, whisper_id: "w1" },
+    { official_index: 1, whisper_id: "w1" },
+    { official_index: 2, whisper_id: "w2" },
+    { official_index: 3, whisper_id: "w1" }, // reversal
+    { official_index: 4, whisper_id: "missing" }
+  ];
+
+  invalidateTimeReversals(alignment, whisperMap);
+  assert.equal(alignment[3].whisper_id, null);
+  assert.equal(alignment[4].whisper_id, null);
+
+  const timeMap = buildOfficialTimeMap(alignment, whisperMap, ["Short", "Longer line", "Third", "Fourth", "Fifth"]);
+  assert.equal(timeMap.size, 3);
+  assert.equal(timeMap.get(0).start, 2.0);
+  assert.equal(timeMap.get(1).end, 6.0);
+  assert.equal(timeMap.get(2).start, 10.0);
+
+  const clamped = [
+    { id: "x", start: 19.9, end: 25.0, text: "End clamped" },
+    { id: "y", start: 5.0, end: 5.05, text: "Too short" }
+  ];
+  clampLyricDurations(clamped, 20.0);
+  assert.equal(clamped[0].id, "align_001");
+  assert.equal(clamped[0].end, 20.0);
+  assert.equal(clamped[0].start, 19.2);
+  assert.equal(clamped[1].id, "align_002");
+  assert.equal(clamped[1].end, 5.8);
+});
+
+test("parseRawLyricsText handles BOM LRC, >=3 plain lines, and rejects too-short text", () => {
+  const lrc = parseRawLyricsText("\uFEFF[00:01.00]First\n[00:04.00]Second", { lrcSource: "embedded_lrc" });
+  assert.equal(lrc.source, "embedded_lrc");
+  assert.equal(lrc.lyrics.length, 2);
+
+  const plain = parseRawLyricsText("One\n\nTwo\nThree", { plainSource: "txt_plain", plainIdPrefix: "txt" });
+  assert.equal(plain.source, "txt_plain");
+  assert.equal(plain.lyrics[0].id, "txt_001");
+  assert.equal(plain.lyrics.length, 3);
+
+  assert.equal(parseRawLyricsText("Only one\nTwo"), null);
+});
+
+test("scoreLyricsCandidate rejects low-similarity candidates and scores matching duration positively", () => {
+  const lines = ["Hello world tonight", "Dancing under lights", "Feel the rhythm now", "Sing along with me", "Never fade away"].join("\n");
+  const rejected = scoreLyricsCandidate(
+    { artistName: "A", trackName: "B", plainLyrics: lines, duration: 180 },
+    { whisperText: "completely different korean lyrics 안녕하세요", hasWhisper: true, trackDuration: 180 }
+  );
+  assert.equal(rejected, null);
+
+  const accepted = scoreLyricsCandidate(
+    { artistName: "A", trackName: "B", plainLyrics: lines, duration: 181 },
+    { whisperText: "Hello world tonight Dancing under lights", hasWhisper: true, trackDuration: 180 }
+  );
+  assert.ok(accepted);
+  assert.equal(accepted.durationDiff, 1);
+  assert.ok(accepted.score > accepted.similarity);
 });

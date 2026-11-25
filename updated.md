@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-11-26 — AI 정합·로컬 가사 파이프라인 내부 구조화 (`v1.1.1` Stage 4)
+- **`lyrics-aligner.js`·`lyrics-sources.js`·`lyrics-scraper.js` 순수 단계 분리 및 중복 계산 제거 (`test/alignment-pipeline.test.js`)**:
+  - `lyrics-aligner.js`: `alignAndInterpolateLyrics()` 내부 후처리를 `invalidateTimeReversals`, `buildOfficialTimeMap`, `interpolateMissingLines`, `clampLyricDurations` 순수 함수로 분해하고 중복 `alignment.find()`·미사용 변수를 정리했습니다.
+  - `lyrics-sources.js`: 내장 가사와 `.txt` 사이드카에서 중복되던 텍스트 파싱을 `parseRawLyricsText`로 통합하고 상단 우선순위 주석을 3순위(`.txt`)까지 최신화했습니다.
+  - `lyrics-scraper.js`: `evaluateLyricsCandidate` 도입으로 거절 로그 시 수행되던 유사도·가사 추출 이중 재계산을 제거하고, 신규 단위 테스트 3건을 추가해 동등성을 검증했습니다.
+
+---
+
 ## 2026-11-26 — 설정 모달 모델·가속 팩·보컬 모델 패널 분리 (`v1.1.1` Stage 3 Unit 3-B)
 - **`src/renderer/modules/model-settings-panel.js` 분리 및 단위 테스트 추가 (`settings-view.js`, `index.html`, `package.json`, `test/model-settings-panel.test.js`)**:
   - `settings-view.js`에서 Whisper 모델 카드, NVIDIA CUDA 가속 팩, ONNX 보컬 분리 모델 상태 조회·렌더링·진행률 바·취소/삭제 UI(~470줄)를 `ModelSettingsPanel`과 순수 상태 기술 헬퍼(`buildInstalledModelSelectOptions`, `describeCudaStatusView`, `describeVocalModelStatusView`, `applyProgressBarUpdate`)로 분리했습니다.

@@ -85,9 +85,9 @@
 - [x] **[P2] Main 다운로드·런타임 헬퍼 공통화 및 설정 뷰(`src/renderer/modules/settings-view.js`, 약 923줄) 분리**:
   - **Main** *(완료 · `updated.md` 참고)*: `download-helper.js`(`formatBytes`, `getDirectorySize`, `downloadFileWithRedirects`) 통합, `resolvePython`/`hasFasterWhisper`(`transcription-worker.js`↔`model-manager.js`) 및 `createCancelledError`(`gemini-service.js`·`lyrics-scraper.js`·`transcription-worker.js`) 중복 제거 + 단위 테스트
   - **Renderer** *(완료 · `updated.md` 참고)*: `settings-view.js`의 Whisper 모델·CUDA 팩·ONNX 보컬 분리 모델 관리 UI(~460줄)를 `model-settings-panel.js`로 분리하고 진행률/배지 갱신 공통화 (`test/model-settings-panel.test.js`)
-- [ ] **[P2] AI 정합·로컬 소스 파이프라인 내부 구조화 (`lyrics-aligner.js`, `lyrics-sources.js`, `lyrics-scraper.js`)**:
-  - `lyrics-aligner.js`(약 332줄) `alignAndInterpolateLyrics()` 내부 순수 후처리(역행 무효화·연속 중복 분할·선형 보간·길이 가드) 함수 분해 및 중복 탐색/미사용 변수 정리
-  - `lyrics-sources.js`(약 284줄) 내장/사이드카 공통 텍스트 파서 추출·헤더 주석 최신화, `lyrics-scraper.js`(약 391줄) 거절 로그 이중 유사도 계산 정리
+- [x] **[P2] AI 정합·로컬 소스 파이프라인 내부 구조화 (`lyrics-aligner.js`, `lyrics-sources.js`, `lyrics-scraper.js`)**:
+  - `lyrics-aligner.js`(약 332줄) `alignAndInterpolateLyrics()` 내부 순수 후처리(역행 무효화·연속 중복 분할·선형 보간·길이 가드) 함수 분해 및 중복 탐색/미사용 변수 정리 (`updated.md` 참고)
+  - `lyrics-sources.js`(약 284줄) 내장/사이드카 공통 텍스트 파서 추출·헤더 주석 최신화, `lyrics-scraper.js`(약 391줄) 거절 로그 이중 유사도 계산 정리 (`updated.md` 참고)
 - [ ] **[P2] 대기열·라이브러리 뷰 모듈 분리 (`src/renderer/modules/playlist-manager.js`, 약 526줄)**:
   - `v1.2.0` `library`/`queue` 데이터 모델 분리 작업과 연계해 우측 대기열 드로어(`Up next`), 라이브러리 테이블 뷰, 곡 상세 정보 모달(`#trackInfoModal`)을 개별 모듈로 분리
 - [ ] **[P3] 메인 프로세스 IPC 라우터(`src/main/core/ipc-router.js`, 약 513줄) 도메인별 분할**:
