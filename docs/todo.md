@@ -82,9 +82,9 @@
   - **Unit 1-B (`track-controller.js`)** *(완료 · `updated.md` 참고)*: 트랙 전환(`trackSelectionSeq`)·히스토리(`forwardHistory`)·프리페치·트랙별 디바운스 캐시 스냅샷(`saveTimers`) 분리 및 특성화 테스트 추가
 - [x] **[P2] 비동기 작업 관리자(`src/renderer/modules/lyrics-job-manager.js`, 약 553줄) 경계 정밀화 및 특성화 테스트 보강**:
   - DOM 비의존 순수 로직(적응형 `beamSize`·`openingHint`·`persistedPlainLyrics` 판별·진행률/폴백 메시지 변환·`jobId`/트랙 유효성 검사)을 UMD 헬퍼로 추출하고 `test/lyrics-job-manager.test.js` 비동기 회귀 테스트 구축 (`updated.md` 참고)
-- [ ] **[P2] Main 다운로드·런타임 헬퍼 공통화 및 설정 뷰(`src/renderer/modules/settings-view.js`, 약 923줄) 분리**:
+- [x] **[P2] Main 다운로드·런타임 헬퍼 공통화 및 설정 뷰(`src/renderer/modules/settings-view.js`, 약 923줄) 분리**:
   - **Main** *(완료 · `updated.md` 참고)*: `download-helper.js`(`formatBytes`, `getDirectorySize`, `downloadFileWithRedirects`) 통합, `resolvePython`/`hasFasterWhisper`(`transcription-worker.js`↔`model-manager.js`) 및 `createCancelledError`(`gemini-service.js`·`lyrics-scraper.js`·`transcription-worker.js`) 중복 제거 + 단위 테스트
-  - **Renderer**: `settings-view.js`의 Whisper 모델·CUDA 팩·ONNX 보컬 분리 모델 관리 UI(~460줄)를 `model-settings-panel.js`로 분리하고 진행률/배지 갱신 공통화
+  - **Renderer** *(완료 · `updated.md` 참고)*: `settings-view.js`의 Whisper 모델·CUDA 팩·ONNX 보컬 분리 모델 관리 UI(~460줄)를 `model-settings-panel.js`로 분리하고 진행률/배지 갱신 공통화 (`test/model-settings-panel.test.js`)
 - [ ] **[P2] AI 정합·로컬 소스 파이프라인 내부 구조화 (`lyrics-aligner.js`, `lyrics-sources.js`, `lyrics-scraper.js`)**:
   - `lyrics-aligner.js`(약 332줄) `alignAndInterpolateLyrics()` 내부 순수 후처리(역행 무효화·연속 중복 분할·선형 보간·길이 가드) 함수 분해 및 중복 탐색/미사용 변수 정리
   - `lyrics-sources.js`(약 284줄) 내장/사이드카 공통 텍스트 파서 추출·헤더 주석 최신화, `lyrics-scraper.js`(약 391줄) 거절 로그 이중 유사도 계산 정리

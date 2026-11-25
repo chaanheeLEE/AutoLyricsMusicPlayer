@@ -33,8 +33,6 @@ class SettingsView {
     this.settingGeminiKey = document.querySelector("#settingGeminiKey");
     this.settingAutoAnalyzeMode = document.querySelector("#settingAutoAnalyzeMode");
     this.autoAnalyzeDesc = document.querySelector("#autoAnalyzeDesc");
-    this.settingModelGroup = document.querySelector("#settingModelGroup");
-    this.settingWhisperDeviceGroup = document.querySelector("#settingWhisperDeviceGroup");
     this.settingGeminiModelGroup = document.querySelector("#settingGeminiModelGroup");
     
     this.settingFloatingFontSize = document.querySelector("#settingFloatingFontSize");
@@ -48,61 +46,15 @@ class SettingsView {
     
     this.clearCacheButton = document.querySelector("#clearCacheButton");
     this.cachePathLabel = document.querySelector("#cachePathLabel");
-
-    this.modelCardsContainer = document.querySelector("#modelCardsContainer");
-    this.modelManagerTotalSize = document.querySelector("#modelManagerTotalSize");
-    this.modelManagerAccordion = document.querySelector("#modelManagerGroup");
-    this.modelManagerToggle = document.querySelector("#modelManagerToggle");
-    this.modelManagerBody = document.querySelector("#modelManagerBody");
-    this.currentDownloadingModelId = null;
-    this.cachedModelList = [];
-    this._accordionOpen = false;
-
-    // CUDA 가속 팩 관리 UI
-    this.cudaPackManagerGroup = document.querySelector("#cudaPackManagerGroup");
-    this.cudaStatusDesc = document.querySelector("#cudaStatusDesc");
-    this.cudaStatusBadge = document.querySelector("#cudaStatusBadge");
-    this.cudaSizeLabel = document.querySelector("#cudaSizeLabel");
-    this.cudaActionsArea = document.querySelector("#cudaActionsArea");
-    this.cudaProgressBarArea = document.querySelector("#cudaProgressBarArea");
-    this.cudaProgressFill = document.querySelector("#cudaProgressFill");
-    this.cudaProgressText = document.querySelector("#cudaProgressText");
-    this.isCudaDownloading = false;
-
-    // ONNX 보컬 분리 모델 관리 UI
-    this.vocalIsolationGroup = document.querySelector("#vocalIsolationGroup");
     this.settingVocalIsolation = document.querySelector("#settingVocalIsolation");
-    this.vocalModelStatusBadge = document.querySelector("#vocalModelStatusBadge");
-    this.vocalModelSizeLabel = document.querySelector("#vocalModelSizeLabel");
-    this.vocalModelProgressArea = document.querySelector("#vocalModelProgressArea");
-    this.vocalModelProgressFill = document.querySelector("#vocalModelProgressFill");
-    this.vocalModelProgressText = document.querySelector("#vocalModelProgressText");
-    this.vocalModelActionsArea = document.querySelector("#vocalModelActionsArea");
-    this.isVocalModelDownloading = false;
 
     this.tempShortcuts = {};
     this.capturingAction = null;
     this.shortcutBtns = document.querySelectorAll(".shortcut-capture-btn");
 
+    this.modelPanel = new window.ModelSettingsPanel({ state, callbacks });
+
     this._initEvents();
-
-    if (window.lyricsPlayer?.onModelDownloadProgress) {
-      window.lyricsPlayer.onModelDownloadProgress((msg) => {
-        this.handleDownloadProgress(msg);
-      });
-    }
-
-    if (window.lyricsPlayer?.onCudaDownloadProgress) {
-      window.lyricsPlayer.onCudaDownloadProgress((msg) => {
-        this.handleCudaProgress(msg);
-      });
-    }
-
-    if (window.lyricsPlayer?.onVocalModelDownloadProgress) {
-      window.lyricsPlayer.onVocalModelDownloadProgress((msg) => {
-        this.handleVocalModelProgress(msg);
-      });
-    }
   }
 
   _initEvents() {
@@ -201,10 +153,6 @@ class SettingsView {
     
     this.clearCacheButton.addEventListener("click", () => this.clearCache());
 
-    // 아코디언 토글
-    if (this.modelManagerToggle) {
-      this.modelManagerToggle.addEventListener("click", () => this._toggleAccordion());
-    }
     // 단축키 캡처 버튼 이벤트 바인딩
     this.shortcutBtns.forEach(btn => {
       btn.addEventListener("click", () => {
@@ -273,9 +221,7 @@ class SettingsView {
   open() {
     this.switchTab("app");
     this.updateSTTEngineUI();
-    this._toggleAccordion(false);
-    this.refreshCudaStatus();
-    this.refreshVocalModelStatus();
+    this.modelPanel.refreshOnOpen();
     this.capturingAction = null;
     this.settingsDialog.showModal();
   }
@@ -306,11 +252,7 @@ class SettingsView {
     const isGemini = this.settingEngine.value === "gemini";
 
     this.toggleVisibility(this.whisperSettingsCard, !isGemini);
-    this.toggleVisibility(this.settingModelGroup, !isGemini);
-    this.toggleVisibility(this.modelManagerAccordion, !isGemini);
-    this.toggleVisibility(this.settingWhisperDeviceGroup, !isGemini);
-    this.toggleVisibility(this.cudaPackManagerGroup, !isGemini);
-    this.toggleVisibility(this.vocalIsolationGroup, !isGemini);
+    this.modelPanel.setWhisperSectionsVisible(!isGemini);
     this.toggleVisibility(this.settingGeminiModelGroup, true);
     this.updateAutoAnalyzeDropdownState();
   }
@@ -439,485 +381,20 @@ class SettingsView {
     this.cachePathLabel.textContent = dataPath;
 
     // 모델 목록 및 CUDA / 보컬 분리 모델 상태 비동기 갱신
-    this.refreshModelList();
-    this.refreshCudaStatus();
-    this.refreshVocalModelStatus();
+    this.modelPanel.refreshAll();
   }
 
-  _toggleAccordion(forceState) {
-    this._accordionOpen = typeof forceState === "boolean" ? forceState : !this._accordionOpen;
-    if (this.modelManagerAccordion) {
-      this.modelManagerAccordion.classList.toggle("expanded", this._accordionOpen);
-    }
-    if (this.modelManagerToggle) {
-      this.modelManagerToggle.setAttribute("aria-expanded", String(this._accordionOpen));
-    }
+  refreshModelList() {
+    return this.modelPanel.refreshModelList();
   }
 
-  // ─── Whisper Model Manager ────────────────────────────────────────────
-  async refreshModelList() {
-    if (!this.modelCardsContainer) return;
-    try {
-      const result = await window.lyricsPlayer.listModels();
-      if (!result) return;
-      this.cachedModelList = result.models;
-      this.renderModelCards(result.models, this.state.settings?.model || "base");
-      this._rebuildModelSelect(result.models);
-      if (this.modelManagerTotalSize) {
-        this.modelManagerTotalSize.textContent = result.totalDiskSizeFormatted || "0 MB";
-      }
-    } catch (e) {
-      console.warn("[ModelManager] Failed to load models:", e);
-    }
+  refreshCudaStatus() {
+    return this.modelPanel.refreshCudaStatus();
   }
 
-  /**
-   * settingModel <select>를 설치된 모델만, 크기 오름차순으로 재구성합니다.
-   * 현재 설정값이 설치된 모델 중에 없으면 첫 번째 설치 모델로 자동 변경합니다.
-   */
-  _rebuildModelSelect(models) {
-    if (!this.settingModel) return;
-
-    // 크기 오름차순은 SUPPORTED_MODELS 순서(model-manager)가 이미 보장하므로 그대로 활용
-    const installed = models.filter(m => m.downloaded);
-    const currentVal = this.settingModel.value;
-
-    this.settingModel.innerHTML = "";
-
-    if (installed.length === 0) {
-      const opt = document.createElement("option");
-      opt.value = "";
-      opt.textContent = "설치된 모델 없음 — 아래에서 다운로드하세요";
-      opt.disabled = true;
-      opt.selected = true;
-      this.settingModel.appendChild(opt);
-      return;
-    }
-
-    let matched = false;
-    for (const m of installed) {
-      const opt = document.createElement("option");
-      opt.value = m.id;
-      const badge = m.badge ? ` (${m.badge})` : "";
-      opt.textContent = `${m.label} — ${m.sizeLabel}${badge}`;
-      if (m.id === currentVal) {
-        opt.selected = true;
-        matched = true;
-      }
-      this.settingModel.appendChild(opt);
-    }
-
-    // 현재 선택값이 설치 목록에 없으면 첫 번째 설치 모델로 fallback
-    if (!matched) {
-      this.settingModel.selectedIndex = 0;
-    }
+  refreshVocalModelStatus() {
+    return this.modelPanel.refreshVocalModelStatus();
   }
-
-  renderModelCards(models, currentModel) {
-    if (!this.modelCardsContainer) return;
-    this.modelCardsContainer.innerHTML = "";
-
-    for (const m of models) {
-      const isActive = m.id === currentModel;
-      const isDownloading = this.currentDownloadingModelId === m.id;
-
-      const card = document.createElement("div");
-      card.className = "model-card" + (isActive ? " current-active" : "");
-      card.dataset.modelId = m.id;
-
-      let badgeHtml = "";
-      if (m.badge === "최신 추천") badgeHtml = `<span class="model-badge badge-recommend">최신 추천</span>`;
-      else if (m.badge === "기본값") badgeHtml = `<span class="model-badge badge-default">기본</span>`;
-
-      const statusHtml = m.downloaded
-        ? `<span class="model-status-installed">설치됨 (${m.diskSizeFormatted})</span>`
-        : `<span class="model-status-not-installed">미설치 (${m.sizeLabel})</span>`;
-
-      let actionsHtml = "";
-      if (isDownloading) {
-        actionsHtml = `<button type="button" class="btn-model-action" disabled>다운로드 중...</button>`;
-      } else if (m.downloaded) {
-        actionsHtml = `
-          <button type="button" class="btn-model-action btn-delete" data-action="delete" data-model="${m.id}"${isActive ? " title=\"현재 선택된 모델입니다\"" : ""}>삭제</button>
-        `;
-      } else {
-        actionsHtml = `<button type="button" class="btn-model-action btn-download" data-action="download" data-model="${m.id}">다운로드</button>`;
-      }
-
-      card.innerHTML = `
-        <div class="model-card-info">
-          <div class="model-card-name-row">
-            <span class="model-card-name">${m.label}</span>
-            ${badgeHtml}
-            ${isActive ? `<span class="model-badge badge-primary">사용 중</span>` : ""}
-          </div>
-          <div class="model-card-desc">${m.description}</div>
-          <div class="model-card-meta">${statusHtml}</div>
-        </div>
-        <div class="model-card-actions">${actionsHtml}</div>
-      `;
-
-      card.querySelectorAll("[data-action]").forEach(btn => {
-        btn.addEventListener("click", (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const action = btn.dataset.action;
-          const modelId = btn.dataset.model;
-          if (action === "download") this.startModelDownload(modelId);
-          else if (action === "delete") this.deleteModel(modelId);
-        });
-      });
-
-      this.modelCardsContainer.appendChild(card);
-    }
-  }
-
-  async startModelDownload(modelId) {
-    if (this.currentDownloadingModelId) {
-      alert("이미 다른 모델 다운로드가 진행 중입니다. 완료 후 다시 시도하세요.");
-      return;
-    }
-    this.currentDownloadingModelId = modelId;
-    this.renderModelCards(this.cachedModelList, this.state.settings?.model || "base");
-
-    try {
-      await window.lyricsPlayer.downloadModel(modelId);
-      // 완료 후 목록 갱신
-      await this.refreshModelList();
-    } catch (err) {
-      console.error("[ModelManager] Download failed:", err);
-      alert(`모델 다운로드 실패: ${err.message || err}`);
-    } finally {
-      this.currentDownloadingModelId = null;
-      await this.refreshModelList();
-    }
-  }
-
-  handleDownloadProgress(msg) {
-    if (!this.modelCardsContainer) return;
-    const card = this.modelCardsContainer.querySelector(`[data-model-id="${msg.modelId}"]`);
-    if (!card) return;
-
-    const actionArea = card.querySelector(".model-card-actions");
-    if (!actionArea) return;
-
-    const pct = msg.percent != null ? Math.round(msg.percent * 100) : null;
-    const label = pct != null ? `${pct}%` : "다운로드 중...";
-    actionArea.innerHTML = `<button type="button" class="btn-model-action" disabled>${label}</button>`;
-
-    if (msg.stage === "done") {
-      this.currentDownloadingModelId = null;
-      this.refreshModelList();
-    }
-  }
-
-  async deleteModel(modelId) {
-    const confirmed = confirm(`"${modelId}" 모델을 삭제하시겠습니까?\n모델 캐시 파일이 디스크에서 영구적으로 삭제됩니다.`);
-    if (!confirmed) return;
-
-    const result = await window.lyricsPlayer.deleteModel(modelId);
-    if (result?.ok) {
-      await this.refreshModelList();
-    } else {
-      alert(`모델 삭제 실패: ${result?.error || "알 수 없는 오류"}`);
-    }
-  }
-
-  // ─────────────────────────────────────────────────────────────────────
-  // NVIDIA GPU 가속 팩 (CUDA) 관리 기능
-  // ─────────────────────────────────────────────────────────────────────
-  async refreshCudaStatus() {
-    if (!window.lyricsPlayer?.checkCudaStatus || !this.cudaStatusBadge) return;
-    try {
-      const status = await window.lyricsPlayer.checkCudaStatus();
-      this.renderCudaStatus(status);
-    } catch (err) {
-      console.error("[SettingsView] Failed to check CUDA status:", err);
-    }
-  }
-
-  renderCudaStatus(status) {
-    if (!this.cudaStatusBadge || !this.cudaActionsArea) return;
-
-    this.cudaStatusBadge.className = "cuda-status-badge";
-    this.cudaActionsArea.innerHTML = "";
-    if (this.cudaSizeLabel) this.cudaSizeLabel.textContent = "";
-
-    if (status.installed) {
-      this.cudaStatusBadge.classList.add("installed");
-      this.cudaStatusBadge.textContent = "GPU 가속 준비 완료 (CUDA)";
-      const gpuInfo = status.gpuName ? `[${status.gpuName}] ` : "";
-      this.cudaStatusDesc.textContent = `${gpuInfo}NVIDIA CUDA 가속 환경이 준비되어 고속 Whisper 전사를 지원합니다.`;
-      
-      if (status.diskSizeFormatted && status.diskSizeFormatted !== "0 MB") {
-        this.cudaSizeLabel.textContent = `(${status.diskSizeFormatted})`;
-      }
-
-      if (status.isCustomInstalled) {
-        // 재설치 버튼
-        const reinstallBtn = document.createElement("button");
-        reinstallBtn.type = "button";
-        reinstallBtn.className = "btn-cuda-action btn-reinstall";
-        reinstallBtn.textContent = "재설치";
-        reinstallBtn.disabled = this.isCudaDownloading;
-        reinstallBtn.addEventListener("click", () => this.reinstallCudaPack());
-
-        // 삭제 버튼
-        const deleteBtn = document.createElement("button");
-        deleteBtn.type = "button";
-        deleteBtn.className = "btn-cuda-action btn-delete";
-        deleteBtn.textContent = "삭제";
-        deleteBtn.disabled = this.isCudaDownloading;
-        deleteBtn.addEventListener("click", () => this.deleteCudaPack());
-
-        this.cudaActionsArea.appendChild(reinstallBtn);
-        this.cudaActionsArea.appendChild(deleteBtn);
-      } else if (status.isSystemInstalled) {
-        const sysLabel = document.createElement("span");
-        sysLabel.className = "cuda-size-label";
-        sysLabel.textContent = "(시스템 CUDA Toolkit 연동됨)";
-        this.cudaActionsArea.appendChild(sysLabel);
-      }
-    } else {
-      if (!status.hasNvidia) {
-        this.cudaStatusBadge.classList.add("no-gpu");
-        this.cudaStatusBadge.textContent = "NVIDIA GPU 미감지";
-        this.cudaStatusDesc.textContent = "NVIDIA 외장 그래픽 카드가 감지되지 않았습니다. (외장 GPU가 있는 경우 수동 설치 가능)";
-      } else {
-        this.cudaStatusBadge.classList.add("not-installed");
-        this.cudaStatusBadge.textContent = "미설치 (CPU 모드 동작)";
-        const gpuInfo = status.gpuName ? `[${status.gpuName} 감지됨] ` : "";
-        this.cudaStatusDesc.textContent = `${gpuInfo}GPU 가속 팩(CUDA DLL)을 설치하면 가사 추출 속도가 대폭 향상됩니다.`;
-      }
-
-      const installBtn = document.createElement("button");
-      installBtn.type = "button";
-      installBtn.className = "btn-cuda-action btn-download";
-      installBtn.textContent = "GPU 가속 팩 설치";
-      installBtn.disabled = this.isCudaDownloading;
-      installBtn.addEventListener("click", () => this.installCudaPack());
-
-      this.cudaActionsArea.appendChild(installBtn);
-    }
-  }
-
-  async installCudaPack() {
-    if (this.isCudaDownloading) return;
-    this.isCudaDownloading = true;
-    if (this.cudaProgressBarArea) {
-      this.cudaProgressBarArea.style.display = "flex";
-      this.cudaProgressFill.style.width = "0%";
-      this.cudaProgressText.textContent = "GPU 가속 팩 다운로드 준비 중...";
-    }
-    await this.refreshCudaStatus();
-
-    try {
-      const res = await window.lyricsPlayer.downloadCudaPack();
-      if (res?.ok) {
-        alert("NVIDIA GPU 가속 팩(CUDA) 설치가 완료되었습니다!\n이제 Whisper 가속 장치에서 GPU(CUDA)를 사용할 수 있습니다.");
-      }
-    } catch (err) {
-      console.error("[SettingsView] CUDA pack install failed:", err);
-      alert(`GPU 가속 팩 설치 실패: ${err.message || err}`);
-    } finally {
-      this.isCudaDownloading = false;
-      if (this.cudaProgressBarArea) {
-        this.cudaProgressBarArea.style.display = "none";
-      }
-      await this.refreshCudaStatus();
-    }
-  }
-
-  handleCudaProgress(msg) {
-    if (!this.cudaProgressBarArea) return;
-    this.cudaProgressBarArea.style.display = "flex";
-
-    if (msg.percent != null) {
-      const pct = Math.round(msg.percent * 100);
-      this.cudaProgressFill.style.width = `${pct}%`;
-    }
-    if (msg.message) {
-      this.cudaProgressText.textContent = msg.message;
-    }
-    if (msg.stage === "done" || msg.stage === "cancelled") {
-      this.isCudaDownloading = false;
-      this.cudaProgressBarArea.style.display = "none";
-      this.refreshCudaStatus();
-    }
-  }
-
-  async deleteCudaPack() {
-    const ok = confirm("GPU 가속 팩을 디스크에서 삭제하시겠습니까?\n삭제 후에는 기본 CPU 모드로 동작하게 됩니다.");
-    if (!ok) return;
-
-    try {
-      const res = await window.lyricsPlayer.deleteCudaPack();
-      if (res?.ok) {
-        alert("GPU 가속 팩이 성공적으로 삭제되었습니다.");
-      } else {
-        alert(`삭제 실패: ${res?.error || "알 수 없는 오류"}`);
-      }
-    } catch (err) {
-      alert(`삭제 처리 중 오류 발생: ${err.message}`);
-    } finally {
-      await this.refreshCudaStatus();
-    }
-  }
-
-  async reinstallCudaPack() {
-    const ok = confirm("현재 설치된 GPU 가속 팩을 제거하고 새로 재설치하시겠습니까?");
-    if (!ok) return;
-
-    try {
-      await window.lyricsPlayer.deleteCudaPack();
-      await this.installCudaPack();
-    } catch (err) {
-      alert(`재설치 중 오류 발생: ${err.message}`);
-    }
-  }
-
-  // ─────────────────────────────────────────────────────────────────────
-  // 경량 ONNX 보컬 분리 모델 관리 기능
-  // ─────────────────────────────────────────────────────────────────────
-  async refreshVocalModelStatus() {
-    if (!window.lyricsPlayer?.getVocalModelStatus || !this.vocalModelStatusBadge) return;
-    try {
-      const status = await window.lyricsPlayer.getVocalModelStatus();
-      this.renderVocalModelStatus(status);
-    } catch (err) {
-      console.error("[SettingsView] Failed to check vocal model status:", err);
-    }
-  }
-
-  renderVocalModelStatus(status) {
-    if (!this.vocalModelStatusBadge || !this.vocalModelActionsArea || !status) return;
-
-    if (this.settingVocalIsolation) {
-      const onOption = this.settingVocalIsolation.querySelector('option[value="on"]');
-      if (onOption) {
-        onOption.disabled = !status.installed;
-        onOption.textContent = status.installed
-          ? "사용 (보컬 분리 후 분석)"
-          : "사용 (모델 설치 필요)";
-      }
-      if (!status.installed && this.settingVocalIsolation.value === "on") {
-        this.settingVocalIsolation.value = "off";
-      }
-    }
-
-    if (this.callbacks?.onVocalModelStatusChange) {
-      this.callbacks.onVocalModelStatusChange(status);
-    }
-
-    this.vocalModelStatusBadge.className = "cuda-status-badge";
-    this.vocalModelActionsArea.innerHTML = "";
-    if (this.vocalModelSizeLabel) {
-      this.vocalModelSizeLabel.textContent = status.diskSizeFormatted ? `(${status.diskSizeFormatted})` : "";
-    }
-
-    if (this.isVocalModelDownloading) {
-      this.vocalModelStatusBadge.classList.add("not-installed");
-      this.vocalModelStatusBadge.textContent = "다운로드 중";
-
-      const cancelBtn = document.createElement("button");
-      cancelBtn.type = "button";
-      cancelBtn.className = "btn-cuda-action btn-delete";
-      cancelBtn.textContent = "다운로드 취소";
-      cancelBtn.addEventListener("click", () => this.cancelVocalModelDownload());
-      this.vocalModelActionsArea.appendChild(cancelBtn);
-    } else if (status.installed) {
-      this.vocalModelStatusBadge.classList.add("installed");
-      this.vocalModelStatusBadge.textContent = "모델 설치됨";
-
-      const deleteBtn = document.createElement("button");
-      deleteBtn.type = "button";
-      deleteBtn.className = "btn-cuda-action btn-delete";
-      deleteBtn.textContent = "모델 삭제";
-      deleteBtn.addEventListener("click", () => this.deleteVocalModel());
-      this.vocalModelActionsArea.appendChild(deleteBtn);
-    } else {
-      this.vocalModelStatusBadge.classList.add("not-installed");
-      this.vocalModelStatusBadge.textContent = "모델 미설치";
-
-      const downloadBtn = document.createElement("button");
-      downloadBtn.type = "button";
-      downloadBtn.className = "btn-cuda-action btn-download";
-      downloadBtn.textContent = "보컬 분리 모델 설치";
-      downloadBtn.addEventListener("click", () => this.installVocalModel());
-      this.vocalModelActionsArea.appendChild(downloadBtn);
-    }
-  }
-
-  async cancelVocalModelDownload() {
-    if (!window.lyricsPlayer?.cancelVocalModelDownload) return;
-    try {
-      await window.lyricsPlayer.cancelVocalModelDownload();
-    } catch (err) {
-      console.error("[SettingsView] Failed to cancel vocal model download:", err);
-    }
-  }
-
-  async installVocalModel() {
-    if (this.isVocalModelDownloading) return;
-    this.isVocalModelDownloading = true;
-    if (this.vocalModelProgressArea) {
-      this.vocalModelProgressArea.style.display = "flex";
-      this.vocalModelProgressFill.style.width = "0%";
-      this.vocalModelProgressText.textContent = "보컬 분리 모델 다운로드 준비 중...";
-    }
-    await this.refreshVocalModelStatus();
-
-    try {
-      const res = await window.lyricsPlayer.downloadVocalModel();
-      if (res?.ok) {
-        await this.refreshVocalModelStatus();
-      }
-    } catch (err) {
-      console.error("[SettingsView] Vocal model download failed:", err);
-      alert(`보컬 분리 모델 다운로드 실패: ${err.message || err}`);
-    } finally {
-      this.isVocalModelDownloading = false;
-      if (this.vocalModelProgressArea) {
-        this.vocalModelProgressArea.style.display = "none";
-      }
-      await this.refreshVocalModelStatus();
-    }
-  }
-
-  handleVocalModelProgress(msg) {
-    if (!this.vocalModelProgressArea) return;
-    this.vocalModelProgressArea.style.display = "flex";
-
-    if (msg.percent != null) {
-      const pct = Math.round(msg.percent * 100);
-      this.vocalModelProgressFill.style.width = `${pct}%`;
-    }
-    if (msg.message) {
-      this.vocalModelProgressText.textContent = msg.message;
-    }
-    if (msg.stage === "done" || msg.stage === "cancelled") {
-      this.isVocalModelDownloading = false;
-      this.vocalModelProgressArea.style.display = "none";
-      this.refreshVocalModelStatus();
-    }
-  }
-
-  async deleteVocalModel() {
-    const ok = confirm("보컬 분리 ONNX 모델을 디스크에서 삭제하시겠습니까?\n삭제 시 보컬 분리 옵션은 자동으로 꺼집니다.");
-    if (!ok) return;
-
-    try {
-      const res = await window.lyricsPlayer.deleteVocalModel();
-      if (!res?.ok) {
-        alert(`삭제 실패: ${res?.error || "알 수 없는 오류"}`);
-      }
-    } catch (err) {
-      alert(`삭제 처리 중 오류 발생: ${err.message}`);
-    } finally {
-      await this.refreshVocalModelStatus();
-    }
-  }
-  // ─────────────────────────────────────────────────────────────────────
 }
 
 window.SettingsView = SettingsView;

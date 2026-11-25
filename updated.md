@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-11-26 — 설정 모달 모델·가속 팩·보컬 모델 패널 분리 (`v1.1.1` Stage 3 Unit 3-B)
+- **`src/renderer/modules/model-settings-panel.js` 분리 및 단위 테스트 추가 (`settings-view.js`, `index.html`, `package.json`, `test/model-settings-panel.test.js`)**:
+  - `settings-view.js`에서 Whisper 모델 카드, NVIDIA CUDA 가속 팩, ONNX 보컬 분리 모델 상태 조회·렌더링·진행률 바·취소/삭제 UI(~470줄)를 `ModelSettingsPanel`과 순수 상태 기술 헬퍼(`buildInstalledModelSelectOptions`, `describeCudaStatusView`, `describeVocalModelStatusView`, `applyProgressBarUpdate`)로 분리했습니다.
+  - `test/model-settings-panel.test.js`를 추가해 설치 모델 선택 옵션, CUDA/보컬 4종·3종 상태 계산, 진행률 바 공통 갱신 및 종료 시 재조회 동작을 검증했습니다.
+
+---
+
 ## 2026-11-26 — Main 다운로드·런타임·취소 헬퍼 공통화 (`v1.1.1` Stage 3 Unit 3-A)
 - **`src/main/helpers/download-helper.js` 추출 및 Main 6개 서비스 중복 제거 (`package.json`, `test/download-helper.test.js`)**:
   - `cuda-manager.js`, `vocal-model-manager.js`, `model-manager.js`에 흩어져 있던 `formatBytes`, `getDirectorySize`, `downloadFileWithRedirects`와 `isCancelledError`를 `download-helper.js`로 통합하고 상대 리다이렉트·중단 시 임시 파일 정리 안전성을 일원화했습니다.
