@@ -13,9 +13,9 @@
 
 ## 1. AI 분석·정합 파이프라인 및 자동화
 - [ ] **[P2] 가사 텍스트 기반 강제 정렬(Forced Alignment) 검토**: 음원 내장 평문 가사 또는 외부 가사 검색과 연동해 오타 없이 타임스탬프만 정밀 정렬하는 옵션 검토
-- [ ] **[P3] Gemini 가사 전사·정합 프롬프트 고도화 (`src/main/services/gemini-prompts.js`)**:
-  - 전사(`transcribeSystemInstruction`): 전주/간주 타임스탬프 처리, 코러스/추임새 표기 및 소절 분할 기준 세분화
-  - 정합(`alignSystemInstruction`): 1·2절 반복 후렴구 매핑 안정성 및 Whisper 누락 라인 대응 규칙(`lyrics-aligner.js` 분할 로직과 정합성 확보) 검토
+- [x] **Gemini 가사 전사·정합 프롬프트 고도화 (`src/main/services/gemini-prompts.js`)**:
+  - 전사(`transcribeSystemInstruction`): 전주/간주 비가사 마커(`[간주]`, `♪`) 배제, 코러스·화음 중복 분리 억제 및 호흡 단위 소절 분할 정제 (`updated.md` 참고)
+  - 정합(`alignSystemInstruction`): 1·2절 반복 후렴구 재사용 금지 유지 및 연속 병합 소절에 한정한 `lyrics-aligner.js` 분할 연동, 앵커 라인(첫 줄·간주 직후) 우선 매칭 보강 (`updated.md` 참고)
 - [x] **AI 정합 실패 시 재시도 유도 및 버튼 하이라이트 유지**: 정합 폴백·실패 시 `.align-suggested` 하이라이트 및 재시도 안내 유지 (`updated.md` 참고)
 - [x] **자동화 옵션 재정비, 트랙 프리페치·셔플 덱 복구 및 곡 전환 속도 개선**: `state.playlist` 기준 순차·셔플 프리페치(`syncShuffleQueue`) 및 `forwardHistory` 복귀, RAM 네거티브 캐시, 가사 즉시 렌더링(`cancelPromise` 대기 분리) + `200ms` 자동 분석 디바운스, `자동화 워크플로우`의 `AI 및 음성 분석` 탭 통합, `AI 정합` 용어 통일 및 `lyricsSource` 기반 `AI 재분석` 오표시 수정 (`updated.md` 참고)
 - [x] **곡 이동 시 AI 분석/정합 결과 오지정(Cross-track 오염) 버그 수정**: 작업 토큰(`jobId`)·트랙 스냅샷 격리, 디바운스 저장(`saveTimers`) 트랙 캡처, `selectPlaylistItem` 시퀀스 가드 및 백그라운드 완료 시 원곡 캐시 안전 저장 (`updated.md` 참고)

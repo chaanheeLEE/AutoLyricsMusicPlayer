@@ -1,6 +1,23 @@
 const { alignLyricsWithGemini } = require("../services/gemini-service");
 const { scrapeLyrics } = require("../services/lyrics-scraper");
 
+function distributeLinesByLength(items, rangeStart, rangeEnd, onAssign) {
+  const totalGap = Math.max(0, rangeEnd - rangeStart);
+  const lengths = items.map((item) => {
+    const text = typeof item === "string" ? item : item?.text;
+    return String(text || "").trim().length || 1;
+  });
+  const totalLength = lengths.reduce((sum, len) => sum + len, 0);
+
+  let currentStart = rangeStart;
+  for (let i = 0; i < items.length; i++) {
+    const share = (lengths[i] / totalLength) * totalGap;
+    const end = currentStart + share;
+    onAssign(items[i], i, Number(currentStart.toFixed(3)), Number(end.toFixed(3)));
+    currentStart = end;
+  }
+}
+
 function classifyAlignError(failureStage, err) {
   const msg = String(err?.message || "");
   if (failureStage === "scrape") {
@@ -146,21 +163,28 @@ async function alignAndInterpolateLyrics(payload, runtimeOptions = {}) {
         officialTimeMap.set(indices[0], { start: whisperLine.start, end: whisperLine.end });
       } else {
         indices.sort((a, b) => a - b);
-        const lengths = indices.map(idx => (officialLines[idx] || "").length || 1);
-        const totalLength = lengths.reduce((sum, len) => sum + len, 0);
+        const contiguousIndices = [indices[0]];
+        for (let k = 1; k < indices.length; k++) {
+          if (indices[k] === indices[k - 1] + 1) {
+            contiguousIndices.push(indices[k]);
+          } else {
+            console.warn(`[Aligner] Ignored non-contiguous duplicate whisper_id ${wId} at official_index ${indices[k]}.`);
+          }
+        }
 
-        let currentStart = whisperLine.start;
-        indices.forEach((officialIdx, i) => {
-          const len = lengths[i];
-          const share = (len / totalLength) * totalDuration;
-          const end = currentStart + share;
-          officialTimeMap.set(officialIdx, {
-            start: Number(currentStart.toFixed(3)),
-            end: Number(end.toFixed(3))
-          });
-          currentStart = end;
-        });
-        console.log(`[Aligner] Split duplicate whisper_id ${wId} across ${count} official lines based on text length.`);
+        if (contiguousIndices.length === 1) {
+          officialTimeMap.set(contiguousIndices[0], { start: whisperLine.start, end: whisperLine.end });
+        } else {
+          distributeLinesByLength(
+            contiguousIndices.map((idx) => officialLines[idx]),
+            whisperLine.start,
+            whisperLine.end,
+            (_text, i, start, end) => {
+              officialTimeMap.set(contiguousIndices[i], { start, end });
+            }
+          );
+          console.log(`[Aligner] Split duplicate whisper_id ${wId} across ${contiguousIndices.length} official lines based on text length.`);
+        }
       }
     });
 
@@ -184,8 +208,24 @@ async function alignAndInterpolateLyrics(payload, runtimeOptions = {}) {
 
     // 5. 누락된 싱크 시간 선형 보간(Linear Interpolation) 처리 (글자 수 가중치 반영)
     if (finalLyrics[0].start === null) {
-      finalLyrics[0].start = 0.0;
-      finalLyrics[0].end = whisperLyrics[0] ? Math.max(Math.min(whisperLyrics[0].start, 1.5), 0.8) : 1.0;
+      const firstMatchedIdx = finalLyrics.findIndex((item) => item.start !== null);
+      if (firstMatchedIdx > 0) {
+        const firstMatchedStart = Math.max(0, finalLyrics[firstMatchedIdx].start);
+        const estBlockSec = Math.min(firstMatchedStart, Math.max(firstMatchedIdx * 2.5, 1.2));
+        const blockStart = Math.max(0, firstMatchedStart - estBlockSec);
+        distributeLinesByLength(
+          finalLyrics.slice(0, firstMatchedIdx),
+          blockStart,
+          firstMatchedStart,
+          (_item, k, start, end) => {
+            finalLyrics[k].start = start;
+            finalLyrics[k].end = end;
+          }
+        );
+      } else {
+        finalLyrics[0].start = 0.0;
+        finalLyrics[0].end = whisperLyrics[0] ? Math.max(Math.min(whisperLyrics[0].start, 1.5), 0.8) : 1.0;
+      }
     }
 
     let i = 0;
@@ -203,23 +243,15 @@ async function alignAndInterpolateLyrics(payload, runtimeOptions = {}) {
         const nextIdx = endNullIdx;
         const nextStart = nextIdx < finalLyrics.length ? finalLyrics[nextIdx].start : (maxDuration !== null ? maxDuration : (prevEnd + (endNullIdx - startNullIdx) * 2.0));
 
-        const totalGap = Math.max(0, nextStart - prevEnd);
-
-        const nullSubArray = finalLyrics.slice(startNullIdx, endNullIdx);
-        const lengths = nullSubArray.map(item => (item.text || "").trim().length || 1);
-        const totalLength = lengths.reduce((sum, len) => sum + len, 0);
-
-        let currentStart = prevEnd;
-        for (let k = 0; k < nullSubArray.length; k++) {
-          const targetIdx = startNullIdx + k;
-          const len = lengths[k];
-          const share = (len / totalLength) * totalGap;
-
-          finalLyrics[targetIdx].start = Number(currentStart.toFixed(3));
-          finalLyrics[targetIdx].end = Number((currentStart + share).toFixed(3));
-
-          currentStart += share;
-        }
+        distributeLinesByLength(
+          finalLyrics.slice(startNullIdx, endNullIdx),
+          prevEnd,
+          nextStart,
+          (_item, k, start, end) => {
+            finalLyrics[startNullIdx + k].start = start;
+            finalLyrics[startNullIdx + k].end = end;
+          }
+        );
 
         i = endNullIdx;
       } else {

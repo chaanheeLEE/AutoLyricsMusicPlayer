@@ -10,6 +10,7 @@ const {
 const {
   GEMINI_FALLBACK_MODELS,
   buildModelFallbackChain,
+  buildTranscriptionPrompt,
   callGeminiApiWithRetry,
 } = require("../src/main/services/gemini-service");
 
@@ -270,4 +271,83 @@ test("alignAndInterpolateLyrics classifies 503 high demand errors as gemini_over
   assert.equal(res.warning, "fallback_to_whisper");
   assert.equal(res.failureStage, "gemini");
   assert.equal(res.errorCode, "gemini_overloaded");
+});
+
+test("buildTranscriptionPrompt omits language hint for auto/null and includes it for explicit languages", () => {
+  const autoDefault = buildTranscriptionPrompt(180, null);
+  const autoExplicit = buildTranscriptionPrompt(180, "auto");
+  assert.doesNotMatch(autoDefault, /언어 힌트/);
+  assert.doesNotMatch(autoExplicit, /언어 힌트/);
+  assert.match(autoDefault, /180\.00초/);
+
+  const jaPrompt = buildTranscriptionPrompt(210, "ja");
+  assert.match(jaPrompt, /언어 힌트/);
+  assert.match(jaPrompt, /일본어\(ja\)/);
+  assert.match(jaPrompt, /210\.00초/);
+});
+
+test("callGeminiApiWithRetry configures temperature 0 for deterministic alignment", async () => {
+  let seenConfig = null;
+  await callGeminiApiWithRetry(
+    "dummy-key",
+    "contents",
+    "sys",
+    { type: "ARRAY" },
+    "gemini-3.5-flash-lite",
+    1,
+    1,
+    {
+      generateContentFn: async ({ config }) => {
+        seenConfig = config;
+        return { text: JSON.stringify([{ official_index: 0, whisper_id: "line_001" }]) };
+      }
+    }
+  );
+  assert.equal(seenConfig.temperature, 0);
+});
+
+test("alignAndInterpolateLyrics guards non-contiguous duplicate whisper_id and anchors leading nulls before first match", async () => {
+  const whisperLyrics = [
+    { id: "line_001", start: 10.0, end: 13.0, text: "First matched chorus" },
+    { id: "line_002", start: 20.0, end: 23.0, text: "Closing verse line" }
+  ];
+
+  const res = await alignAndInterpolateLyrics(
+    {
+      track: { title: "Intro & Chorus Test", duration: 30 },
+      whisperLyrics,
+      settings: { geminiApiKey: "dummy-key" },
+      embeddedLyricsLines: [
+        "Opening line after long intro",
+        "First matched chorus",
+        "Bridge line gap",
+        "Repeated chorus mistakenly reusing line_001",
+        "Closing verse line"
+      ]
+    },
+    {
+      deps: {
+        alignLyricsWithGemini: async () => [
+          { official_index: 0, whisper_id: null },
+          { official_index: 1, whisper_id: "line_001" },
+          { official_index: 2, whisper_id: null },
+          { official_index: 3, whisper_id: "line_001" }, // non-contiguous duplicate -> should NOT steal split from index 1
+          { official_index: 4, whisper_id: "line_002" }
+        ]
+      }
+    }
+  );
+
+  assert.equal(res.ok, true);
+  assert.equal(res.source, "gemini");
+  assert.equal(res.matchedCount, 2);
+  // Leading null line is anchored just before 10.0s rather than 0.0s
+  assert.ok(res.lyrics[0].start >= 7.0 && res.lyrics[0].end === 10.0);
+  // Index 1 retains full [10.0, 13.0] window
+  assert.equal(res.lyrics[1].start, 10.0);
+  assert.equal(res.lyrics[1].end, 13.0);
+  // Indices 2 & 3 interpolate monotonically inside 13.0..20.0
+  assert.equal(res.lyrics[2].start, 13.0);
+  assert.ok(res.lyrics[3].start > 13.0 && res.lyrics[3].end === 20.0);
+  assert.equal(res.lyrics[4].start, 20.0);
 });

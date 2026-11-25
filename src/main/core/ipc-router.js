@@ -276,7 +276,10 @@ function registerIpcHandlers(windowManager) {
           track.path,
           track.duration,
           options.geminiModel || "gemini-3.5-flash-lite",
-          { signal: abortController.signal }
+          {
+            signal: abortController.signal,
+            language: options.language || null
+          }
         );
 
         if (abortController.signal.aborted) {
