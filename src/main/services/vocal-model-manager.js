@@ -10,9 +10,12 @@
 const path = require("node:path");
 const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
-const https = require("node:https");
-const http = require("node:http");
 const { app } = require("electron");
+const {
+  formatBytes,
+  downloadFileWithRedirects,
+  isCancelledError
+} = require("../helpers/download-helper");
 
 const VOCAL_MODEL_FILENAME = "UVR-MDX-NET-Voc_FT.onnx";
 const VOCAL_MODEL_URL =
@@ -29,14 +32,6 @@ function getVocalModelsDir() {
 
 function getVocalModelPath() {
   return path.join(getVocalModelsDir(), VOCAL_MODEL_FILENAME);
-}
-
-function formatBytes(bytes) {
-  if (!bytes || bytes <= 0) return "0 MB";
-  if (bytes < 1024 * 1024 * 1024) {
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
 async function getVocalModelStatus() {
@@ -65,106 +60,6 @@ async function getVocalModelStatus() {
   };
 }
 
-function downloadFileWithRedirects(url, destPath, onProgress, signal) {
-  return new Promise((resolve, reject) => {
-    const makeRequest = (currentUrl, redirectCount = 0) => {
-      if (redirectCount > 5) {
-        return reject(new Error("너무 많은 리다이렉트가 발생했습니다."));
-      }
-
-      const client = currentUrl.startsWith("https") ? https : http;
-      const req = client.get(currentUrl, (res) => {
-        if ([301, 302, 303, 307, 308].includes(res.statusCode)) {
-          const nextUrl = res.headers.location;
-          if (!nextUrl) {
-            res.resume();
-            return reject(new Error("리다이렉트 주소를 찾을 수 없습니다."));
-          }
-          const resolvedUrl = new URL(nextUrl, currentUrl).toString();
-          res.resume();
-          return makeRequest(resolvedUrl, redirectCount + 1);
-        }
-
-        if (res.statusCode !== 200) {
-          res.resume();
-          return reject(new Error(`다운로드 서버 응답 오류: HTTP ${res.statusCode}`));
-        }
-
-        const totalBytes = parseInt(res.headers["content-length"] || "0", 10);
-        let downloadedBytes = 0;
-        let settled = false;
-
-        const fileStream = fsSync.createWriteStream(destPath);
-
-        const cleanupWithError = (err) => {
-          if (settled) return;
-          settled = true;
-          try { fileStream.destroy(); } catch {}
-          try { fsSync.unlinkSync(destPath); } catch {}
-          reject(err);
-        };
-
-        res.on("data", (chunk) => {
-          downloadedBytes += chunk.length;
-          const percent = totalBytes > 0 ? downloadedBytes / totalBytes : null;
-          onProgress({
-            stage: "downloading",
-            percent,
-            downloadedBytes,
-            totalBytes,
-            message: `보컬 분리 모델 다운로드 중: ${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)}`,
-          });
-        });
-
-        res.on("error", cleanupWithError);
-        fileStream.on("error", cleanupWithError);
-
-        res.pipe(fileStream);
-
-        fileStream.on("finish", () => {
-          fileStream.close((closeErr) => {
-            if (settled) return;
-            settled = true;
-            if (closeErr) {
-              try { fsSync.unlinkSync(destPath); } catch {}
-              return reject(closeErr);
-            }
-            resolve();
-          });
-        });
-
-        if (signal) {
-          signal.addEventListener(
-            "abort",
-            () => {
-              req.destroy();
-              cleanupWithError(new Error("cancelled"));
-            },
-            { once: true }
-          );
-        }
-      });
-
-      req.on("error", (err) => {
-        try { fsSync.unlinkSync(destPath); } catch {}
-        reject(err);
-      });
-
-      if (signal) {
-        signal.addEventListener(
-          "abort",
-          () => {
-            req.destroy();
-          },
-          { once: true }
-        );
-      }
-    };
-
-    makeRequest(url);
-  });
-}
-
 async function downloadVocalModel(onProgress) {
   if (isDownloading) {
     throw new Error("이미 보컬 분리 모델 다운로드가 진행 중입니다.");
@@ -187,7 +82,12 @@ async function downloadVocalModel(onProgress) {
       message: "보컬 분리 모델 다운로드 연결 중...",
     });
 
-    await downloadFileWithRedirects(VOCAL_MODEL_URL, tempPath, onProgress, activeAbortController.signal);
+    await downloadFileWithRedirects(VOCAL_MODEL_URL, tempPath, {
+      onProgress,
+      formatProgressMessage: ({ downloadedBytes, totalBytes }) =>
+        `보컬 분리 모델 다운로드 중: ${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)}`,
+      signal: activeAbortController.signal
+    });
     await fs.rename(tempPath, modelPath);
 
     const status = await getVocalModelStatus();
@@ -201,7 +101,7 @@ async function downloadVocalModel(onProgress) {
     return { ok: true, status };
   } catch (err) {
     try { await fs.unlink(tempPath); } catch {}
-    if (err.message === "cancelled") {
+    if (isCancelledError(err)) {
       onProgress({ stage: "cancelled", message: "다운로드가 취소되었습니다." });
       return { ok: false, error: "cancelled" };
     }

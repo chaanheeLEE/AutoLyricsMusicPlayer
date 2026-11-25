@@ -4,18 +4,13 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const crypto = require("node:crypto");
 const { transcribeSystemInstruction, alignSystemInstruction } = require("./gemini-prompts");
+const { createCancelledError } = require("../helpers/download-helper");
 
 const GEMINI_FALLBACK_MODELS = [
   "gemini-3.5-flash-lite",
   "gemini-3.1-flash-lite",
   "gemini-3.8-flash",
 ];
-
-function createCancelledError() {
-  const err = new Error("cancelled");
-  err.cancelled = true;
-  return err;
-}
 
 function buildModelFallbackChain(primaryModel) {
   const first = (typeof primaryModel === "string" && primaryModel.trim())

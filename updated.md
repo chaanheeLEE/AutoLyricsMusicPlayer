@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-11-26 — Main 다운로드·런타임·취소 헬퍼 공통화 (`v1.1.1` Stage 3 Unit 3-A)
+- **`src/main/helpers/download-helper.js` 추출 및 Main 6개 서비스 중복 제거 (`package.json`, `test/download-helper.test.js`)**:
+  - `cuda-manager.js`, `vocal-model-manager.js`, `model-manager.js`에 흩어져 있던 `formatBytes`, `getDirectorySize`, `downloadFileWithRedirects`와 `isCancelledError`를 `download-helper.js`로 통합하고 상대 리다이렉트·중단 시 임시 파일 정리 안전성을 일원화했습니다.
+  - `transcription-worker.js`의 `resolvePython`/`hasFasterWhisper`를 `model-manager.js`가 재사용하고, `createCancelledError`를 `gemini-service.js`·`lyrics-scraper.js`·`transcription-worker.js` 간 공유하도록 정리했습니다.
+  - `test/download-helper.test.js`를 추가해 크기 포맷, 디렉터리 용량, 리다이렉트 다운로드, HTTP 404/리다이렉트 루프 실패, `AbortController` 취소 시 부분 파일 정리를 검증했습니다.
+
+---
+
 ## 2026-11-26 — 비동기 작업 관리자 경계 정밀화 및 회귀 테스트 (`v1.1.1` Stage 2)
 - **`src/renderer/modules/lyrics-job-manager.js` UMD 전환 및 순수 헬퍼 분리 (`test/lyrics-job-manager.test.js`)**:
   - 진행률/폴백 오류 메시지 포맷(`formatProgressMessage`, `formatAlignFallbackMessage`), 장치 라벨 정규화(`normalizeDeviceLabel`), 작업 ID 필터(`isProgressMessageForJob`), 오프닝 힌트(`buildOpeningPromptHint`), 상황별 `beamSize`(`resolveAdaptiveBeamSize`), 평문 가사 출처 결정(`resolvePersistedPlainLyrics`)을 DOM 비의존 순수 함수로 추출하고 선택적 런타임 DI를 추가했습니다.

@@ -2,7 +2,9 @@ const path = require("node:path");
 const fs = require("node:fs/promises");
 const fsSync = require("node:fs");
 const os = require("node:os");
-const { spawn, execFileSync } = require("node:child_process");
+const { spawn } = require("node:child_process");
+const { formatBytes, getDirectorySize } = require("../helpers/download-helper");
+const { resolvePython } = require("./transcription-worker");
 
 // 크기 오름차순 정렬 (tiny → base → small → large-v3-turbo)
 const SUPPORTED_MODELS = [
@@ -57,33 +59,6 @@ function getHubCacheDir() {
     return process.env.HUGGINGFACE_HUB_CACHE;
   }
   return path.join(os.homedir(), ".cache", "huggingface", "hub");
-}
-
-function formatBytes(bytes) {
-  if (!bytes || bytes <= 0) return "0 MB";
-  if (bytes < 1024 * 1024 * 1024) {
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-
-async function getDirectorySize(dirPath) {
-  let total = 0;
-  try {
-    const entries = await fs.readdir(dirPath, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = path.join(dirPath, entry.name);
-      if (entry.isDirectory()) {
-        total += await getDirectorySize(fullPath);
-      } else if (entry.isFile()) {
-        const stats = await fs.stat(fullPath);
-        total += stats.size;
-      }
-    }
-  } catch {
-    return 0;
-  }
-  return total;
 }
 
 /**
@@ -150,54 +125,6 @@ async function deleteModel(modelId) {
     console.error(`Failed to delete model ${modelId}:`, err);
     return { ok: false, modelId, error: err.message };
   }
-}
-
-function hasFasterWhisper(pythonCmd) {
-  try {
-    execFileSync(pythonCmd, ["-c", "import faster_whisper"], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Python 실행 파일 위치 탐색 (전용 lyrics_player 환경 우선 → PATH → 일반 경로)
- */
-function resolvePython() {
-  const condaRoots = [
-    path.join(os.homedir(), "miniconda3"),
-    path.join(os.homedir(), "anaconda3"),
-    path.join(os.homedir(), "Miniconda3"),
-    path.join(os.homedir(), "Anaconda3"),
-    path.join(os.homedir(), "AppData", "Local", "miniconda3"),
-    path.join(os.homedir(), "AppData", "Local", "anaconda3"),
-    path.join("C:\\", "ProgramData", "miniconda3"),
-    path.join("C:\\", "ProgramData", "anaconda3"),
-  ];
-  const dedicatedEnvs = condaRoots.map((root) => path.join(root, "envs", "lyrics_player", "python.exe"));
-  for (const envPy of dedicatedEnvs) {
-    if (fsSync.existsSync(envPy) && hasFasterWhisper(envPy)) {
-      return envPy;
-    }
-  }
-  for (const cmd of ["python", "python3"]) {
-    if (hasFasterWhisper(cmd)) {
-      return cmd;
-    }
-  }
-  const candidates = [
-    ...condaRoots.map((root) => path.join(root, "python.exe")),
-    path.join(os.homedir(), "AppData", "Local", "Programs", "Python", "Python312", "python.exe"),
-    path.join(os.homedir(), "AppData", "Local", "Programs", "Python", "Python311", "python.exe"),
-    path.join(os.homedir(), "AppData", "Local", "Programs", "Python", "Python310", "python.exe"),
-  ];
-  for (const c of candidates) {
-    if (fsSync.existsSync(c) && hasFasterWhisper(c)) {
-      return c;
-    }
-  }
-  throw new Error("python with faster-whisper not found. Please install faster-whisper.");
 }
 
 let activeDownloadProcess = null;

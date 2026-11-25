@@ -1,10 +1,5 @@
 const https = require("node:https");
-
-function createCancelledError() {
-  const err = new Error("cancelled");
-  err.cancelled = true;
-  return err;
-}
+const { createCancelledError } = require("../helpers/download-helper");
 
 /**
  * LRCLIB JSON 엔드포인트를 AbortSignal 및 타임아웃과 함께 호출합니다.

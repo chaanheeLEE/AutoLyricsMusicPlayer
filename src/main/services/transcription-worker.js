@@ -5,6 +5,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const crypto = require("node:crypto");
+const { createCancelledError } = require("../helpers/download-helper");
 
 let TRANSCRIBE_SCRIPT = path.join(__dirname, "transcribe.py");
 if (TRANSCRIBE_SCRIPT.includes("app.asar")) {
@@ -121,12 +122,6 @@ function resolvePython() {
     "Please ensure Python is installed and faster-whisper is available:\n" +
     "  pip install faster-whisper"
   );
-}
-
-function createCancelledError() {
-  const err = new Error("cancelled");
-  err.cancelled = true;
-  return err;
 }
 
 function runFfmpeg(ffmpegBin, args, onSpawn = null) {
@@ -376,4 +371,4 @@ function startTranscription(track, options, onProgress) {
   };
 }
 
-module.exports = { startTranscription, resolveFfmpeg };
+module.exports = { startTranscription, resolveFfmpeg, resolvePython, hasFasterWhisper };
