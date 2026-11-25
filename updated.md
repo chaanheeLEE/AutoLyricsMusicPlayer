@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-11-26 — 비동기 작업 관리자 경계 정밀화 및 회귀 테스트 (`v1.1.1` Stage 2)
+- **`src/renderer/modules/lyrics-job-manager.js` UMD 전환 및 순수 헬퍼 분리 (`test/lyrics-job-manager.test.js`)**:
+  - 진행률/폴백 오류 메시지 포맷(`formatProgressMessage`, `formatAlignFallbackMessage`), 장치 라벨 정규화(`normalizeDeviceLabel`), 작업 ID 필터(`isProgressMessageForJob`), 오프닝 힌트(`buildOpeningPromptHint`), 상황별 `beamSize`(`resolveAdaptiveBeamSize`), 평문 가사 출처 결정(`resolvePersistedPlainLyrics`)을 DOM 비의존 순수 함수로 추출하고 선택적 런타임 DI를 추가했습니다.
+  - `test/lyrics-job-manager.test.js`를 추가해 수동 제어 `Deferred` 기반의 자동 정합 체이닝·폴백·곡 전환 경합 비오염/원곡 캐시 안전 저장·취소 후 구형 작업 이벤트 무시 시나리오를 검증했습니다.
+
+---
+
 ## 2026-11-26 — 트랙·히스토리·캐시 컨트롤러 분리 (`v1.1.1` Stage 1 Unit 1-B)
 - **`src/renderer/modules/track-controller.js` 추출 및 비동기 특성화 테스트 추가 (`app.js`, `index.html`, `package.json`, `test/track-controller.test.js`)**:
   - `app.js`의 트랙 전환(`trackSelectionSeq` 경합 가드), `history`/`forwardHistory`/셔플 다음 곡 계산, 다음 트랙 프리페치(`prefetchNextTrack`), 자동 분석 디바운스(`scheduleAutoAnalyze`), 트랙별 디바운스 가사 스냅샷 저장(`saveTimers`)을 `TrackController`와 순수 헬퍼로 분리했습니다.
