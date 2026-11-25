@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-11-26 — 트랙·히스토리·캐시 컨트롤러 분리 (`v1.1.1` Stage 1 Unit 1-B)
+- **`src/renderer/modules/track-controller.js` 추출 및 비동기 특성화 테스트 추가 (`app.js`, `index.html`, `package.json`, `test/track-controller.test.js`)**:
+  - `app.js`의 트랙 전환(`trackSelectionSeq` 경합 가드), `history`/`forwardHistory`/셔플 다음 곡 계산, 다음 트랙 프리페치(`prefetchNextTrack`), 자동 분석 디바운스(`scheduleAutoAnalyze`), 트랙별 디바운스 가사 스냅샷 저장(`saveTimers`)을 `TrackController`와 순수 헬퍼로 분리했습니다.
+  - `test/track-controller.test.js`를 추가해 스냅샷 격리·내비게이션 인덱스·디바운스/즉시/일괄 저장·곡 전환 경합 비오염·`.txt_plain` 자동 분석 시나리오를 검증했습니다.
+
+---
+
 ## 2026-11-26 — 렌더러 셸 컨트롤 모듈 분리 (`v1.1.1` Stage 1 Unit 1-A)
 - **`src/renderer/modules/shell-controls.js` 추출 및 특성화 테스트 추가 (`app.js`, `index.html`, `package.json`, `test/shell-controls.test.js`)**:
   - `app.js`에 혼재되어 있던 전역 키보드 단축키, `MediaSession` 메타데이터/액션 핸들러, 뷰 전환(`now-playing`·`library`·`lyrics-edit`), 대기열 드로어 토글, 플로팅 창 버튼·이벤트, 커스텀 윈도우 제어 버튼을 `ShellControls` 클래스 및 순수 헬퍼로 분리했습니다.

@@ -67,30 +67,6 @@ const state = {
   playlistFilter: "",
 };
 
-const saveTimers = new Map();
-const AUTO_ANALYZE_DEBOUNCE_MS = 200;
-const PREFETCH_DELAY_MS = 180;
-let trackSelectionSeq = 0;
-let autoAnalyzeTimer = null;
-let prefetchTimer = null;
-
-function scheduleAutoAnalyze(selectionSeq, track, cancelPromise = null) {
-  if (autoAnalyzeTimer) {
-    clearTimeout(autoAnalyzeTimer);
-    autoAnalyzeTimer = null;
-  }
-  autoAnalyzeTimer = setTimeout(async () => {
-    autoAnalyzeTimer = null;
-    if (cancelPromise) {
-      await cancelPromise.catch(() => {});
-    }
-    if (selectionSeq !== trackSelectionSeq || state.track !== track || state.isTranscribing) {
-      return;
-    }
-    lyricsJobManager.handleAnalyzeClick({ isAuto: true, expectedTrackKey: track.cacheKey });
-  }, AUTO_ANALYZE_DEBOUNCE_MS);
-}
-
 // escapeHtml은 window.lyricsCore.escapeHtml로 일원화되었습니다.
 
 function parseArtistTitle(trackOrTitle) {
@@ -208,71 +184,21 @@ function applyActiveTrackInfoUI(track) {
   shellControls.updateMediaSessionMetadata(track);
 }
 
-function buildLyricsSaveSnapshot(explicitPayload = null) {
-  const track = explicitPayload?.track || state.track;
-  const rawLyrics = explicitPayload?.lyrics !== undefined ? explicitPayload.lyrics : state.lyrics;
-  if (!track?.cacheKey || !Array.isArray(rawLyrics) || rawLyrics.length === 0) {
-    return null;
+function setTrackAlbumArtUI(track) {
+  const hasArt = Boolean(track?.albumArt);
+  if (albumArt) {
+    albumArt.src = hasArt ? track.albumArt : "";
+    albumArt.style.display = hasArt ? "block" : "none";
   }
-
-  const embeddedPlainLyrics = explicitPayload?.embeddedPlainLyrics !== undefined
-    ? explicitPayload.embeddedPlainLyrics
-    : state.embeddedLyricsLines;
-  const plainLyricsSource = explicitPayload?.plainLyricsSource !== undefined
-    ? explicitPayload.plainLyricsSource
-    : state.plainLyricsSource;
-
-  return {
-    track: { ...track },
-    lyrics: rawLyrics.map((line) => ({ ...line })),
-    syncOffset: explicitPayload?.syncOffset !== undefined ? explicitPayload.syncOffset : state.syncOffset,
-    embeddedPlainLyrics: Array.isArray(embeddedPlainLyrics) ? [...embeddedPlainLyrics] : null,
-    plainLyricsSource: embeddedPlainLyrics ? (plainLyricsSource || null) : null,
-    metadata: explicitPayload?.metadata || { source: "local" }
-  };
-}
-
-function persistLyricsSoon(explicitPayload = null) {
-  const snapshot = buildLyricsSaveSnapshot(explicitPayload);
-  if (!snapshot) {
-    return;
+  if (albumArtPlaceholder) {
+    albumArtPlaceholder.style.display = hasArt ? "none" : "flex";
   }
-
-  const cacheKey = snapshot.track.cacheKey;
-  const existing = saveTimers.get(cacheKey);
-  if (existing) {
-    clearTimeout(existing.timerId);
+  if (playerBarArt) {
+    playerBarArt.src = hasArt ? track.albumArt : "";
+    playerBarArt.style.display = hasArt ? "block" : "none";
   }
-
-  const timerId = setTimeout(() => {
-    saveTimers.delete(cacheKey);
-    window.lyricsPlayer.saveCachedLyrics(snapshot);
-  }, 250);
-
-  saveTimers.set(cacheKey, { timerId, snapshot });
-}
-
-function persistLyricsImmediately(explicitPayload = null) {
-  const snapshot = buildLyricsSaveSnapshot(explicitPayload);
-  if (!snapshot) {
-    return;
-  }
-
-  const cacheKey = snapshot.track.cacheKey;
-  const existing = saveTimers.get(cacheKey);
-  if (existing) {
-    clearTimeout(existing.timerId);
-    saveTimers.delete(cacheKey);
-  }
-
-  return window.lyricsPlayer.saveCachedLyrics(snapshot);
-}
-
-function flushPendingLyricsSaves() {
-  for (const [cacheKey, entry] of saveTimers.entries()) {
-    clearTimeout(entry.timerId);
-    saveTimers.delete(cacheKey);
-    window.lyricsPlayer.saveCachedLyrics(entry.snapshot).catch(() => {});
+  if (playerBarPlaceholder) {
+    playerBarPlaceholder.style.display = hasArt ? "none" : "flex";
   }
 }
 
@@ -288,48 +214,19 @@ const player = new PlayerController(state, {
     trackStatus.textContent = statusText;
     lyricsViewer.updateActive(player.getCurrentTime(), player.isPlaying());
   },
-  onEnded: () => {
-    if (state.playlist.length === 0) return;
-    if (state.repeatMode === "off" && !state.shuffle && state.currentIndex === state.playlist.length - 1) {
-      return;
-    }
-    selectPlaylistItem(getNextIndex(), true, "next");
-  },
-  onPrev: () => {
-    if (state.playlist.length === 0) return;
-    if (state.history.length > 0) {
-      if (state.currentIndex >= 0) {
-        state.forwardHistory.push(state.currentIndex);
-        if (state.forwardHistory.length > 50) {
-          state.forwardHistory.shift();
-        }
-      }
-      const prevIndex = state.history.pop();
-      selectPlaylistItem(prevIndex, player.isPlaying(), "prev");
-    } else {
-      let idx = state.currentIndex - 1;
-      if (idx < 0) idx = state.playlist.length - 1;
-      selectPlaylistItem(idx, player.isPlaying(), "prev");
-    }
-  },
-  onNext: () => {
-    if (state.playlist.length === 0) return;
-    selectPlaylistItem(getNextIndex(), player.isPlaying(), "next");
-  },
-  onShuffleChange: () => {
-    state.shuffleQueue = [];
-    state.forwardHistory = [];
-    prefetchNextTrack();
-  }
+  onEnded: () => trackController.handleEnded(),
+  onPrev: () => trackController.handlePrev(),
+  onNext: () => trackController.handleNext(),
+  onShuffleChange: () => trackController.handleShuffleChange()
 });
 
 const playlist = new PlaylistManager(state, {
   onSelectTrack: (index) => {
-    selectPlaylistItem(index);
+    trackController.selectPlaylistItem(index);
   },
   onPlaylistChange: () => {
     updateAlignButtonState();
-    prefetchNextTrack();
+    trackController.prefetchNextTrack();
   },
   onTrackMetadataUpdated: (updatedTrack) => {
     if (state.track === updatedTrack) {
@@ -337,20 +234,14 @@ const playlist = new PlaylistManager(state, {
     }
   },
   onClearPlaylist: () => {
-    if (autoAnalyzeTimer) {
-      clearTimeout(autoAnalyzeTimer);
-      autoAnalyzeTimer = null;
-    }
-    if (prefetchTimer) {
-      clearTimeout(prefetchTimer);
-      prefetchTimer = null;
-    }
+    trackController.clearScheduledTimers();
     state.alignSuggestedTrackKey = null;
     state.lyricsSource = null;
+    state.plainLyricsSource = null;
     state.history = [];
     state.forwardHistory = [];
     state.shuffleQueue = [];
-    flushPendingLyricsSaves();
+    trackController.flushPendingLyricsSaves();
     lyricsJobManager.cancelActiveJob({ silent: true }).catch(() => {});
 
     // 플레이리스트 전체 비우기 시의 동기화 처리
@@ -380,17 +271,17 @@ const lyricsViewer = new LyricsViewer(state, {
     lyricsViewer.updateActive(time, player.isPlaying());
   },
   onOffsetChange: () => {
-    persistLyricsSoon();
+    trackController.persistLyricsSoon();
     lyricsViewer.updateActive(player.getCurrentTime(), player.isPlaying());
     updateDeleteCacheButtonState();
   },
   onLyricTextChange: () => {
-    persistLyricsSoon();
+    trackController.persistLyricsSoon();
     lyricsViewer.updateActive(player.getCurrentTime(), player.isPlaying());
     updateDeleteCacheButtonState();
   },
   onEditDone: () => {
-    persistLyricsImmediately();
+    trackController.persistLyricsImmediately();
     lyricsViewer.updateActive(player.getCurrentTime(), player.isPlaying());
     updateDeleteCacheButtonState();
   },
@@ -420,8 +311,8 @@ const settingsView = new SettingsView(state, {
 });
 
 const lyricsJobManager = new LyricsJobManager(state, player, lyricsViewer, settingsView, {
-  persistLyricsSoon,
-  persistLyricsImmediately,
+  persistLyricsSoon: (payload) => trackController.persistLyricsSoon(payload),
+  persistLyricsImmediately: (payload) => trackController.persistLyricsImmediately(payload),
   updateAlignButtonState,
   updateAnalyzeButtonState,
   updateVocalIsolationChipUI,
@@ -440,61 +331,41 @@ const shellControls = new ShellControls({
   playlist,
   callbacks: {
     onEnterEditView: () => updateEditHeaderInfo(state.track),
-    onSaveEdit: () => persistLyricsImmediately()
+    onSaveEdit: () => trackController.persistLyricsImmediately()
   }
 });
 shellControls.init();
 
-// -------------------------------------------------------------
-// Orchestrator 핵심 비즈니스 로직
-// -------------------------------------------------------------
-
-function getNextIndex() {
-  if (state.playlist.length <= 1) return 0;
-
-  if (Array.isArray(state.forwardHistory) && state.forwardHistory.length > 0) {
-    for (let i = state.forwardHistory.length - 1; i >= 0; i--) {
-      const candidateIdx = state.forwardHistory[i];
-      if (candidateIdx >= 0 && candidateIdx < state.playlist.length && candidateIdx !== state.currentIndex) {
-        return candidateIdx;
+const trackController = new TrackController({
+  state,
+  player,
+  playlist,
+  lyricsViewer,
+  lyricsJobManager,
+  embedManager,
+  callbacks: {
+    applyActiveTrackInfoUI,
+    updateTrackStatusBadge,
+    setTrackAlbumArtUI,
+    onAlbumArtLoaded: (track) => {
+      setTrackAlbumArtUI(track);
+      updateEditHeaderInfo(track);
+      playlist.render();
+    },
+    setControlsEnabled,
+    setTrackStatusText: (text) => {
+      trackStatus.textContent = text;
+    },
+    updateActionButtonsState,
+    updateDeleteCacheButtonState,
+    scrollToActivePlaylistItem: () => {
+      const activeItem = playlistList?.querySelector(".playlist-item.active");
+      if (activeItem) {
+        activeItem.scrollIntoView({ block: "nearest", behavior: "smooth" });
       }
     }
   }
-
-  if (state.shuffle) {
-    state.shuffleQueue = window.lyricsCore.syncShuffleQueue(
-      state.playlist,
-      state.track,
-      state.shuffleQueue
-    );
-    const nextTrack = state.shuffleQueue[0];
-    const nextIdx = nextTrack ? state.playlist.indexOf(nextTrack) : -1;
-    if (nextIdx !== -1) {
-      return nextIdx;
-    }
-  }
-  let nextIdx = state.currentIndex + 1;
-  if (nextIdx >= state.playlist.length) nextIdx = 0;
-  return nextIdx;
-}
-
-function prefetchNextTrack() {
-  if (prefetchTimer) {
-    clearTimeout(prefetchTimer);
-    prefetchTimer = null;
-  }
-  if (!Array.isArray(state.playlist) || state.playlist.length <= 1 || !window.lyricsPlayer?.prefetchTrack) {
-    return;
-  }
-  const nextIndex = getNextIndex();
-  const nextTrack = nextIndex !== state.currentIndex ? state.playlist[nextIndex] : null;
-  if (!nextTrack) return;
-
-  prefetchTimer = setTimeout(() => {
-    prefetchTimer = null;
-    window.lyricsPlayer.prefetchTrack(nextTrack).catch(() => {});
-  }, PREFETCH_DELAY_MS);
-}
+});
 
 function updateTitleMarquee() {
   trackTitle.classList.remove("marquee-active");
@@ -515,204 +386,6 @@ function updateTitleMarquee() {
 }
 
 window.addEventListener("resize", updateTitleMarquee);
-
-async function selectPlaylistItem(index, autoPlay = true, navMode = "manual") {
-  if (index < 0 || index >= state.playlist.length) return;
-  const mode = navMode === true ? "prev" : (navMode || "manual");
-  const selectionSeq = ++trackSelectionSeq;
-  state.activeLineId = null;
-  state.alignSuggestedTrackKey = null;
-
-  if (autoAnalyzeTimer) {
-    clearTimeout(autoAnalyzeTimer);
-    autoAnalyzeTimer = null;
-  }
-  if (prefetchTimer) {
-    clearTimeout(prefetchTimer);
-    prefetchTimer = null;
-  }
-
-  // 새 곡 전환 시 이전 가사 상태를 즉시 초기화하여 버튼 라벨('AI 재분석' 오표시)과 렌더 경합 차단
-  state.lyrics = [];
-  state.lyricsSource = null;
-  state.embeddedLyricsLines = null;
-  state.plainLyricsSource = null;
-
-  flushPendingLyricsSaves();
-  const cancelPromise = lyricsJobManager.cancelActiveJob({ silent: true }).catch(() => {});
-
-  // 히스토리 및 앞으로가기 스택 관리
-  if (mode === "manual") {
-    if (state.currentIndex >= 0 && state.currentIndex !== index) {
-      state.history.push(state.currentIndex);
-      if (state.history.length > 50) {
-        state.history.shift();
-      }
-    }
-    state.forwardHistory = [];
-  } else if (mode === "next") {
-    if (state.currentIndex >= 0 && state.currentIndex !== index) {
-      state.history.push(state.currentIndex);
-      if (state.history.length > 50) {
-        state.history.shift();
-      }
-    }
-    if (Array.isArray(state.forwardHistory) && state.forwardHistory.length > 0 && state.forwardHistory[state.forwardHistory.length - 1] === index) {
-      state.forwardHistory.pop();
-    } else {
-      state.forwardHistory = [];
-    }
-  }
-
-  state.currentIndex = index;
-  playlist.saveCache();
-  
-  const track = state.playlist[index];
-  state.track = track;
-  state.shuffleQueue = Array.isArray(state.shuffleQueue)
-    ? state.shuffleQueue.filter((t) => t !== track)
-    : [];
-
-  // 오디오 소스 설정
-  player.loadTrack(track, autoPlay);
-  applyActiveTrackInfoUI(track);
-  updateTrackStatusBadge();
-
-  if (!track.metadataLoaded && track.path && window.lyricsPlayer?.getTrackMetadata) {
-    window.lyricsPlayer.getTrackMetadata(track).then((meta) => {
-      if (!meta) return;
-      Object.assign(track, meta);
-      playlist.saveCache();
-      if (state.track === track) {
-        applyActiveTrackInfoUI(track);
-      }
-      playlist.render();
-    }).catch(() => {});
-  }
-
-  // 앨범 아트 설정 (비동기 지연 로드 지원)
-  if (track.albumArt) {
-    albumArt.src = track.albumArt;
-    albumArt.style.display = "block";
-    albumArtPlaceholder.style.display = "none";
-    if (playerBarArt) {
-      playerBarArt.src = track.albumArt;
-      playerBarArt.style.display = "block";
-    }
-    if (playerBarPlaceholder) playerBarPlaceholder.style.display = "none";
-  } else {
-    albumArt.src = "";
-    albumArt.style.display = "none";
-    albumArtPlaceholder.style.display = "flex";
-    if (playerBarArt) {
-      playerBarArt.src = "";
-      playerBarArt.style.display = "none";
-    }
-    if (playerBarPlaceholder) playerBarPlaceholder.style.display = "flex";
-
-    // 앨범 아트 비동기 Lazy Extraction
-    if (track.path) {
-      window.lyricsPlayer.getTrackAlbumArt(track).then((art) => {
-        if (art && state.track === track) {
-          track.albumArt = art;
-          albumArt.src = art;
-          albumArt.style.display = "block";
-          albumArtPlaceholder.style.display = "none";
-          if (playerBarArt) {
-            playerBarArt.src = art;
-            playerBarArt.style.display = "block";
-          }
-          if (playerBarPlaceholder) playerBarPlaceholder.style.display = "none";
-          updateEditHeaderInfo(track);
-          playlist.render();
-        }
-      }).catch(() => {});
-    }
-  }
-
-  setControlsEnabled(true);
-
-  lyricsViewer.setOffset(0);
-  lyricsViewer.render();
-
-  // 캐시 가사 정보 즉시 로드 (이전 작업 취소 완료를 기다리지 않고 바로 렌더링)
-  trackStatus.textContent = "Loading cached lyrics…";
-  const cached = await window.lyricsPlayer.loadCachedLyrics(track);
-
-  if (selectionSeq !== trackSelectionSeq || state.track !== track) {
-    return;
-  }
-
-  // 내장 가사 존재 여부에 따른 Embed 버튼 하이라이트 지정
-  const hasEmbedded = typeof cached?.hasEmbeddedLyrics === "boolean"
-    ? cached.hasEmbeddedLyrics
-    : (cached?.metadata?.source === "embedded_lrc" || cached?.metadata?.source === "embedded_plain");
-  embedManager.updateHighlight(hasEmbedded);
-  
-  // 캐시 상태에 무관하게, 음원 자체 또는 로컬 .txt·웹 공식 평문 가사가 존재하면 항상 보관
-  const isPlainOnlySource = window.lyricsCore.isPlainOnlyLyricsSource(cached?.metadata?.source);
-  if (cached?.embeddedPlainLyrics) {
-    state.embeddedLyricsLines = cached.embeddedPlainLyrics;
-  } else if (cached?.lyrics && isPlainOnlySource) {
-    state.embeddedLyricsLines = cached.lyrics.map(l => l.text);
-  }
-  state.plainLyricsSource = cached?.plainLyricsSource
-    || (isPlainOnlySource
-      ? cached.metadata.source
-      : (state.embeddedLyricsLines
-        ? (hasEmbedded ? window.lyricsCore.LYRICS_SOURCE.EMBEDDED_PLAIN : window.lyricsCore.LYRICS_SOURCE.LRCLIB_CACHED)
-        : null));
-
-  if (cached?.lyrics && isPlainOnlySource) {
-    state.lyrics = [];
-    state.lyricsSource = cached.metadata.source;
-    lyricsViewer.setOffset(0);
-    const plainOriginLabel = window.lyricsCore.resolvePlainLyricsSourceLabel(state.plainLyricsSource);
-    trackStatus.textContent = `${plainOriginLabel} ${state.embeddedLyricsLines.length}줄 감지됨. 'AI 가사 분석' 실행 후 'AI 정합'으로 싱크 적용 가능.`;
-
-    const shouldAutoAnalyze =
-      !state.isTranscribing && (
-        state.settings.autoAnalyzeMode === "analyze" ||
-        (state.settings.autoAnalyzeMode === "align" && (state.settings.geminiApiKey || "").trim().length > 0)
-      );
-
-    if (shouldAutoAnalyze) {
-      scheduleAutoAnalyze(selectionSeq, track, cancelPromise);
-    }
-  } else if (cached?.lyrics) {
-    state.lyrics = cached.lyrics;
-    state.lyricsSource = cached.metadata?.source || "local";
-    lyricsViewer.setOffset(cached.syncOffset || 0);
-    const preservedLabel = window.lyricsCore.resolvePlainLyricsSourceLabel(state.plainLyricsSource);
-    trackStatus.textContent = state.embeddedLyricsLines
-      ? `Loaded cached lyrics. (${preservedLabel} 보존됨)`
-      : `Loaded cached lyrics.`;
-  } else {
-    state.lyrics = [];
-    state.lyricsSource = null;
-    lyricsViewer.setOffset(0);
-    trackStatus.textContent = "No cached lyrics. Press Analyze to generate.";
-
-    if (state.settings.autoAnalyzeMode !== "off" && !state.isTranscribing) {
-      scheduleAutoAnalyze(selectionSeq, track, cancelPromise);
-    }
-  }
-
-  lyricsViewer.render();
-  lyricsViewer.updateActive(player.getCurrentTime(), player.isPlaying());
-  updateTrackStatusBadge();
-  playlist.render();
-  updateActionButtonsState();
-  updateDeleteCacheButtonState();
-
-  // 현재 곡 가사 렌더링이 완료된 후 다음 트랙 백그라운드 프리페치 예약
-  prefetchNextTrack();
-
-  const activeItem = playlistList.querySelector(".playlist-item.active");
-  if (activeItem) {
-    activeItem.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }
-}
 
 function updateDeleteCacheButtonState() {
   if (deleteCacheButton) {
@@ -960,7 +633,7 @@ exportVttButton.addEventListener("click", () => {
     if (lastIndex < 0 || lastIndex >= state.playlist.length) {
       lastIndex = 0;
     }
-    await selectPlaylistItem(lastIndex, false);
+    await trackController.selectPlaylistItem(lastIndex, false);
   }
   
   // Restore floating visibility
