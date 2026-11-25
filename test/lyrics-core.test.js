@@ -6,7 +6,12 @@ const {
   serializeVtt,
   resolveTrackMeta,
   syncShuffleQueue,
-  resolveLyricsFontFamily
+  resolveLyricsFontFamily,
+  LYRICS_SOURCE,
+  isEmbeddedAudioSource,
+  isPlainOnlyLyricsSource,
+  isAiAnalyzedLyricsSource,
+  resolvePlainLyricsSourceLabel
 } = require("../src/shared/lyrics-core");
 
 const lyrics = [
@@ -99,4 +104,35 @@ test("resolveLyricsFontFamily resolves presets, sanitizes custom fonts, and fall
   assert.match(sanitized, /^"BadFontName", "Malgun Gothic"/);
   assert.equal(resolveLyricsFontFamily("custom", "   "), resolveLyricsFontFamily("default"));
   assert.equal(resolveLyricsFontFamily("unknown-preset"), resolveLyricsFontFamily("default"));
+});
+
+test("lyricsSource helpers classify embedded, plain-only, and AI-analyzed sources consistently", () => {
+  assert.equal(isEmbeddedAudioSource(LYRICS_SOURCE.EMBEDDED_LRC), true);
+  assert.equal(isEmbeddedAudioSource(LYRICS_SOURCE.EMBEDDED_PLAIN), true);
+  assert.equal(isEmbeddedAudioSource(LYRICS_SOURCE.TXT_PLAIN), false);
+  assert.equal(isEmbeddedAudioSource(LYRICS_SOURCE.LRC), false);
+
+  assert.equal(isPlainOnlyLyricsSource(LYRICS_SOURCE.EMBEDDED_PLAIN), true);
+  assert.equal(isPlainOnlyLyricsSource(LYRICS_SOURCE.TXT_PLAIN), true);
+  assert.equal(isPlainOnlyLyricsSource(LYRICS_SOURCE.LRC), false);
+
+  // Non-AI sources must not trigger "AI 재분석"
+  assert.equal(isAiAnalyzedLyricsSource(LYRICS_SOURCE.LRC, true), false);
+  assert.equal(isAiAnalyzedLyricsSource(LYRICS_SOURCE.EXTERNAL_LRC, true), false);
+  assert.equal(isAiAnalyzedLyricsSource(LYRICS_SOURCE.EMBEDDED_LRC, true), false);
+  assert.equal(isAiAnalyzedLyricsSource(LYRICS_SOURCE.EMBEDDED_PLAIN, true), false);
+  assert.equal(isAiAnalyzedLyricsSource(LYRICS_SOURCE.TXT_PLAIN, true), false);
+  assert.equal(isAiAnalyzedLyricsSource(LYRICS_SOURCE.WHISPER, false), false);
+
+  // AI sources trigger "AI 재분석"
+  assert.equal(isAiAnalyzedLyricsSource(LYRICS_SOURCE.WHISPER, true), true);
+  assert.equal(isAiAnalyzedLyricsSource(LYRICS_SOURCE.GEMINI, true), true);
+  assert.equal(isAiAnalyzedLyricsSource(LYRICS_SOURCE.GEMINI_ALIGN, true), true);
+
+  assert.equal(resolvePlainLyricsSourceLabel(LYRICS_SOURCE.TXT_PLAIN), "로컬 텍스트(.txt) 가사");
+  assert.equal(resolvePlainLyricsSourceLabel(LYRICS_SOURCE.LRCLIB_CACHED), "웹 공식 가사");
+  assert.equal(resolvePlainLyricsSourceLabel(LYRICS_SOURCE.LRCLIB), "웹 공식 가사");
+  assert.equal(resolvePlainLyricsSourceLabel(LYRICS_SOURCE.EMBEDDED_PLAIN), "내장 가사");
+  assert.equal(resolvePlainLyricsSourceLabel("embedded"), "내장 가사");
+  assert.equal(resolvePlainLyricsSourceLabel(null), "보존된 평문 가사");
 });

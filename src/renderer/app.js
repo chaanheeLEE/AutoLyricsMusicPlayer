@@ -75,6 +75,7 @@ const state = {
   isAutoAnalyzing: false,
   alignSuggestedTrackKey: null,
   embeddedLyricsLines: null,
+  plainLyricsSource: null,
   history: [],
   forwardHistory: [],
   playlistFilter: "",
@@ -183,7 +184,8 @@ function updateTrackStatusBadge() {
     trackStatusBadge.textContent = `가사 동기화됨 (${state.lyrics.length}줄)`;
     trackStatusBadge.className = "track-status-badge ready";
   } else if (state.embeddedLyricsLines && state.embeddedLyricsLines.length > 0) {
-    trackStatusBadge.textContent = `내장 가사 감지됨 (${state.embeddedLyricsLines.length}줄)`;
+    const plainOriginLabel = window.lyricsCore.resolvePlainLyricsSourceLabel(state.plainLyricsSource);
+    trackStatusBadge.textContent = `${plainOriginLabel} 감지됨 (${state.embeddedLyricsLines.length}줄)`;
     trackStatusBadge.className = "track-status-badge";
   } else {
     trackStatusBadge.textContent = "가사 미생성";
@@ -230,12 +232,16 @@ function buildLyricsSaveSnapshot(explicitPayload = null) {
   const embeddedPlainLyrics = explicitPayload?.embeddedPlainLyrics !== undefined
     ? explicitPayload.embeddedPlainLyrics
     : state.embeddedLyricsLines;
+  const plainLyricsSource = explicitPayload?.plainLyricsSource !== undefined
+    ? explicitPayload.plainLyricsSource
+    : state.plainLyricsSource;
 
   return {
     track: { ...track },
     lyrics: rawLyrics.map((line) => ({ ...line })),
     syncOffset: explicitPayload?.syncOffset !== undefined ? explicitPayload.syncOffset : state.syncOffset,
     embeddedPlainLyrics: Array.isArray(embeddedPlainLyrics) ? [...embeddedPlainLyrics] : null,
+    plainLyricsSource: embeddedPlainLyrics ? (plainLyricsSource || null) : null,
     metadata: explicitPayload?.metadata || { source: "local" }
   };
 }
@@ -581,6 +587,7 @@ async function selectPlaylistItem(index, autoPlay = true, navMode = "manual") {
   state.lyrics = [];
   state.lyricsSource = null;
   state.embeddedLyricsLines = null;
+  state.plainLyricsSource = null;
 
   flushPendingLyricsSaves();
   const cancelPromise = lyricsJobManager.cancelActiveJob({ silent: true }).catch(() => {});
@@ -693,19 +700,25 @@ async function selectPlaylistItem(index, autoPlay = true, navMode = "manual") {
     : (cached?.metadata?.source === "embedded_lrc" || cached?.metadata?.source === "embedded_plain");
   embedManager.updateHighlight(hasEmbedded);
   
-  // 캐시 상태에 무관하게, 음원 자체 또는 로컬 .txt 평문 가사가 존재하면 항상 보관
-  const isPlainOnlySource = cached?.metadata?.source === "embedded_plain" || cached?.metadata?.source === "txt_plain";
+  // 캐시 상태에 무관하게, 음원 자체 또는 로컬 .txt·웹 공식 평문 가사가 존재하면 항상 보관
+  const isPlainOnlySource = window.lyricsCore.isPlainOnlyLyricsSource(cached?.metadata?.source);
   if (cached?.embeddedPlainLyrics) {
     state.embeddedLyricsLines = cached.embeddedPlainLyrics;
   } else if (cached?.lyrics && isPlainOnlySource) {
     state.embeddedLyricsLines = cached.lyrics.map(l => l.text);
   }
+  state.plainLyricsSource = cached?.plainLyricsSource
+    || (isPlainOnlySource
+      ? cached.metadata.source
+      : (state.embeddedLyricsLines
+        ? (hasEmbedded ? window.lyricsCore.LYRICS_SOURCE.EMBEDDED_PLAIN : window.lyricsCore.LYRICS_SOURCE.LRCLIB_CACHED)
+        : null));
 
   if (cached?.lyrics && isPlainOnlySource) {
     state.lyrics = [];
     state.lyricsSource = cached.metadata.source;
     lyricsViewer.setOffset(0);
-    const plainOriginLabel = cached.metadata.source === "txt_plain" ? "로컬 텍스트(.txt) 가사" : "내장 가사";
+    const plainOriginLabel = window.lyricsCore.resolvePlainLyricsSourceLabel(state.plainLyricsSource);
     trackStatus.textContent = `${plainOriginLabel} ${state.embeddedLyricsLines.length}줄 감지됨. 'AI 가사 분석' 실행 후 'AI 정합'으로 싱크 적용 가능.`;
 
     const shouldAutoAnalyze =
@@ -721,8 +734,9 @@ async function selectPlaylistItem(index, autoPlay = true, navMode = "manual") {
     state.lyrics = cached.lyrics;
     state.lyricsSource = cached.metadata?.source || "local";
     lyricsViewer.setOffset(cached.syncOffset || 0);
+    const preservedLabel = window.lyricsCore.resolvePlainLyricsSourceLabel(state.plainLyricsSource);
     trackStatus.textContent = state.embeddedLyricsLines
-      ? `Loaded cached lyrics. (내장 평문 가사 보존됨)`
+      ? `Loaded cached lyrics. (${preservedLabel} 보존됨)`
       : `Loaded cached lyrics.`;
   } else {
     state.lyrics = [];
@@ -772,6 +786,7 @@ if (deleteCacheButton) {
         lyricsViewer.setOffset(0);
         lyricsViewer.render();
         trackStatus.textContent = "Cache deleted. Press Analyze to generate lyrics.";
+        updateTrackStatusBadge();
         updateActionButtonsState();
         updateDeleteCacheButtonState();
       } else {
@@ -783,11 +798,7 @@ if (deleteCacheButton) {
 
 function updateAnalyzeButtonState() {
   const hasLyrics = Boolean(state.lyrics && state.lyrics.length > 0);
-  const isAiAnalyzed =
-    hasLyrics &&
-    state.lyricsSource !== "embedded_lrc" &&
-    state.lyricsSource !== "external_lrc" &&
-    state.lyricsSource !== "embedded_plain";
+  const isAiAnalyzed = window.lyricsCore.isAiAnalyzedLyricsSource(state.lyricsSource, hasLyrics);
 
   for (const btn of [analyzeButton, mainAnalyzeButton]) {
     if (!btn) continue;

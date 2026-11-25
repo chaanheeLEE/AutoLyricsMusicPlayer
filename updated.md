@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-11-26 — 정적 검사 안전망 보강 및 가사 출처 계약 일원화 (`v1.1.1` Stage 0)
+- **정적 검사(`npm run check`) 대상 보강 (`package.json`)**:
+  - 누락되어 있던 Main JS 6개(`cache-manager.js`, `settings-manager.js`, `lyrics-sources.js`, `model-manager.js`, `media-helper.js`, `lyrics-tagger.js`)를 구문 검사 목록에 추가했습니다.
+- **가사 출처(`lyricsSource`) 상수·헬퍼 일원화 및 UI 상태/라벨 불일치 수정 (`lyrics-core.js`, `cache-manager.js`, `lyrics-aligner.js`, `app.js`, `lyrics-job-manager.js`)**:
+  - `lyrics-core.js`에 `LYRICS_SOURCE` 상수와 `isEmbeddedAudioSource`·`isPlainOnlyLyricsSource`·`isAiAnalyzedLyricsSource`·`resolvePlainLyricsSourceLabel`을 추가해 Main·Renderer 판단 기준을 통합했습니다.
+  - `.lrc` / `.txt` 평문 가사가 로드된 곡에서 `AI 재분석`으로 오표시되던 버튼 상태 판별을 바로잡고, 캐시 삭제 시 상태 배지도 함께 초기화하도록 보완했습니다.
+  - `.txt` 사이드카 및 캐시된 LRCLIB 평문 가사(`lrclib_cached`)가 `내장 가사`로 통칭되던 문제를 `plainLyricsSource` 추적로 구분해 각각 `로컬 텍스트(.txt) 가사`, `웹 공식 가사`, `내장 가사`로 정확히 표기하도록 개선했습니다.
+
+---
+
 ## 2026-11-26 — 로컬 Whisper·보컬 분리 분석 성능 최적화 (`v1.1.1` Step 4)
 - **중복 디코딩 제거 및 VRAM 메모리 경합 해소 (`transcribe.py`, `vocal_separator.py`)**:
   - 자동 언어 감지 시 30초 전체 디코딩 대신 `WhisperModel.detect_language()` 경량 호출을 우선 사용해 분석 시작 지연을 줄였습니다.

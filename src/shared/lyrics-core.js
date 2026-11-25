@@ -244,6 +244,54 @@
     return LYRICS_FONT_PRESETS[preset] || LYRICS_FONT_PRESETS.default;
   }
 
+  const LYRICS_SOURCE = Object.freeze({
+    LRC: "lrc",
+    EXTERNAL_LRC: "external_lrc",
+    EMBEDDED_LRC: "embedded_lrc",
+    EMBEDDED_PLAIN: "embedded_plain",
+    TXT_PLAIN: "txt_plain",
+    WHISPER: "whisper",
+    GEMINI: "gemini",
+    GEMINI_ALIGN: "gemini_align",
+    LRCLIB: "lrclib",
+    LRCLIB_CACHED: "lrclib_cached",
+    LOCAL: "local"
+  });
+
+  function isEmbeddedAudioSource(source) {
+    return source === LYRICS_SOURCE.EMBEDDED_LRC || source === LYRICS_SOURCE.EMBEDDED_PLAIN;
+  }
+
+  function isPlainOnlyLyricsSource(source) {
+    return source === LYRICS_SOURCE.EMBEDDED_PLAIN || source === LYRICS_SOURCE.TXT_PLAIN;
+  }
+
+  function isAiAnalyzedLyricsSource(source, hasLyrics = true) {
+    if (!hasLyrics) {
+      return false;
+    }
+    return (
+      source !== LYRICS_SOURCE.LRC &&
+      source !== LYRICS_SOURCE.EXTERNAL_LRC &&
+      source !== LYRICS_SOURCE.EMBEDDED_LRC &&
+      source !== LYRICS_SOURCE.EMBEDDED_PLAIN &&
+      source !== LYRICS_SOURCE.TXT_PLAIN
+    );
+  }
+
+  function resolvePlainLyricsSourceLabel(source) {
+    if (source === LYRICS_SOURCE.TXT_PLAIN) {
+      return "로컬 텍스트(.txt) 가사";
+    }
+    if (source === LYRICS_SOURCE.LRCLIB || source === LYRICS_SOURCE.LRCLIB_CACHED) {
+      return "웹 공식 가사";
+    }
+    if (source === LYRICS_SOURCE.EMBEDDED_PLAIN || source === "embedded") {
+      return "내장 가사";
+    }
+    return "보존된 평문 가사";
+  }
+
   const api = {
     clampTime,
     formatClock,
@@ -258,7 +306,12 @@
     resolveTrackMeta,
     syncShuffleQueue,
     LYRICS_FONT_PRESETS,
-    resolveLyricsFontFamily
+    resolveLyricsFontFamily,
+    LYRICS_SOURCE,
+    isEmbeddedAudioSource,
+    isPlainOnlyLyricsSource,
+    isAiAnalyzedLyricsSource,
+    resolvePlainLyricsSourceLabel
   };
 
   if (typeof module !== "undefined" && module.exports) {

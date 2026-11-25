@@ -107,7 +107,7 @@ class LyricsJobManager {
     this._setTranscribingUI(false);
   }
 
-  async _saveBackgroundResult(targetTrack, lyrics, embeddedPlainLyrics, source) {
+  async _saveBackgroundResult(targetTrack, lyrics, embeddedPlainLyrics, source, plainLyricsSource = null) {
     if (!targetTrack?.cacheKey || !Array.isArray(lyrics) || lyrics.length === 0) {
       return;
     }
@@ -116,6 +116,7 @@ class LyricsJobManager {
       lyrics,
       syncOffset: 0,
       embeddedPlainLyrics: embeddedPlainLyrics || null,
+      plainLyricsSource: plainLyricsSource || null,
       metadata: { source }
     };
     try {
@@ -285,6 +286,7 @@ class LyricsJobManager {
     const targetEmbeddedLyrics = Array.isArray(this.state.embeddedLyricsLines)
       ? [...this.state.embeddedLyricsLines]
       : null;
+    const targetPlainLyricsSource = this.state.plainLyricsSource || null;
     const targetSettings = { ...(this.state.settings || {}) };
 
     const jobId = ++this.jobSeq;
@@ -332,7 +334,13 @@ class LyricsJobManager {
     // 작업 중 다른 곡으로 전환되었거나 취소된 경우: 현재 화면 상태를 건드리지 않고 원곡 캐시만 안전 저장
     if (!this._isCurrentJob(jobId, originalTrackKey)) {
       if (!result?.cancelled && result?.ok && result.lyrics?.length > 0) {
-        await this._saveBackgroundResult(targetTrack, result.lyrics, targetEmbeddedLyrics, sttSource);
+        await this._saveBackgroundResult(
+          targetTrack,
+          result.lyrics,
+          targetEmbeddedLyrics,
+          sttSource,
+          targetPlainLyricsSource
+        );
       }
       return;
     }
@@ -355,6 +363,7 @@ class LyricsJobManager {
             lyrics: result.lyrics,
             syncOffset: 0,
             embeddedPlainLyrics: targetEmbeddedLyrics,
+            plainLyricsSource: targetPlainLyricsSource,
             metadata: { source: sttSource }
           })
         : Promise.resolve());
@@ -370,6 +379,7 @@ class LyricsJobManager {
             targetTrack,
             whisperLyrics: result.lyrics,
             embeddedLyricsLines: targetEmbeddedLyrics,
+            plainLyricsSource: targetPlainLyricsSource,
             settings: targetSettings,
             fromAutoAnalyze: true
           });
@@ -433,6 +443,7 @@ class LyricsJobManager {
     const embeddedLyricsLines = Array.isArray(this.state.embeddedLyricsLines)
       ? [...this.state.embeddedLyricsLines]
       : null;
+    const plainLyricsSource = this.state.plainLyricsSource || null;
     const settings = { ...(this.state.settings || {}) };
 
     const jobId = ++this.jobSeq;
@@ -444,12 +455,13 @@ class LyricsJobManager {
       targetTrack,
       whisperLyrics,
       embeddedLyricsLines,
+      plainLyricsSource,
       settings,
       fromAutoAnalyze: false
     });
   }
 
-  async _runAlignment({ jobId, targetTrack, whisperLyrics, embeddedLyricsLines, settings, fromAutoAnalyze = false }) {
+  async _runAlignment({ jobId, targetTrack, whisperLyrics, embeddedLyricsLines, plainLyricsSource = null, settings, fromAutoAnalyze = false }) {
     const originalTrackKey = targetTrack.cacheKey;
     if (!this._isCurrentJob(jobId, originalTrackKey)) {
       return;
@@ -470,7 +482,8 @@ class LyricsJobManager {
         track: targetTrack,
         whisperLyrics,
         settings,
-        embeddedLyricsLines: embeddedLyricsLines || null
+        embeddedLyricsLines: embeddedLyricsLines || null,
+        plainLyricsSource: plainLyricsSource || null
       });
 
       const persistedPlainLyrics = (Array.isArray(embeddedLyricsLines) && embeddedLyricsLines.length > 0)
@@ -478,10 +491,21 @@ class LyricsJobManager {
         : (Array.isArray(result?.officialLyricsLines) && result.officialLyricsLines.length > 0
           ? result.officialLyricsLines
           : null);
+      const persistedPlainLyricsSource = (Array.isArray(embeddedLyricsLines) && embeddedLyricsLines.length > 0)
+        ? (plainLyricsSource || "embedded_plain")
+        : (Array.isArray(result?.officialLyricsLines) && result.officialLyricsLines.length > 0
+          ? "lrclib_cached"
+          : null);
 
       if (!this._isCurrentJob(jobId, originalTrackKey)) {
         if (!result?.cancelled && result?.ok && result.source === "gemini" && result.lyrics?.length > 0) {
-          await this._saveBackgroundResult(targetTrack, result.lyrics, persistedPlainLyrics, "gemini_align");
+          await this._saveBackgroundResult(
+            targetTrack,
+            result.lyrics,
+            persistedPlainLyrics,
+            "gemini_align",
+            persistedPlainLyricsSource
+          );
         }
         return;
       }
@@ -493,6 +517,7 @@ class LyricsJobManager {
       if (result?.ok && result.lyrics?.length > 0) {
         if (persistedPlainLyrics) {
           this.state.embeddedLyricsLines = persistedPlainLyrics;
+          this.state.plainLyricsSource = persistedPlainLyricsSource;
         }
         this.state.lyrics = result.lyrics;
         this.state.lyricsSource = result.warning === "fallback_to_whisper" ? "whisper" : "gemini_align";
@@ -511,11 +536,14 @@ class LyricsJobManager {
               lyrics: result.lyrics,
               syncOffset: 0,
               embeddedPlainLyrics: persistedPlainLyrics,
+              plainLyricsSource: persistedPlainLyricsSource,
               metadata: { source: "whisper" }
             });
           }
         } else {
-          const sourceLabel = result.lyricsSource === "embedded" ? "내장 가사" : "웹 가사";
+          const sourceLabel = window.lyricsCore?.resolvePlainLyricsSourceLabel
+            ? window.lyricsCore.resolvePlainLyricsSourceLabel(result.lyricsSource)
+            : (result.lyricsSource === "embedded" ? "내장 가사" : "웹 가사");
           this.trackStatus.textContent = `AI 가사 정합 완료 (${result.lyrics.length}줄 · ${sourceLabel} 기준)`;
           await (this.callbacks.persistLyricsImmediately
             ? this.callbacks.persistLyricsImmediately({
@@ -523,6 +551,7 @@ class LyricsJobManager {
                 lyrics: result.lyrics,
                 syncOffset: 0,
                 embeddedPlainLyrics: persistedPlainLyrics,
+                plainLyricsSource: persistedPlainLyricsSource,
                 metadata: { source: "gemini_align" }
               })
             : Promise.resolve());

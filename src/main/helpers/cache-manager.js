@@ -3,6 +3,11 @@ const crypto = require("node:crypto");
 const fs = require("node:fs/promises");
 const path = require("node:path");
 const { loadLyricsFromSources } = require("../services/lyrics-sources");
+const {
+  LYRICS_SOURCE,
+  isEmbeddedAudioSource,
+  isPlainOnlyLyricsSource
+} = require("../../shared/lyrics-core");
 
 // 가사 RAM 인메모리 캐시
 const lyricsRamCache = new Map();
@@ -50,12 +55,12 @@ async function loadLyricsCache(track) {
     if (typeof cached.hasEmbeddedLyrics !== "boolean") {
       // 불리언 플래그가 없으면 1회 판별하여 보존
       const source = cached.metadata?.source;
-      if (source === "embedded_lrc" || source === "embedded_plain") {
+      if (isEmbeddedAudioSource(source)) {
         cached.hasEmbeddedLyrics = true;
       } else if (track.path) {
         try {
           const emb = await loadLyricsFromSources(track.path);
-          cached.hasEmbeddedLyrics = Boolean(emb && (emb.source === "embedded_lrc" || emb.source === "embedded_plain"));
+          cached.hasEmbeddedLyrics = Boolean(emb && isEmbeddedAudioSource(emb.source));
         } catch {
           cached.hasEmbeddedLyrics = false;
         }
@@ -63,11 +68,16 @@ async function loadLyricsCache(track) {
         cached.hasEmbeddedLyrics = false;
       }
     }
+    if (cached.embeddedPlainLyrics?.length > 0 && !cached.plainLyricsSource) {
+      cached.plainLyricsSource = cached.hasEmbeddedLyrics
+        ? LYRICS_SOURCE.EMBEDDED_PLAIN
+        : LYRICS_SOURCE.LRCLIB_CACHED;
+    }
     lyricsRamCache.set(track.cacheKey, cached);
     return cached;
   }
 
-  // 캐시가 없으면 음원 파일 내장 가사(LRC 또는 평문) 및 외부 .lrc 파일 확인
+  // 캐시가 없으면 음원 파일 내장 가사(LRC 또는 평문) 및 외부 .lrc/.txt 파일 확인
   let embeddedInfo = null;
   if (track.path) {
     try {
@@ -80,15 +90,16 @@ async function loadLyricsCache(track) {
   // 내장/외부 가사 소스 활용
   if (embeddedInfo) {
     console.log(`[Cache] Lyrics loaded from source: ${embeddedInfo.source}`);
-    const isEmbeddedSource = embeddedInfo.source === "embedded_lrc" || embeddedInfo.source === "embedded_plain";
+    const isEmbeddedSource = isEmbeddedAudioSource(embeddedInfo.source);
     const result = {
       lyrics: embeddedInfo.lyrics,
       syncOffset: 0,
       hasEmbeddedLyrics: isEmbeddedSource,
       metadata: { source: embeddedInfo.source }
     };
-    if (embeddedInfo.source === "embedded_plain" || embeddedInfo.source === "txt_plain") {
+    if (isPlainOnlyLyricsSource(embeddedInfo.source)) {
       result.embeddedPlainLyrics = embeddedInfo.lyrics.map(l => l.text);
+      result.plainLyricsSource = embeddedInfo.source;
     }
     lyricsRamCache.set(track.cacheKey, result);
     return result;
@@ -105,10 +116,15 @@ async function saveLyricsCache(payload) {
 
   await ensureCacheDir();
   const existing = lyricsRamCache.get(payload.track.cacheKey);
-  const isEmbeddedSource = payload.metadata?.source === "embedded_lrc" || payload.metadata?.source === "embedded_plain";
+  const isEmbeddedSource = isEmbeddedAudioSource(payload.metadata?.source);
   const hasEmbeddedLyrics = typeof payload.hasEmbeddedLyrics === "boolean"
     ? payload.hasEmbeddedLyrics
     : (typeof existing?.hasEmbeddedLyrics === "boolean" ? existing.hasEmbeddedLyrics : isEmbeddedSource);
+  const plainLyricsSource = payload.plainLyricsSource || (
+    payload.embeddedPlainLyrics
+      ? (existing?.plainLyricsSource || (isEmbeddedSource ? LYRICS_SOURCE.EMBEDDED_PLAIN : null))
+      : null
+  );
 
   const cachePayload = {
     version: 1,
@@ -116,6 +132,7 @@ async function saveLyricsCache(payload) {
     lyrics: payload.lyrics || [],
     syncOffset: Number(payload.syncOffset) || 0,
     embeddedPlainLyrics: payload.embeddedPlainLyrics || null,
+    plainLyricsSource,
     hasEmbeddedLyrics: hasEmbeddedLyrics,
     metadata: {
       source: payload.metadata?.source || "mock",

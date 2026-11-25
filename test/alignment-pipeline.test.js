@@ -452,3 +452,35 @@ test("alignAndInterpolateLyrics exposes officialLyricsLines even when Gemini fal
   assert.equal(res.warning, "fallback_to_whisper");
   assert.deepEqual(res.officialLyricsLines, ["Alpha one", "Beta two", "Gamma three", "Delta four", "Epsilon five"]);
 });
+
+test("alignAndInterpolateLyrics preserves explicit plainLyricsSource and keeps embedded fallback when omitted", async () => {
+  const baseInput = {
+    track: { title: "Source Tag Test", duration: 100 },
+    whisperLyrics: [{ id: "line_001", start: 1.0, end: 4.0, text: "First line" }],
+    settings: { geminiApiKey: "dummy-key" },
+    embeddedLyricsLines: ["First line"]
+  };
+  const fakeDeps = {
+    deps: {
+      alignLyricsWithGemini: async () => [{ official_index: 0, whisper_id: "line_001" }]
+    }
+  };
+
+  const defaultRes = await alignAndInterpolateLyrics(baseInput, fakeDeps);
+  assert.equal(defaultRes.ok, true);
+  assert.equal(defaultRes.lyricsSource, "embedded");
+
+  const txtRes = await alignAndInterpolateLyrics(
+    { ...baseInput, plainLyricsSource: "txt_plain" },
+    fakeDeps
+  );
+  assert.equal(txtRes.ok, true);
+  assert.equal(txtRes.lyricsSource, "txt_plain");
+
+  const cachedWebRes = await alignAndInterpolateLyrics(
+    { ...baseInput, plainLyricsSource: "lrclib_cached" },
+    fakeDeps
+  );
+  assert.equal(cachedWebRes.ok, true);
+  assert.equal(cachedWebRes.lyricsSource, "lrclib_cached");
+});

@@ -39,7 +39,7 @@ function classifyAlignError(failureStage, err) {
 }
 
 async function alignAndInterpolateLyrics(payload, runtimeOptions = {}) {
-  const { track, whisperLyrics, settings, customQuery, embeddedLyricsLines } = payload || {};
+  const { track, whisperLyrics, settings, customQuery, embeddedLyricsLines, plainLyricsSource } = payload || {};
   const signal = runtimeOptions?.signal || payload?.signal || null;
   const onProgress = runtimeOptions?.onProgress || payload?.onProgress || null;
   const alignFn = runtimeOptions?.deps?.alignLyricsWithGemini || alignLyricsWithGemini;
@@ -72,9 +72,9 @@ async function alignAndInterpolateLyrics(payload, runtimeOptions = {}) {
 
     if (embeddedLyricsLines && embeddedLyricsLines.length > 0) {
       failureStage = "scrape";
-      lyricsSource = "embedded";
+      lyricsSource = (!plainLyricsSource || plainLyricsSource === "embedded_plain") ? "embedded" : plainLyricsSource;
       officialLines = embeddedLyricsLines.map(l => String(l || "").trim()).filter(l => l.length > 0);
-      console.log(`[Aligner] Using embedded lyrics as official source (${officialLines.length} lines) — skipping scraping`);
+      console.log(`[Aligner] Using ${lyricsSource} lyrics as official source (${officialLines.length} lines) — skipping scraping`);
       emitProgress({ type: "progress", stage: "align_gemini", percent: 0.45 });
     } else {
       failureStage = "scrape";

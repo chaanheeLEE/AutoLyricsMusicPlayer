@@ -74,9 +74,9 @@
 ---
 
 ## 6. 코드 아키텍처 및 모듈 리팩토링
-- [ ] **[P2] 정적 검사(`npm run check`) 안전망 보강 및 가사 출처 계약 정리 (`package.json`, `lyrics-core.js`)**:
-  - `package.json` `check` 스크립트에 누락된 Main JS 6개(`cache-manager.js`, `settings-manager.js`, `lyrics-sources.js`, `model-manager.js`, `media-helper.js`, `lyrics-tagger.js`) 추가
-  - `lyricsSource` 상수 일원화 검토 및 확인된 출처 표기 불일치(`.lrc`/`txt_plain` 버튼 상태, 평문 가사 라벨)는 리팩토링과 분리해 별도 확인·수정
+- [x] **[P2] 정적 검사(`npm run check`) 안전망 보강 및 가사 출처 계약 정리 (`package.json`, `lyrics-core.js`)**:
+  - `package.json` `check` 스크립트에 누락된 Main JS 6개(`cache-manager.js`, `settings-manager.js`, `lyrics-sources.js`, `model-manager.js`, `media-helper.js`, `lyrics-tagger.js`) 추가 (`updated.md` 참고)
+  - `lyricsSource` 상수·분류 헬퍼를 `lyrics-core.js`에 일원화하고 `.lrc`/`txt_plain` 버튼 상태 및 평문 가사 출처 라벨(`내장 가사`·`로컬 텍스트(.txt) 가사`·`웹 공식 가사`) 불일치 수정 (`updated.md` 참고)
 - [ ] **[P2] 렌더러 메인 오케스트레이터(`src/renderer/app.js`, 약 1,303줄) 역할 분리**:
   - **Unit 1-A (`shell-controls.js`)**: 전역 단축키·`MediaSession`·커스텀 윈도우 제어·뷰/드로어/드롭다운/음소거 토글 분리
   - **Unit 1-B (`track-controller.js`)**: 트랙 전환(`trackSelectionSeq`)·히스토리(`forwardHistory`)·프리페치·트랙별 디바운스 캐시 스냅샷(`saveTimers`) 분리 및 특성화 테스트 추가
