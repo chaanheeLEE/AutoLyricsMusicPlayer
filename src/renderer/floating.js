@@ -156,4 +156,11 @@ window.lyricsPlayer.onApplyVisuals((settings) => {
   if (settings.align) {
     root.style.setProperty("--floating-text-align", settings.align);
   }
+  if (window.lyricsCore?.resolveLyricsFontFamily) {
+    const fontFamily = window.lyricsCore.resolveLyricsFontFamily(
+      settings.fontPreset || settings.floatingFontPreset || "default",
+      settings.fontCustom || settings.floatingFontCustom || ""
+    );
+    root.style.setProperty("--floating-font-family", fontFamily);
+  }
 });

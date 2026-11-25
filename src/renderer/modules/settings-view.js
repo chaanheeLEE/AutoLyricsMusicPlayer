@@ -19,6 +19,12 @@ class SettingsView {
     this.whisperSettingsCard = document.querySelector("#whisperSettingsCard");
     
     this.settingTheme = document.querySelector("#settingTheme");
+    this.settingLyricsFont = document.querySelector("#settingLyricsFont");
+    this.customLyricsFontGroup = document.querySelector("#customLyricsFontGroup");
+    this.settingLyricsFontCustom = document.querySelector("#settingLyricsFontCustom");
+    this.settingFloatingFont = document.querySelector("#settingFloatingFont");
+    this.customFloatingFontGroup = document.querySelector("#customFloatingFontGroup");
+    this.settingFloatingFontCustom = document.querySelector("#settingFloatingFontCustom");
     this.settingEngine = document.querySelector("#settingEngine");
     this.settingModel = document.querySelector("#settingModel");
     this.settingWhisperDevice = document.querySelector("#settingWhisperDevice");
@@ -118,6 +124,24 @@ class SettingsView {
         if (this.settingTheme) {
           this.settingTheme.value = savedTheme;
         }
+        const savedFontPreset = this.state.settings?.lyricsFontPreset || "default";
+        const savedFontCustom = this.state.settings?.lyricsFontCustom || "";
+        if (this.settingLyricsFont) {
+          this.settingLyricsFont.value = savedFontPreset;
+        }
+        if (this.settingLyricsFontCustom) {
+          this.settingLyricsFontCustom.value = savedFontCustom;
+        }
+        this._syncLyricsFontUI(savedFontPreset, savedFontCustom);
+        const savedFloatingFontPreset = this.state.settings?.floatingFontPreset || "default";
+        const savedFloatingFontCustom = this.state.settings?.floatingFontCustom || "";
+        if (this.settingFloatingFont) {
+          this.settingFloatingFont.value = savedFloatingFontPreset;
+        }
+        if (this.settingFloatingFontCustom) {
+          this.settingFloatingFontCustom.value = savedFloatingFontCustom;
+        }
+        this._syncFloatingFontUI(savedFloatingFontPreset);
       });
     }
 
@@ -139,6 +163,30 @@ class SettingsView {
     if (this.settingTheme) {
       this.settingTheme.addEventListener("change", () => {
         document.documentElement.dataset.theme = this.settingTheme.value;
+      });
+    }
+
+    if (this.settingLyricsFont) {
+      this.settingLyricsFont.addEventListener("change", () => {
+        this._syncLyricsFontUI(
+          this.settingLyricsFont.value,
+          this.settingLyricsFontCustom?.value || ""
+        );
+      });
+    }
+
+    if (this.settingLyricsFontCustom) {
+      this.settingLyricsFontCustom.addEventListener("input", () => {
+        this._syncLyricsFontUI(
+          this.settingLyricsFont?.value || "custom",
+          this.settingLyricsFontCustom.value
+        );
+      });
+    }
+
+    if (this.settingFloatingFont) {
+      this.settingFloatingFont.addEventListener("change", () => {
+        this._syncFloatingFontUI(this.settingFloatingFont.value);
       });
     }
 
@@ -236,6 +284,18 @@ class SettingsView {
     this.settingsDialog.close();
   }
 
+  _syncLyricsFontUI(preset = "default", customFont = "") {
+    this.toggleVisibility(this.customLyricsFontGroup, preset === "custom");
+    if (window.lyricsCore?.resolveLyricsFontFamily) {
+      const fontFamily = window.lyricsCore.resolveLyricsFontFamily(preset, customFont);
+      document.documentElement.style.setProperty("--lyrics-font-family", fontFamily);
+    }
+  }
+
+  _syncFloatingFontUI(preset = "default") {
+    this.toggleVisibility(this.customFloatingFontGroup, preset === "custom");
+  }
+
   toggleVisibility(element, show) {
     if (element) {
       element.style.display = show ? "" : "none";
@@ -281,6 +341,10 @@ class SettingsView {
 
     const next = {
       theme: this.settingTheme?.value || "lyra",
+      lyricsFontPreset: this.settingLyricsFont?.value || "default",
+      lyricsFontCustom: this.settingLyricsFontCustom?.value?.trim() || "",
+      floatingFontPreset: this.settingFloatingFont?.value || "default",
+      floatingFontCustom: this.settingFloatingFontCustom?.value?.trim() || "",
       sttEngine: this.settingEngine.value,
       model: this.settingModel.value,
       whisperDevice: this.settingWhisperDevice.value,
@@ -321,6 +385,26 @@ class SettingsView {
     }
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("theme", theme);
+
+    const lyricsFontPreset = settings.lyricsFontPreset || "default";
+    const lyricsFontCustom = settings.lyricsFontCustom || "";
+    if (this.settingLyricsFont) {
+      this.settingLyricsFont.value = lyricsFontPreset;
+    }
+    if (this.settingLyricsFontCustom) {
+      this.settingLyricsFontCustom.value = lyricsFontCustom;
+    }
+    this._syncLyricsFontUI(lyricsFontPreset, lyricsFontCustom);
+
+    const floatingFontPreset = settings.floatingFontPreset || "default";
+    const floatingFontCustom = settings.floatingFontCustom || "";
+    if (this.settingFloatingFont) {
+      this.settingFloatingFont.value = floatingFontPreset;
+    }
+    if (this.settingFloatingFontCustom) {
+      this.settingFloatingFontCustom.value = floatingFontCustom;
+    }
+    this._syncFloatingFontUI(floatingFontPreset);
 
     this.settingEngine.value = settings.sttEngine || "whisper";
     this.settingModel.value = settings.model;

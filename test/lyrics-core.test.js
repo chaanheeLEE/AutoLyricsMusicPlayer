@@ -5,7 +5,8 @@ const {
   serializeLrc,
   serializeVtt,
   resolveTrackMeta,
-  syncShuffleQueue
+  syncShuffleQueue,
+  resolveLyricsFontFamily
 } = require("../src/shared/lyrics-core");
 
 const lyrics = [
@@ -82,4 +83,20 @@ test("syncShuffleQueue plays every other track once per cycle without repeating 
   assert.equal(pruned.length, 2);
   assert.ok(!pruned.includes(replenished[0]));
   assert.deepEqual(pruned, replenished.slice(1));
+});
+
+test("resolveLyricsFontFamily resolves presets, sanitizes custom fonts, and falls back safely", () => {
+  assert.match(resolveLyricsFontFamily("default"), /Malgun Gothic/);
+  assert.match(resolveLyricsFontFamily("serif"), /Noto Serif KR/);
+  assert.match(resolveLyricsFontFamily("rounded"), /NanumSquareRound.*나눔스퀘어라운드/);
+  assert.match(resolveLyricsFontFamily("mono"), /^"D2Coding"/);
+
+  const custom = resolveLyricsFontFamily("custom", 'NanumMyeongjo, "Gowun Batang", sans-serif');
+  assert.match(custom, /^"NanumMyeongjo", "Gowun Batang", sans-serif, "Malgun Gothic"/);
+
+  // Unsafe characters are stripped and empty custom falls back to default
+  const sanitized = resolveLyricsFontFamily("custom", 'Bad;Font{Name}');
+  assert.match(sanitized, /^"BadFontName", "Malgun Gothic"/);
+  assert.equal(resolveLyricsFontFamily("custom", "   "), resolveLyricsFontFamily("default"));
+  assert.equal(resolveLyricsFontFamily("unknown-preset"), resolveLyricsFontFamily("default"));
 });

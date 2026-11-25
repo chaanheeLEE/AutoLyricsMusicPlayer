@@ -37,6 +37,7 @@
   border-radius: 16px 16px 16px 0;
   box-shadow: none;
   -webkit-app-region: drag;
+  font-family: var(--floating-font-family, var(--lyrics-font-family));
   font-size: var(--floating-font-size, 18px);
   color: var(--floating-font-color, #ffffff);
 }
@@ -46,6 +47,7 @@
   max-width: 100%;
   margin: 0;
   overflow-wrap: anywhere;
+  font-family: var(--floating-font-family, var(--lyrics-font-family));
   font-size: 1.15em;
   font-weight: 500;
   line-height: 1.15;
@@ -58,6 +60,7 @@
   margin: 0;
   color: var(--floating-font-color, #ffffff);
   opacity: 0.6;
+  font-family: var(--floating-font-family, var(--lyrics-font-family));
   font-size: 0.78em;
   overflow-wrap: anywhere;
 }

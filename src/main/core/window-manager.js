@@ -29,6 +29,10 @@ function applyVisualsToFloating(settings) {
       bgColor: settings.floatingBgColor,
       fontColor: settings.floatingFontColor,
       align: settings.floatingAlign,
+      lyricsFontPreset: settings.lyricsFontPreset || "default",
+      lyricsFontCustom: settings.lyricsFontCustom || "",
+      fontPreset: settings.floatingFontPreset || "default",
+      fontCustom: settings.floatingFontCustom || "",
     });
   }
 }

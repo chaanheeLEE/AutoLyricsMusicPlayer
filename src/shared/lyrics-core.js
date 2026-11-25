@@ -209,6 +209,41 @@
     return deck;
   }
 
+  const LYRICS_FONT_PRESETS = {
+    default: '"Malgun Gothic", "맑은 고딕", "Segoe UI", Inter, Arial, sans-serif',
+    serif: '"Noto Serif KR", "Batang", "바탕", "NanumMyeongjo", "나눔명조", Georgia, "Times New Roman", serif',
+    rounded: '"NanumSquareRound", "나눔스퀘어라운드", "NanumSquareRoundOTF", "Gulim", "굴림", sans-serif',
+    mono: '"D2Coding", "JetBrains Mono", Consolas, "DotumChe", "돋움체", "GulimChe", "굴림체", monospace',
+  };
+
+  const GENERIC_FONT_FAMILIES = new Set([
+    "sans-serif",
+    "serif",
+    "monospace",
+    "cursive",
+    "fantasy",
+    "system-ui",
+    "ui-sans-serif",
+    "ui-serif",
+    "ui-monospace",
+    "ui-rounded",
+  ]);
+
+  function resolveLyricsFontFamily(preset = "default", customFont = "") {
+    if (preset === "custom") {
+      const sanitized = String(customFont || "")
+        .split(",")
+        .map((part) => part.replace(/["';{}()<>\\]/g, "").trim())
+        .filter(Boolean)
+        .map((family) => (GENERIC_FONT_FAMILIES.has(family.toLowerCase()) ? family.toLowerCase() : `"${family}"`));
+
+      if (sanitized.length > 0) {
+        return `${sanitized.join(", ")}, ${LYRICS_FONT_PRESETS.default}`;
+      }
+    }
+    return LYRICS_FONT_PRESETS[preset] || LYRICS_FONT_PRESETS.default;
+  }
+
   const api = {
     clampTime,
     formatClock,
@@ -221,7 +256,9 @@
     parseTimeString,
     adjustTimestamp,
     resolveTrackMeta,
-    syncShuffleQueue
+    syncShuffleQueue,
+    LYRICS_FONT_PRESETS,
+    resolveLyricsFontFamily
   };
 
   if (typeof module !== "undefined" && module.exports) {

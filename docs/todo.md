@@ -25,9 +25,9 @@
 ---
 
 ## 2. 메인 화면 UI·UX 및 창·테마 개선
-- [ ] **[P2] 가사 글씨체(폰트) 선택 및 커스텀 옵션 추가 (`index.html`, `settings-view.js`, `settings-manager.js`, `lyrics.css`, `floating.css`)**: 설정 창에서 메인 가사 뷰어 및 플로팅 가사창의 글씨체 프리셋 선택 또는 사용자 시스템 폰트 커스텀 지정 기능 지원
-- [ ] **[P2] 우측 대기열(`#queueDrawer`) 상단 컨트롤 버튼 배치 정돈 (`index.html`, `playlist.css`)**: 대기열 헤더(`.queue-header`)와 도구 줄(`.queue-tools-row`)에서 `justify-content: space-between`으로 흩어져 있는 정렬 드롭다운(`#playlistSortSelect`)·검색 버튼(`#playlistSearchButton`)·비우기 버튼(`#playlistClearButton`)을 좌우 기능 그룹(좌측 정렬 / 우측 검색·비우기 묶음 등)으로 응집력 있게 재배치
-- [ ] **[P2] 앱 아이콘(`src/assets/icon.svg`, `src/assets/icon.png`) 재디자인**: 기존 이미지에 구워진 격자무늬 배경과 구버전 네온 색상을 제거하고, `Lyra Lavender` 기본 테마 및 다크 스쿼클 스타일에 맞춘 실제 투명 배경(32-bit RGBA, 512×512px) 아이콘과 벡터(`SVG`) 원본 제작
+- [x] **가사 글씨체(폰트) 선택 및 커스텀 옵션 추가 (`index.html`, `settings-view.js`, `settings-manager.js`, `lyrics-core.js`, `lyrics.css`, `floating.css`, `floating.js`)**: `설정 > 일반`(메인 가사)과 `설정 > 플로팅 가사창`(플로팅 가사)에서 각각 독립적으로 프리셋 및 사용자 시스템 폰트 지정 지원 (`updated.md` 참고)
+- [x] **우측 대기열(`#queueDrawer`) 상단 컨트롤 버튼 배치 정돈 (`index.html`, `playlist.css`)**: 좌측 정렬 드롭다운과 우측 검색·Clear 액션 그룹(`.queue-tools-actions`)으로 재정렬하고 좌우 여백(`18px`)·높이(`26px`) 통일 (`updated.md` 참고)
+- [x] **앱 아이콘(`src/assets/icon.svg`, `src/assets/icon.png`) 재디자인**: 컨셉 A(`Lyra Wave & Sync Lyrics`) 기반으로 격자무늬 배경을 제거한 실제 투명 배경(32-bit RGBA, 512×512px) 다크 스쿼클 아이콘과 벡터(`SVG`) 원본 적용 (`updated.md` 참고)
 - [ ] **[P3] 앨범 커버 기반 앰비언트 배경**: 현재 재생 중인 앨범 아트의 대표 색상을 추출해 감상 화면 배경에 은은한 그라데이션 반영
 - [ ] **[P3] 사용자 커스텀 테마 확장**: 설정 창에서 기본 제공 테마(`Lyra Lavender`, `Emerald Dark`) 외 라이트 테마 및 사용자 포인트 컬러 커스터마이징 지원
 - [ ] **[P3] 창 상태 유지**: 종료 시 마지막 창 크기·위치 및 우측 대기열(`Up next`) 열림 상태 복원

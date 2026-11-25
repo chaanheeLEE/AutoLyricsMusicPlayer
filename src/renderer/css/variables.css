@@ -1,3 +1,49 @@
+@import url("https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-kr@5/400.css");
+@import url("https://cdn.jsdelivr.net/npm/@fontsource/noto-serif-kr@5/700.css");
+
+@font-face {
+  font-family: "NanumSquareRound";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local("NanumSquareRoundR"),
+       local("NanumSquareRound Regular"),
+       local("나눔스퀘어라운드 Regular"),
+       local("나눔스퀘어라운드"),
+       url("https://cdn.jsdelivr.net/gh/innks/NanumSquareRound/NanumSquareRoundR.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "NanumSquareRound";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local("NanumSquareRoundB"),
+       local("NanumSquareRound Bold"),
+       local("나눔스퀘어라운드 Bold"),
+       url("https://cdn.jsdelivr.net/gh/innks/NanumSquareRound/NanumSquareRoundB.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "D2Coding";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: local("D2Coding"),
+       local("D2Coding Regular"),
+       url("https://cdn.jsdelivr.net/gh/Joungkyun/font-d2coding@master/D2Coding.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "D2Coding";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: local("D2Coding Bold"),
+       local("D2CodingBold"),
+       url("https://cdn.jsdelivr.net/gh/Joungkyun/font-d2coding@master/D2CodingBold.woff2") format("woff2");
+}
+
 :root,
 :root[data-theme="lyra"] {
   color-scheme: dark;
@@ -36,6 +82,7 @@
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 12px;
+  --lyrics-font-family: "Malgun Gothic", "맑은 고딕", "Segoe UI", Inter, Arial, sans-serif;
 
   /* 기존 변수 호환 매핑 */
   --bg: var(--surface-app);
