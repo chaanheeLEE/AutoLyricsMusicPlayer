@@ -220,6 +220,7 @@ def separate_vocals_onnx(
         if on_progress is not None:
             on_progress((idx + 1) / float(num_chunks))
 
+    del session
     mono_vocal = np.mean(vocal_stereo, axis=0)
     rms = float(np.sqrt(np.mean(mono_vocal * mono_vocal)))
     if rms < 1e-4:

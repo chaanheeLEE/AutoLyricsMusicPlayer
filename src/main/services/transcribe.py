@@ -175,7 +175,7 @@ def main():
         sys.exit(1)
 
     try:
-        emit({"type": "progress", "stage": "loading_model", "percent": 0.0})
+        import gc
         import ctranslate2
         import wave
         import numpy as np
@@ -186,10 +186,70 @@ def main():
         from vocal_separator import separate_vocals_onnx
 
         prepared_vocal_audio = None
-        vocal_separation_attempted = False
+        cpu_threads = min(os.cpu_count() or 4, 8)
+
+        def format_ort_provider(provider_name):
+            if provider_name in ("DmlExecutionProvider", "CUDAExecutionProvider"):
+                return "GPU"
+            return "CPU"
+
+        # GPU VRAM 경합을 피하기 위해 WhisperModel 로딩 전에 온디맨드 ONNX 보컬 분리를 먼저 실행하고 세션을 해제합니다.
+        if args.vocal_model and os.path.exists(args.vocal_model):
+            emit({"type": "progress", "stage": "isolating_vocals", "percent": 0.05})
+            last_pct = 0.05
+            vocal_device_label = None
+
+            def on_sep_provider(provider_name):
+                nonlocal vocal_device_label
+                vocal_device_label = format_ort_provider(provider_name)
+                emit({"type": "info", "message": f"Vocal separation provider: {provider_name} ({vocal_device_label})"})
+                emit({
+                    "type": "progress",
+                    "stage": "isolating_vocals",
+                    "percent": round(last_pct, 3),
+                    "deviceLabel": vocal_device_label,
+                })
+
+            def on_sep_progress(p):
+                nonlocal last_pct
+                mapped = 0.05 + 0.50 * max(0.0, min(1.0, p))
+                if mapped - last_pct >= 0.04 or p >= 1.0:
+                    last_pct = mapped
+                    payload = {
+                        "type": "progress",
+                        "stage": "isolating_vocals",
+                        "percent": round(mapped, 3),
+                    }
+                    if vocal_device_label:
+                        payload["deviceLabel"] = vocal_device_label
+                    emit(payload)
+
+            try:
+                separated = separate_vocals_onnx(
+                    args.audio_path,
+                    args.vocal_model,
+                    device=args.device,
+                    on_progress=on_sep_progress,
+                    on_provider=on_sep_provider,
+                )
+                if separated is not None:
+                    prepared_vocal_audio = separated
+                    emit({"type": "info", "message": "ONNX vocal separation completed."})
+                else:
+                    emit({"type": "info", "message": "Vocal stem near-silent; falling back to original audio."})
+            except Exception as sep_exc:
+                emit({"type": "info", "message": f"Vocal separation failed ({str(sep_exc)}); falling back to original audio."})
+            finally:
+                gc.collect()
+
+        emit({
+            "type": "progress",
+            "stage": "loading_model",
+            "percent": 0.56 if prepared_vocal_audio is not None else 0.0,
+        })
 
         def detect_vocal_language(target_model, audio_input):
-            """Auto-detect language from a vocal-active mid-track slice to avoid intro/ad-lib misdetection."""
+            """Auto-detect language from a vocal-active mid-track slice without full transcription decoding."""
             try:
                 if isinstance(audio_input, np.ndarray):
                     framerate = 16000
@@ -220,25 +280,35 @@ def main():
                 if mid_audio.size == 0:
                     return None, 0.0
 
-                probe_kwargs = dict(
-                    beam_size=1,
-                    best_of=1,
-                    temperature=0.0,
-                    without_timestamps=True,
-                )
-                _, probe_info = target_model.transcribe(mid_audio, vad_filter=False, **probe_kwargs)
+                lang = None
+                prob = 0.0
+                if hasattr(target_model, "detect_language"):
+                    detected = target_model.detect_language(mid_audio)
+                    if isinstance(detected, tuple) and len(detected) >= 2:
+                        lang = detected[0]
+                        prob = float(detected[1] or 0.0)
 
-                lang = getattr(probe_info, "language", None)
-                prob = float(getattr(probe_info, "language_probability", 0.0) or 0.0)
+                if not lang:
+                    probe_kwargs = dict(
+                        beam_size=1,
+                        best_of=1,
+                        temperature=0.0,
+                        without_timestamps=True,
+                    )
+                    _, probe_info = target_model.transcribe(mid_audio, vad_filter=False, **probe_kwargs)
+                    lang = getattr(probe_info, "language", None)
+                    prob = float(getattr(probe_info, "language_probability", 0.0) or 0.0)
+
                 if lang and prob >= 0.55:
                     return lang, prob
             except Exception as probe_exc:
                 emit({"type": "info", "message": f"Mid-track language detection skipped: {str(probe_exc)}"})
             return None, 0.0
 
-        def collect_segments(iter_segments):
+        def collect_segments(iter_segments, total_duration=0.0, progress_start=0.1, progress_end=0.98, device_label=None):
             output_lines = []
             line_count = 1
+            last_emitted_pct = progress_start
 
             for seg in iter_segments:
                 words = getattr(seg, "words", None)
@@ -304,70 +374,32 @@ def main():
                         })
                         line_count += 1
 
+                if total_duration > 0:
+                    seg_end = float(getattr(seg, "end", 0.0) or 0.0)
+                    ratio = max(0.0, min(1.0, seg_end / total_duration))
+                    mapped_pct = progress_start + (progress_end - progress_start) * ratio
+                    if mapped_pct - last_emitted_pct >= 0.02:
+                        last_emitted_pct = mapped_pct
+                        progress_payload = {
+                            "type": "progress",
+                            "stage": "transcribing",
+                            "percent": round(mapped_pct, 3),
+                        }
+                        if device_label:
+                            progress_payload["deviceLabel"] = device_label
+                        emit(progress_payload)
+
             return output_lines
 
         # Helper function to execute transcription and collect lines
         def run_transcription(target_model):
-            nonlocal prepared_vocal_audio, vocal_separation_attempted
-
-            def format_ort_provider(provider_name):
-                if provider_name in ("DmlExecutionProvider", "CUDAExecutionProvider"):
-                    return "GPU"
-                return "CPU"
-
-            if args.vocal_model and os.path.exists(args.vocal_model) and not vocal_separation_attempted:
-                vocal_separation_attempted = True
-                vocal_device_label = None
-                emit({"type": "progress", "stage": "isolating_vocals", "percent": 0.05})
-                last_pct = 0.05
-
-                def on_sep_provider(provider_name):
-                    nonlocal vocal_device_label
-                    vocal_device_label = format_ort_provider(provider_name)
-                    emit({"type": "info", "message": f"Vocal separation provider: {provider_name} ({vocal_device_label})"})
-                    emit({
-                        "type": "progress",
-                        "stage": "isolating_vocals",
-                        "percent": round(last_pct, 3),
-                        "deviceLabel": vocal_device_label,
-                    })
-
-                def on_sep_progress(p):
-                    nonlocal last_pct
-                    mapped = 0.05 + 0.50 * max(0.0, min(1.0, p))
-                    if mapped - last_pct >= 0.04 or p >= 1.0:
-                        last_pct = mapped
-                        payload = {
-                            "type": "progress",
-                            "stage": "isolating_vocals",
-                            "percent": round(mapped, 3),
-                        }
-                        if vocal_device_label:
-                            payload["deviceLabel"] = vocal_device_label
-                        emit(payload)
-
-                try:
-                    separated = separate_vocals_onnx(
-                        args.audio_path,
-                        args.vocal_model,
-                        device=args.device,
-                        on_progress=on_sep_progress,
-                        on_provider=on_sep_provider,
-                    )
-                    if separated is not None:
-                        prepared_vocal_audio = separated
-                        emit({"type": "info", "message": "ONNX vocal separation completed."})
-                    else:
-                        emit({"type": "info", "message": "Vocal stem near-silent; falling back to original audio."})
-                except Exception as sep_exc:
-                    emit({"type": "info", "message": f"Vocal separation failed ({str(sep_exc)}); falling back to original audio."})
-
             audio_input = prepared_vocal_audio if prepared_vocal_audio is not None else args.audio_path
             whisper_device_label = "GPU" if resolved_device == "cuda" else "CPU"
+            progress_start = 0.6 if prepared_vocal_audio is not None else 0.1
             emit({
                 "type": "progress",
                 "stage": "transcribing",
-                "percent": 0.6 if prepared_vocal_audio is not None else 0.1,
+                "percent": progress_start,
                 "deviceLabel": whisper_device_label,
             })
 
@@ -396,7 +428,14 @@ def main():
                 no_speech_threshold=0.85,
                 initial_prompt=clean_prompt,
             )
-            output_lines = collect_segments(iter_segments)
+            total_duration = float(getattr(info_obj, "duration", 0.0) or 0.0)
+            output_lines = collect_segments(
+                iter_segments,
+                total_duration=total_duration,
+                progress_start=progress_start,
+                progress_end=0.98,
+                device_label=whisper_device_label,
+            )
 
             return output_lines, info_obj
 
@@ -470,8 +509,13 @@ def main():
                 compute_type = "int8"
                 mode_msg = "Using CPU for transcription (fallback)."
 
+        def create_whisper_model(device_name, compute_mode):
+            if device_name == "cpu":
+                return WhisperModel(args.model, device="cpu", compute_type=compute_mode, cpu_threads=cpu_threads)
+            return WhisperModel(args.model, device=device_name, compute_type=compute_mode)
+
         if model is None:
-            model = WhisperModel(args.model, device=resolved_device, compute_type=compute_type)
+            model = create_whisper_model(resolved_device, compute_type)
 
         emit({"type": "info", "message": mode_msg})
 
@@ -487,13 +531,12 @@ def main():
                 })
                 try:
                     del model
-                    import gc
                     gc.collect()
                 except Exception:
                     pass
                 resolved_device = "cpu"
                 compute_type = "int8"
-                model = WhisperModel(args.model, device="cpu", compute_type="int8")
+                model = create_whisper_model("cpu", "int8")
                 emit({"type": "info", "message": "Using CPU for transcription (recovered from GPU error)."})
                 lines, info = run_transcription(model)
             else:

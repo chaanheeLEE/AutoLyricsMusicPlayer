@@ -20,7 +20,13 @@
   - `autoAnalyzeMode === "align"` 시 Whisper 전사와 LRCLIB 가사 조회 병렬화, 정합 요청 ID 경량화(정수 인덱스) 및 단어 타임스탬프 공백 기반 병합 세그먼트 스냅 검토
   - (선택 옵션) LRCLIB `syncedLyrics` + 트랙 길이 일치(`±3초`) 시 Whisper 중앙값 오프셋 보정 고속 정합 검토
 - [ ] **[P2] 외부 다중 가사 소스 폴백 체인 확장 (`lyrics-scraper.js`)**: LRCLIB 검색 실패 시 보조 공개 가사 API(`lyrics.ovh` 등) 순차 조회 후 Whisper 텍스트 유사도 검증을 통과한 평문 가사 자동 확보
+- [ ] **[P2] Gemini 클라우드 STT 오디오 전송 경량화 (`gemini-service.js`, `transcription-worker.js`)**:
+  - FLAC/WAV 등 대용량 음원 업로드 전 64kbps 모노 MP3 경량 인코딩(또는 20MB 미만 `inlineData` 직접 전송)으로 업로드·처리 대기 시간 단축
+- [ ] **[P2] 로컬 Whisper 워커 상주화 및 배치 추론 검토 (`transcribe.py`, `transcription-worker.js`)**:
+  - 곡마다 반복되는 `transcribe.exe` 압축 해제·모델 VRAM 로딩 콜드 스타트를 제거하는 유휴 타임아웃 기반 상주 워커 데몬 검토
+  - GPU 환경에서 `faster-whisper` `BatchedInferencePipeline` 적용 가능성(보컬 분리 스템 기준 정확도 비교) 검증
 - [ ] **[P2] 가사 텍스트 기반 강제 정렬(Forced Alignment) 검토**: 음원 내장 평문 가사 또는 외부 가사 검색과 연동해 오타 없이 타임스탬프만 정밀 정렬하는 옵션 검토
+- [x] **로컬 Whisper·보컬 분리 분석 성능 및 진행률 스트리밍 개선 (`transcribe.py`, `vocal_separator.py`, `lyrics-job-manager.js`)**: `detect_language()` 경량 언어 감지 전환, ONNX 보컬 분리→Whisper 모델 VRAM 로딩 순서 분리, CPU 멀티스레드(`min(cpu, 8)`)·상황별 `beamSize`(2/3) 조정 및 세그먼트 실시간 진행률 출력 (`updated.md` 참고)
 - [x] **Gemini 가사 전사·정합 프롬프트 고도화 (`src/main/services/gemini-prompts.js`)**:
   - 전사(`transcribeSystemInstruction`): 전주/간주 비가사 마커(`[간주]`, `♪`) 배제, 코러스·화음 중복 분리 억제 및 호흡 단위 소절 분할 정제 (`updated.md` 참고)
   - 정합(`alignSystemInstruction`): 1·2절 반복 후렴구 재사용 금지 유지 및 연속 병합 소절에 한정한 `lyrics-aligner.js` 분할 연동, 앵커 라인(첫 줄·간주 직후) 우선 매칭 보강 (`updated.md` 참고)

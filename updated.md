@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-11-26 — 로컬 Whisper·보컬 분리 분석 성능 최적화 (`v1.1.1` Step 4)
+- **중복 디코딩 제거 및 VRAM 메모리 경합 해소 (`transcribe.py`, `vocal_separator.py`)**:
+  - 자동 언어 감지 시 30초 전체 디코딩 대신 `WhisperModel.detect_language()` 경량 호출을 우선 사용해 분석 시작 지연을 줄였습니다.
+  - ONNX 보컬 분리 세션을 `WhisperModel` 로딩 전에 먼저 실행하고 `del session` + `gc.collect()`로 해제하도록 순서를 조정해 GPU VRAM 경합을 완화했습니다.
+- **CPU 멀티스레드, 상황별 `beamSize` 및 실시간 진행률 스트리밍 (`transcribe.py`, `lyrics-job-manager.js`)**:
+  - CPU 모드에서 `cpu_threads=min(os.cpu_count() or 4, 8)`를 명시해 다중 코어를 활용하도록 개선했습니다.
+  - `AI 정합` 연계 또는 평문 가사 확보 곡은 `beamSize: 2`, 단독 분석은 `beamSize: 3`으로 추론 속도를 개선하고, 전사 세그먼트 종료 시간 기준으로 UI 진행률을 실시간 출력하도록 보강했습니다.
+
+---
+
 ## 2026-11-26 — 평문 가사 자동 확보 고도화 및 로컬 `.txt` 사이드카 지원 (`v1.1.1` Step 3)
 - **LRCLIB 정확 조회(`/api/get`) 및 `duration` 가중치 채점 (`lyrics-scraper.js`)**:
   - 아티스트·곡명 메타데이터가 있는 곡은 `/api/get` 정확 조회를 우선 시도(404 시 `/api/search` 자동 폴백)하고, 검색 후보 평가에 텍스트 Bigram 유사도와 트랙 길이(`duration`) 차이를 함께 반영해 TV Size·리믹스 오매칭을 줄였습니다.

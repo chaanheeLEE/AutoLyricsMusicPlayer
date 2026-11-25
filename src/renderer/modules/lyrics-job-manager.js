@@ -319,7 +319,11 @@ class LyricsJobManager {
       options.initialPrompt = null;
     }
     if (options.beamSize === undefined) {
-      options.beamSize = 5;
+      const willAutoAlign = Boolean(
+        isAuto && targetSettings.autoAnalyzeMode === "align" && (targetSettings.geminiApiKey || "").trim()
+      );
+      const hasPlainLyrics = Boolean(targetEmbeddedLyrics && targetEmbeddedLyrics.length > 0);
+      options.beamSize = (willAutoAlign || hasPlainLyrics) ? 2 : 3;
     }
 
     const sttSource = options.sttEngine === "gemini" ? "gemini" : "whisper";
