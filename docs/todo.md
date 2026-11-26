@@ -4,10 +4,11 @@
 
 ## 버전 로드맵 요약
 - **`v1.1.0`** *(배포 완료)*: `[P0]`·`[P1]` AI 분석·정합 안정화, UI·UX 전면 개선, 셔플 덱·프리페치 복구, CI/자동 릴리즈 파이프라인
-- **`v1.1.1`** *(진행 중)*: UI·UX 마감(완료), Gemini 프롬프트·후처리 안정화(완료), 평문 가사 자동 확보 고도화(완료), **핵심 코드 아키텍처 리팩토링**(섹션 6 `[P2]`)
-- **`v1.2.0`**: 라이브러리·재생 대기열 분리, 플레이리스트·폴더 입출력, 라이브러리 평문 가사 일괄 채우기 & 외부 다중 소스 폴백(섹션 1 `[P2]` + 섹션 3)
-- **`v1.3.0`**: AI 정합 속도·정확도 최적화, 가사 편집기 기능 확장 및 텍스트 기반 강제 정렬(섹션 1 `[P2]` + 섹션 4)
-- **`v1.4.0`**: 플로팅 가사창·데스크톱 통합 및 테마 확장(섹션 5 + 섹션 2 `[P3]`)
+- **`v1.1.1`** *(마감 정리)*: UI·UX 마감, Gemini 프롬프트·LIS 정합 안정화, 평문 가사 자동 확보 고도화, **핵심 코드 아키텍처 리팩토링(Stage 0~5 + `transcribe.py` 구조화) 완료**
+- **Phase A (`[P1]`)**: **가사 타임스탬프 정확도 고도화 및 정량 벤치마크 테스트 구축**(골든 셋 `Start/End MAE` 측정, `words` 경계 스냅·모델 비교, 강제 정렬 평가)
+- **`v1.2.0` (Phase B)**: 라이브러리·재생 대기열 분리 + `playlist-manager.js` 모듈 분할, 플레이리스트·폴더 입출력, 라이브러리 평문 가사 일괄 채우기 & 외부 다중 소스 폴백
+- **`v1.3.0` (Phase C)**: AI 정합·STT 속도 최적화(`gemini-service.js` 업로드 계층 분리 포함), 가사 편집기 기능 확장(줄 편집·파형·단어 하이라이트)
+- **`v1.4.0` (Phase D)**: 플로팅 가사창·데스크톱 통합, 테마 확장 및 대형 CSS(`settings.css`·`layout.css`) 구조화
 
 ---
 
@@ -100,6 +101,7 @@
   - `v1.2.0` `library`/`queue` 데이터 모델 분리 작업과 연계해 우측 대기열 드로어(`Up next`), 라이브러리 테이블 뷰, 곡 상세 정보 모달(`#trackInfoModal`)을 개별 모듈로 분리
 - [x] **[P3] 메인 프로세스 IPC 라우터(`src/main/core/ipc-router.js`, 약 513줄) 도메인별 분할**:
   - `src/main/ipc/` 아래 `track/media`(`track-ipc.js`), `lyrics-cache/export/embed`(`lyrics-ipc.js`), `transcription/align`(`transcription-ipc.js`), `models/cuda/vocal`(`models-ipc.js`), `window/floating/settings`(`window-settings-ipc.js`) 도메인으로 분리하고 채널 상수(`channels.js`) 일원화 및 계약/도메인 회귀 테스트(`test/ipc-router.test.js`) 추가 (`updated.md` 참고)
-- [ ] **[P3] Python 전사 스크립트(`transcribe.py`, 약 562줄)·Gemini 서비스(`gemini-service.js`, 약 533줄)·대형 스타일시트(`settings.css` 약 845줄, `layout.css` 약 774줄) 구조화**:
-  - `transcribe.py`는 PyInstaller `--onefile` 호환을 위해 다중 파일 분할은 보류하고 1차로 `main()` 내부 중첩 클로저(8개)를 동일 파일 최상위 함수로 승격(상주 워커 도입 시 모듈화 재검토)
-  - `gemini-service.js`는 오디오 경량 인코딩(A-5) 착수 시점에 업로드 준비 계층 분리, `settings.css`·`layout.css`는 UI 안정기에 별도 분리
+- [x] **[P3] Python 전사 스크립트(`transcribe.py`) 최상위 함수 구조화**:
+  - PyInstaller `--onefile` 호환을 위해 단일 파일 구조를 유지하면서 `main()` 내부 중첩 클로저(언어 감지·세그먼트 수집·보컬 분리·CUDA 확인·모델 생성/해제 등)를 최상위 함수로 승격하고 중복 임포트 정리 (`updated.md` 참고; 상주 워커 도입 시 모듈 분리 재검토)
+- [ ] **[P3] Gemini 서비스(`gemini-service.js`, 약 533줄)·대형 스타일시트(`settings.css` 약 845줄, `layout.css` 약 774줄) 구조화**:
+  - `gemini-service.js`는 오디오 경량 인코딩 착수 시점에 업로드 준비 계층 분리, `settings.css`·`layout.css`는 UI 안정기에 별도 분리

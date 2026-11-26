@@ -4,6 +4,13 @@
 
 ---
 
+## 2026-11-26 — Python 전사 스크립트(`transcribe.py`) 최상위 함수 구조화 (`v1.1.1` Stage 6)
+- **`src/main/services/transcribe.py` 단일 파일 내 최상위 함수 승격 (`docs/todo.md`)**:
+  - PyInstaller `--onefile` 번들 호환을 유지한 채 `main()` 내부 중첩 함수·단계(`parse_args`, `configure_windows_cuda_dlls`, `download_whisper_model`, `format_ort_provider`, `prepare_vocal_audio`, `detect_vocal_language`, `collect_segments`, `check_cuda_runtime`, `create_whisper_model`, `resolve_whisper_model`, `run_transcription`)를 최상위 함수로 승격해 가독성과 단계별 검증성을 높였습니다.
+  - 중복 `import os` 및 미사용 `download_model` 임포트를 제거하고 무거운 런타임 의존성(`faster_whisper`, `ctranslate2`, `numpy`, `huggingface_hub`, `vocal_separator`)은 지연 임포트로 유지했으며, `docs/todo.md`의 버전 로드맵 요약을 `v1.1.1` 마감·Phase A~D 체계로 최신화했습니다.
+
+---
+
 ## 2026-11-26 — 메인 프로세스 IPC 라우터 도메인별 분할 및 채널 상수 일원화 (`v1.1.1` Stage 5)
 - **`src/main/ipc/` 5개 도메인 모듈 + `channels.js` 분리 및 회귀 테스트 추가 (`ipc-router.js`, `window-manager.js`, `package.json`, `test/ipc-router.test.js`)**:
   - 모든 Main ↔ Renderer IPC 채널 45종을 `src/main/ipc/channels.js`(`IPC_CHANNELS`)에 일원화하고 `window-manager.js`의 이벤트 송신 리터럴도 상수로 통일했습니다. (샌드박스 환경 호환을 위해 `preload.js`는 수정하지 않고 계약 테스트로 정합성을 검증)
