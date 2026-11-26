@@ -4,6 +4,14 @@
 
 ---
 
+## 2026-11-26 — 메인 프로세스 IPC 라우터 도메인별 분할 및 채널 상수 일원화 (`v1.1.1` Stage 5)
+- **`src/main/ipc/` 5개 도메인 모듈 + `channels.js` 분리 및 회귀 테스트 추가 (`ipc-router.js`, `window-manager.js`, `package.json`, `test/ipc-router.test.js`)**:
+  - 모든 Main ↔ Renderer IPC 채널 45종을 `src/main/ipc/channels.js`(`IPC_CHANNELS`)에 일원화하고 `window-manager.js`의 이벤트 송신 리터럴도 상수로 통일했습니다. (샌드박스 환경 호환을 위해 `preload.js`는 수정하지 않고 계약 테스트로 정합성을 검증)
+  - 513줄의 `src/main/core/ipc-router.js`를 `track-ipc.js`, `lyrics-ipc.js`, `transcription-ipc.js`, `models-ipc.js`, `window-settings-ipc.js` 5개 도메인 등록 모듈로 분할하고 `ipc-router.js`는 의존성 조립 엔트리(`registerIpcHandlers(windowManager, overrides)`)로 경량화했습니다.
+  - `test/ipc-router.test.js`를 추가해 `preload.js` 전체 채널·`IPC_CHANNELS` 일치 여부, 트랙 열기/메타/프리페치, LRC/VTT 내보내기·태그 임베딩, Whisper/Gemini 취소 격리 및 `lyrics:align` 선점 중단, 모델 다운로드 진행률 전달, 플로팅·창 제어 동작을 검증했습니다.
+
+---
+
 ## 2026-11-26 — AI 정합 시간 역행 연쇄 누락(LIS 이상치 제거) 및 엄격한 1:1 프롬프트 복원
 - **시간 역행 연쇄 무효화 및 미래 후렴 ID 선점 버그 해결 (`src/main/helpers/lyrics-aligner.js`)**:
   - 기존 순차 탐욕 검사(`invalidateTimeReversals`)가 미래 절/후렴으로 잘못 점프한 단일 매칭을 기준점으로 고정해 뒤따르는 정상 구간의 싱크를 연쇄 삭제하던 문제를, **최장 단조 비감소 부분 수열(LIS) + 인접 점프 제곱합 최소화** 기반 이상치 제거로 교체했습니다.

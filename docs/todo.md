@@ -98,8 +98,8 @@
   - `lyrics-sources.js`(약 284줄) 내장/사이드카 공통 텍스트 파서 추출·헤더 주석 최신화, `lyrics-scraper.js`(약 391줄) 거절 로그 이중 유사도 계산 정리 (`updated.md` 참고)
 - [ ] **[P2] 대기열·라이브러리 뷰 모듈 분리 (`src/renderer/modules/playlist-manager.js`, 약 526줄)**:
   - `v1.2.0` `library`/`queue` 데이터 모델 분리 작업과 연계해 우측 대기열 드로어(`Up next`), 라이브러리 테이블 뷰, 곡 상세 정보 모달(`#trackInfoModal`)을 개별 모듈로 분리
-- [ ] **[P3] 메인 프로세스 IPC 라우터(`src/main/core/ipc-router.js`, 약 513줄) 도메인별 분할**:
-  - `src/main/ipc/` 아래 `track/media`, `lyrics-cache/export/embed`, `transcription/align`, `models/cuda/vocal`, `window/floating/settings` 도메인으로 분리하고 채널 상수 일원화
+- [x] **[P3] 메인 프로세스 IPC 라우터(`src/main/core/ipc-router.js`, 약 513줄) 도메인별 분할**:
+  - `src/main/ipc/` 아래 `track/media`(`track-ipc.js`), `lyrics-cache/export/embed`(`lyrics-ipc.js`), `transcription/align`(`transcription-ipc.js`), `models/cuda/vocal`(`models-ipc.js`), `window/floating/settings`(`window-settings-ipc.js`) 도메인으로 분리하고 채널 상수(`channels.js`) 일원화 및 계약/도메인 회귀 테스트(`test/ipc-router.test.js`) 추가 (`updated.md` 참고)
 - [ ] **[P3] Python 전사 스크립트(`transcribe.py`, 약 562줄)·Gemini 서비스(`gemini-service.js`, 약 533줄)·대형 스타일시트(`settings.css` 약 845줄, `layout.css` 약 774줄) 구조화**:
   - `transcribe.py`는 PyInstaller `--onefile` 호환을 위해 다중 파일 분할은 보류하고 1차로 `main()` 내부 중첩 클로저(8개)를 동일 파일 최상위 함수로 승격(상주 워커 도입 시 모듈화 재검토)
   - `gemini-service.js`는 오디오 경량 인코딩(A-5) 착수 시점에 업로드 준비 계층 분리, `settings.css`·`layout.css`는 UI 안정기에 별도 분리
