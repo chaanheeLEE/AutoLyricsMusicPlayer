@@ -16,6 +16,7 @@
 ## 릴리즈 체크리스트 (`develop → main` PR 시 확인)
 - [ ] `package.json` 버전을 올렸습니다 (`npm version patch --no-git-tag-version`).
 - [ ] `updated.md`에 이번 릴리즈 노트를 최신순으로 작성했습니다.
+- [ ] `npm run todo:sync`로 완료된 `docs/todo.md` 항목을 정리했습니다.
 - [ ] 로컬에서 `npm run check` 및 `npm test` 통과를 확인했습니다.
 - [ ] `npm run dev`로 주요 화면 및 AI 분석 동작을 직접 확인했습니다.
 

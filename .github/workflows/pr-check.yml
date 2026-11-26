@@ -34,3 +34,6 @@ jobs:
 
       - name: Preview Release Notes from updated.md
         run: node scripts/release-notes.js check
+
+      - name: Audit Todo Sync Status
+        run: node scripts/todo-sync.js check

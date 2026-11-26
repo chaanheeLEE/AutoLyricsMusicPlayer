@@ -165,8 +165,9 @@ function appendStepSummary(markdown) {
 
 function readPackageVersion(cwd) {
   const pkgPath = path.join(cwd, "package.json");
+  if (!fs.existsSync(pkgPath)) return null;
   const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
-  return pkg.version;
+  return pkg.version || null;
 }
 
 function readUpdatedFile(cwd) {
@@ -179,6 +180,45 @@ function readChangelogFile(cwd) {
   const changelogPath = path.join(cwd, "CHANGELOG.md");
   if (!fs.existsSync(changelogPath)) return "";
   return fs.readFileSync(changelogPath, "utf8");
+}
+
+/**
+ * Resolve release notes for a workspace: prefers updated.md, then falls back to package version entry in CHANGELOG.md.
+ */
+function resolveWorkspaceReleaseNotes(cwd, versionOverride = null) {
+  const rawVersion = versionOverride || readPackageVersion(cwd) || "";
+  const versionTag = rawVersion
+    ? (rawVersion.startsWith("v") ? rawVersion : `v${rawVersion}`)
+    : "";
+
+  const updatedNotes = extractReleaseNotes(readUpdatedFile(cwd));
+  if (updatedNotes) {
+    return {
+      notes: updatedNotes,
+      source: "updated.md",
+      fromUpdated: true,
+      versionTag,
+    };
+  }
+
+  const changelogNotes = versionTag
+    ? extractReleaseNotesFromChangelog(readChangelogFile(cwd), versionTag)
+    : "";
+  if (changelogNotes) {
+    return {
+      notes: changelogNotes,
+      source: `CHANGELOG.md (${versionTag})`,
+      fromUpdated: false,
+      versionTag,
+    };
+  }
+
+  return {
+    notes: "",
+    source: "none",
+    fromUpdated: false,
+    versionTag,
+  };
 }
 
 function parseArgValue(args, flag) {
@@ -196,14 +236,8 @@ function runCli() {
 
   if (cmd === "extract") {
     const outPath = parseArgValue(args, "--out");
-    const rawVersion = parseArgValue(args, "--version") || `v${readPackageVersion(cwd)}`;
-    const versionTag = rawVersion.startsWith("v") ? rawVersion : `v${rawVersion}`;
-
-    const updatedNotes = extractReleaseNotes(readUpdatedFile(cwd));
-    const changelogNotes = updatedNotes
-      ? ""
-      : extractReleaseNotesFromChangelog(readChangelogFile(cwd), versionTag);
-    const notes = updatedNotes || changelogNotes;
+    const rawVersion = parseArgValue(args, "--version");
+    const { notes, fromUpdated, versionTag } = resolveWorkspaceReleaseNotes(cwd, rawVersion);
     const hasNotes = notes.length > 0;
 
     if (hasNotes && outPath) {
@@ -212,28 +246,21 @@ function runCli() {
     appendGithubOutput("has_notes", String(hasNotes));
     console.log(
       hasNotes
-        ? `Extracted release notes (${notes.length} chars) from ${updatedNotes ? "updated.md" : `CHANGELOG.md (${versionTag})`}.`
+        ? `Extracted release notes (${notes.length} chars) from ${fromUpdated ? "updated.md" : `CHANGELOG.md (${versionTag})`}.`
         : `No release notes found in updated.md or CHANGELOG.md (${versionTag}); falling back to auto-generated notes.`
     );
     return;
   }
 
   if (cmd === "check") {
-    const version = readPackageVersion(cwd);
-    const versionTag = `v${version}`;
-    const updatedNotes = extractReleaseNotes(readUpdatedFile(cwd));
-    const changelogNotes = updatedNotes
-      ? ""
-      : extractReleaseNotesFromChangelog(readChangelogFile(cwd), versionTag);
-    const notes = updatedNotes || changelogNotes;
+    const { notes, source, versionTag } = resolveWorkspaceReleaseNotes(cwd);
     const hasNotes = notes.length > 0;
-    const sourceLabel = updatedNotes ? "updated.md" : `CHANGELOG.md (${versionTag})`;
 
     console.log(`Package version: ${versionTag}`);
     if (hasNotes) {
       const lineCount = notes.split("\n").length;
-      console.log(`Release notes ready in ${sourceLabel} (${lineCount} lines, ${notes.length} chars).`);
-      appendStepSummary(`### Release Notes Preview (\`${versionTag}\` · ${sourceLabel})\n\n${notes}\n`);
+      console.log(`Release notes ready in ${source} (${lineCount} lines, ${notes.length} chars).`);
+      appendStepSummary(`### Release Notes Preview (\`${versionTag}\` · ${source})\n\n${notes}\n`);
     } else {
       console.log("Warning: No release notes found in updated.md or CHANGELOG.md yet. Release will use GitHub auto-generated notes if merged now.");
       appendStepSummary(`### Release Notes Preview (\`${versionTag}\`)\n\n> **Note:** \`updated.md\` 및 \`CHANGELOG.md (${versionTag})\`에 작성된 릴리즈 노트가 없습니다. 머지 시 GitHub 자동 생성 노트로 폴백됩니다.\n`);
@@ -242,8 +269,8 @@ function runCli() {
   }
 
   if (cmd === "archive") {
-    const rawVersion = parseArgValue(args, "--version") || `v${readPackageVersion(cwd)}`;
-    const versionTag = rawVersion.startsWith("v") ? rawVersion : `v${rawVersion}`;
+    const rawVersion = parseArgValue(args, "--version") || readPackageVersion(cwd);
+    const versionTag = rawVersion && rawVersion.startsWith("v") ? rawVersion : `v${rawVersion}`;
     const updatedPath = path.join(cwd, "updated.md");
     const changelogPath = path.join(cwd, "CHANGELOG.md");
 
@@ -273,6 +300,9 @@ if (require.main === module) {
 }
 
 module.exports = {
+  normalizeNewlines,
+  appendStepSummary,
+  resolveWorkspaceReleaseNotes,
   extractReleaseNotes,
   extractReleaseNotesFromChangelog,
   buildEmptyUpdatedTemplate,
