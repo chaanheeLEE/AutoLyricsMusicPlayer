@@ -3,19 +3,42 @@
 향후 추가하거나 개선할 기능 및 과제를 **주제별로 묶고 우선순위(`[P0]`~`[P3]`) 순으로 정렬**한 목록입니다. (완료된 내역은 [updated.md](../updated.md) 및 [CHANGELOG.md](../CHANGELOG.md) 참고)
 
 ## 버전 로드맵 요약
-- **`v1.1.0`** *(완료 · 배포 예정)*: `[P0]`·`[P1]` AI 분석·정합 안정화, UI·UX 전면 개선, 셔플 덱·프리페치 복구, CI/자동 릴리즈 파이프라인
-- **`v1.1.1`**: 코드 아키텍처 리팩토링(섹션 6), 가사 글씨체 커스텀·대기열 상단 버튼 배치 정돈·앱 아이콘 재디자인(섹션 2 `[P2]`), Gemini 프롬프트 고도화(섹션 1 `[P3]`)
-- **`v1.2.0`**: 라이브러리·재생 대기열 분리 및 플레이리스트·폴더 입출력(섹션 3)
-- **`v1.3.0`**: 가사 편집기 기능 확장 및 텍스트 기반 강제 정렬(섹션 4 + 강제 정렬)
-- **`v1.4.0`**: 플로팅 가사창·데스크톱 통합 및 테마 확장(섹션 5 + 섹션 2 `[P3]`)
+- **`v1.1.0`** *(배포 완료)*: `[P0]`·`[P1]` AI 분석·정합 안정화, UI·UX 전면 개선, 셔플 덱·프리페치 복구, CI/자동 릴리즈 파이프라인
+- **`v1.1.1`** *(마감 정리)*: UI·UX 마감, Gemini 프롬프트·LIS 정합 안정화, 평문 가사 자동 확보 고도화, **핵심 코드 아키텍처 리팩토링(Stage 0~5 + `transcribe.py` 구조화) 완료**
+- **Phase A (`[P1]`)**: **가사 타임스탬프 정확도 고도화 및 정량 벤치마크 테스트 구축**(골든 셋 `Start/End MAE` 측정, `words` 경계 스냅·모델 비교, 강제 정렬 평가)
+- **`v1.2.0` (Phase B)**: 라이브러리·재생 대기열 분리 + `playlist-manager.js` 모듈 분할, 플레이리스트·폴더 입출력, 라이브러리 평문 가사 일괄 채우기 & 외부 다중 소스 폴백
+- **`v1.3.0` (Phase C)**: AI 정합·STT 속도 최적화(`gemini-service.js` 업로드 계층 분리 포함), 가사 편집기 기능 확장(줄 편집·파형·단어 하이라이트)
+- **`v1.4.0` (Phase D)**: 플로팅 가사창·데스크톱 통합, 테마 확장 및 대형 CSS(`settings.css`·`layout.css`) 구조화
 
 ---
 
 ## 1. AI 분석·정합 파이프라인 및 자동화
-- [ ] **[P2] 가사 텍스트 기반 강제 정렬(Forced Alignment) 검토**: 음원 내장 평문 가사 또는 외부 가사 검색과 연동해 오타 없이 타임스탬프만 정밀 정렬하는 옵션 검토
-- [ ] **[P3] Gemini 가사 전사·정합 프롬프트 고도화 (`src/main/services/gemini-prompts.js`)**:
-  - 전사(`transcribeSystemInstruction`): 전주/간주 타임스탬프 처리, 코러스/추임새 표기 및 소절 분할 기준 세분화
-  - 정합(`alignSystemInstruction`): 1·2절 반복 후렴구 매핑 안정성 및 Whisper 누락 라인 대응 규칙(`lyrics-aligner.js` 분할 로직과 정합성 확보) 검토
+- [x] **평문 가사 자동 확보 고도화 및 로컬 `.txt` 사이드카 지원 (`lyrics-scraper.js`, `lyrics-sources.js`, `cache-manager.js`, `lyrics-aligner.js`, `lyrics-job-manager.js`, `app.js`)**:
+  - `artist`·`title`·`duration` 기반 LRCLIB `/api/get` 정확 조회 우선 및 `/api/search` 후보 선택 시 `duration` 차이·유사도 복합 점수로 TV Size·리믹스 오매칭 감소 (`updated.md` 참고)
+  - 확보한 공식 평문 가사를 트랙 캐시(`embeddedPlainLyrics`)에 재사용 가능하게 보관해 재시도·재정합 시 반복 조회 최소화 (`updated.md` 참고)
+  - 음원 파일과 동일 폴더의 `<파일명>.txt` 평문 가사 파일 자동 인식(`lyrics-sources.js`, `txt_plain`) 지원 (`updated.md` 참고)
+- [ ] **[P1] 가사 타임스탬프 정확도 고도화 및 정량 벤치마크 테스트 구축 (`transcribe.py`, `lyrics-aligner.js`, `gemini-service.js`, `index.html`)**:
+  - **정량 평가(수치화) 벤치마크 구축**: 정답 LRC(골든 셋 5~10곡: 한/영/일, 빠른 템포·발라드·반복 후렴 포함) 대비 자동 측정 스크립트 작성 및 핵심 지표 산출 — `Start/End MAE`(평균 절대 오차, 초), `P90 / Max Error`, 허용 오차 내 적중률(`±0.3s`, `±0.5s`, `±1.0s` 비율), `Anchor Match Rate`(실제 STT 앵커 매칭률 vs 보간 비율), `Split duplicate` / `Time reversal` 발생 건수, 곡당 처리 시간(`Latency`)을 변경 전·후 A/B 비교 기록
+  - **1단계 — 모델 라인업 정비 및 단어 타임스탬프(`words`) 활용**:
+    - `transcribe.py`: `word_timestamps=True`의 단어별 `[start, end]` 데이터를 세그먼트에 보존하고, 줄 분할 쉼 임계값(`gap >= 1.2s` → `0.45~0.6s` 등)을 벤치마크로 튜닝
+    - `lyrics-aligner.js`: 연속 중복(`Split duplicate`)·보간 구간에서 단순 글자 수 비례 분할(`distributeLinesByLength`) 대신 내부 `words` 경계·침묵 간격 기반 스냅 적용
+    - 모델 조합 비교: 로컬 Whisper `large-v3-turbo`(+ MDX-Net 보컬 분리 ON/OFF) 및 Gemini 정합 모델(`gemini-2.5-flash` / `gemini-2.5-pro` / `gemini-2.5-flash-lite`) 조합별 `Start/End MAE` 측정
+  - **2단계 — 강제 정렬(Forced Alignment) 전용 모델 도입 검토**:
+    - `stable-ts`(`stable-whisper`)의 `align()` / `refine()`(파형 에너지 기반 시작·끝 늘어짐 보정) 프로토타입 우선 평가
+    - `WhisperX`(Wav2Vec2 CTC 음소 정렬) 및 Meta `MMS-FA`(`torchaudio`)의 정확도·설치 용량·속도 트레이드오프를 동일 벤치마크로 비교 후 평문 가사 보유 곡에 대한 정밀 정렬 옵션 채택
+- [ ] **[P2] AI 정합 속도 최적화 (`lyrics-scraper.js`, `lyrics-aligner.js`, `gemini-service.js`)**:
+  - `autoAnalyzeMode === "align"` 시 Whisper 전사와 LRCLIB 가사 조회 병렬화 및 정합 요청 ID 경량화(정수 인덱스) 검토
+  - (선택 옵션) LRCLIB `syncedLyrics` + 트랙 길이 일치(`±3초`) 시 Whisper 중앙값 오프셋 보정 고속 정합 검토
+- [ ] **[P2] 외부 다중 가사 소스 폴백 체인 확장 (`lyrics-scraper.js`)**: LRCLIB 검색 실패 시 보조 공개 가사 API(`lyrics.ovh` 등) 순차 조회 후 Whisper 텍스트 유사도 검증을 통과한 평문 가사 자동 확보
+- [ ] **[P2] Gemini 클라우드 STT 오디오 전송 경량화 (`gemini-service.js`, `transcription-worker.js`)**:
+  - FLAC/WAV 등 대용량 음원 업로드 전 64kbps 모노 MP3 경량 인코딩(또는 20MB 미만 `inlineData` 직접 전송)으로 업로드·처리 대기 시간 단축
+- [ ] **[P2] 로컬 Whisper 워커 상주화 및 배치 추론 검토 (`transcribe.py`, `transcription-worker.js`)**:
+  - 곡마다 반복되는 `transcribe.exe` 압축 해제·모델 VRAM 로딩 콜드 스타트를 제거하는 유휴 타임아웃 기반 상주 워커 데몬 검토
+  - GPU 환경에서 `faster-whisper` `BatchedInferencePipeline` 적용 가능성(보컬 분리 스템 기준 정확도 비교) 검증
+- [x] **로컬 Whisper·보컬 분리 분석 성능 및 진행률 스트리밍 개선 (`transcribe.py`, `vocal_separator.py`, `lyrics-job-manager.js`)**: `detect_language()` 경량 언어 감지 전환, ONNX 보컬 분리→Whisper 모델 VRAM 로딩 순서 분리, CPU 멀티스레드(`min(cpu, 8)`)·상황별 `beamSize`(2/3) 조정 및 세그먼트 실시간 진행률 출력 (`updated.md` 참고)
+- [x] **Gemini 가사 전사·정합 프롬프트 고도화 (`src/main/services/gemini-prompts.js`)**:
+  - 전사(`transcribeSystemInstruction`): 전주/간주 비가사 마커(`[간주]`, `♪`) 배제, 코러스·화음 중복 분리 억제 및 호흡 단위 소절 분할 정제 (`updated.md` 참고)
+  - 정합(`alignSystemInstruction`): 1·2절 반복 후렴구 재사용 금지 유지 및 연속 병합 소절에 한정한 `lyrics-aligner.js` 분할 연동, 앵커 라인(첫 줄·간주 직후) 우선 매칭 보강 (`updated.md` 참고)
 - [x] **AI 정합 실패 시 재시도 유도 및 버튼 하이라이트 유지**: 정합 폴백·실패 시 `.align-suggested` 하이라이트 및 재시도 안내 유지 (`updated.md` 참고)
 - [x] **자동화 옵션 재정비, 트랙 프리페치·셔플 덱 복구 및 곡 전환 속도 개선**: `state.playlist` 기준 순차·셔플 프리페치(`syncShuffleQueue`) 및 `forwardHistory` 복귀, RAM 네거티브 캐시, 가사 즉시 렌더링(`cancelPromise` 대기 분리) + `200ms` 자동 분석 디바운스, `자동화 워크플로우`의 `AI 및 음성 분석` 탭 통합, `AI 정합` 용어 통일 및 `lyricsSource` 기반 `AI 재분석` 오표시 수정 (`updated.md` 참고)
 - [x] **곡 이동 시 AI 분석/정합 결과 오지정(Cross-track 오염) 버그 수정**: 작업 토큰(`jobId`)·트랙 스냅샷 격리, 디바운스 저장(`saveTimers`) 트랙 캡처, `selectPlaylistItem` 시퀀스 가드 및 백그라운드 완료 시 원곡 캐시 안전 저장 (`updated.md` 참고)
@@ -25,9 +48,9 @@
 ---
 
 ## 2. 메인 화면 UI·UX 및 창·테마 개선
-- [ ] **[P2] 가사 글씨체(폰트) 선택 및 커스텀 옵션 추가 (`index.html`, `settings-view.js`, `settings-manager.js`, `lyrics.css`, `floating.css`)**: 설정 창에서 메인 가사 뷰어 및 플로팅 가사창의 글씨체 프리셋 선택 또는 사용자 시스템 폰트 커스텀 지정 기능 지원
-- [ ] **[P2] 우측 대기열(`#queueDrawer`) 상단 컨트롤 버튼 배치 정돈 (`index.html`, `playlist.css`)**: 대기열 헤더(`.queue-header`)와 도구 줄(`.queue-tools-row`)에서 `justify-content: space-between`으로 흩어져 있는 정렬 드롭다운(`#playlistSortSelect`)·검색 버튼(`#playlistSearchButton`)·비우기 버튼(`#playlistClearButton`)을 좌우 기능 그룹(좌측 정렬 / 우측 검색·비우기 묶음 등)으로 응집력 있게 재배치
-- [ ] **[P2] 앱 아이콘(`src/assets/icon.svg`, `src/assets/icon.png`) 재디자인**: 기존 이미지에 구워진 격자무늬 배경과 구버전 네온 색상을 제거하고, `Lyra Lavender` 기본 테마 및 다크 스쿼클 스타일에 맞춘 실제 투명 배경(32-bit RGBA, 512×512px) 아이콘과 벡터(`SVG`) 원본 제작
+- [x] **가사 글씨체(폰트) 선택 및 커스텀 옵션 추가 (`index.html`, `settings-view.js`, `settings-manager.js`, `lyrics-core.js`, `lyrics.css`, `floating.css`, `floating.js`)**: `설정 > 일반`(메인 가사)과 `설정 > 플로팅 가사창`(플로팅 가사)에서 각각 독립적으로 프리셋 및 사용자 시스템 폰트 지정 지원 (`updated.md` 참고)
+- [x] **우측 대기열(`#queueDrawer`) 상단 컨트롤 버튼 배치 정돈 (`index.html`, `playlist.css`)**: 좌측 정렬 드롭다운과 우측 검색·Clear 액션 그룹(`.queue-tools-actions`)으로 재정렬하고 좌우 여백(`18px`)·높이(`26px`) 통일 (`updated.md` 참고)
+- [x] **앱 아이콘(`src/assets/icon.svg`, `src/assets/icon.png`) 재디자인**: 컨셉 A(`Lyra Wave & Sync Lyrics`) 기반으로 격자무늬 배경을 제거한 실제 투명 배경(32-bit RGBA, 512×512px) 다크 스쿼클 아이콘과 벡터(`SVG`) 원본 적용 (`updated.md` 참고)
 - [ ] **[P3] 앨범 커버 기반 앰비언트 배경**: 현재 재생 중인 앨범 아트의 대표 색상을 추출해 감상 화면 배경에 은은한 그라데이션 반영
 - [ ] **[P3] 사용자 커스텀 테마 확장**: 설정 창에서 기본 제공 테마(`Lyra Lavender`, `Emerald Dark`) 외 라이트 테마 및 사용자 포인트 컬러 커스터마이징 지원
 - [ ] **[P3] 창 상태 유지**: 종료 시 마지막 창 크기·위치 및 우측 대기열(`Up next`) 열림 상태 복원
@@ -39,6 +62,7 @@
 
 ## 3. 라이브러리 및 재생 대기열 고도화
 - [ ] **[P2] 대기열과 라이브러리 데이터 모델 완전 분리**: 현재 공유 중인 `state.playlist`를 `library`와 `queue`로 분리하여 "대기열에서 제외"와 "라이브러리에서 제거" 동작 구분
+- [ ] **[P2] 라이브러리 평문 가사 일괄 채우기 & 원클릭 붙여넣기 정합**: 내장/캐시 평문 가사가 없는 곡들을 백그라운드로 일괄 조회해 캐시(음원 태그 내장은 안전을 위해 선택 옵션)하고, 실패 곡은 배너에서 클립보드 붙여넣기 후 즉시 AI 정합 실행
 - [ ] **[P2] 플레이리스트 저장 및 불러오기**: `.m3u` / JSON 형식의 사용자 재생목록 내보내기 및 가져오기
 - [ ] **[P2] 드래그 앤 드롭 및 폴더 추가**: 탐색기에서 오디오 파일이나 폴더를 앱 창으로 드래그하여 라이브러리/대기열에 일괄 등록
 
@@ -59,13 +83,25 @@
 ---
 
 ## 6. 코드 아키텍처 및 모듈 리팩토링
-- [ ] **[P2] 렌더러 메인 오케스트레이터(`src/renderer/app.js`, 약 1,300줄) 역할 분리**:
-  - 트랙 전환·히스토리·프리페치·가사 캐시 스냅샷 저장 로직(`track-controller.js`)과 전역 단축키·`MediaSession`·커스텀 윈도우 제어(`shell-controls.js`)를 분리해 `app.js`를 초기화 및 모듈 연결 엔트리로 경량화
-- [ ] **[P2] 설정 뷰(`src/renderer/modules/settings-view.js`, 약 835줄) 및 모델·가속 팩 다운로드 모듈 공통화**:
-  - Whisper 모델·CUDA 가속 팩·ONNX 보컬 분리 모델의 다운로드 진행률·취소·삭제 UI 렌더링을 공통 헬퍼로 통합하고, 메인 프로세스(`model-manager.js`, `cuda-manager.js`, `vocal-model-manager.js`)의 다운로드/취소/상태 관리 중복 코드 정리
-- [ ] **[P2] 대기열·라이브러리 뷰 모듈 분리 (`src/renderer/modules/playlist-manager.js`, 약 610줄)**:
-  - `library`/`queue` 데이터 모델 분리 작업과 연계해 우측 대기열 드로어(`Up next`), 라이브러리 테이블 뷰, 곡 상세 정보 모달(`#trackInfoModal`)을 개별 모듈로 분리
-- [ ] **[P3] 메인 프로세스 IPC 라우터(`src/main/core/ipc-router.js`, 약 480줄) 도메인별 분할**:
-  - 단일 파일에 집중된 핸들러를 `track/media`, `lyrics-cache/export/embed`, `transcription/align/models`, `window/floating/settings` 도메인 단위로 분리하고 채널 상수 일원화
-- [ ] **[P3] Python 전사 스크립트(`src/main/services/transcribe.py`, 약 520줄) 및 대형 스타일시트(`layout.css`, 약 870줄) 구조화**:
-  - `transcribe.py` 내 CUDA 런타임 탐지·HuggingFace 다운로드·언어 감지·단어 단위 세그먼트 분할을 역할별로 모듈화하고, `layout.css`에서 상단 내비게이션·감상 패널·공통 모달 스타일을 분리
+- [x] **[P2] 정적 검사(`npm run check`) 안전망 보강 및 가사 출처 계약 정리 (`package.json`, `lyrics-core.js`)**:
+  - `package.json` `check` 스크립트에 누락된 Main JS 6개(`cache-manager.js`, `settings-manager.js`, `lyrics-sources.js`, `model-manager.js`, `media-helper.js`, `lyrics-tagger.js`) 추가 (`updated.md` 참고)
+  - `lyricsSource` 상수·분류 헬퍼를 `lyrics-core.js`에 일원화하고 `.lrc`/`txt_plain` 버튼 상태 및 평문 가사 출처 라벨(`내장 가사`·`로컬 텍스트(.txt) 가사`·`웹 공식 가사`) 불일치 수정 (`updated.md` 참고)
+- [x] **[P2] 렌더러 메인 오케스트레이터(`src/renderer/app.js`, 약 1,303줄) 역할 분리**:
+  - **Unit 1-A (`shell-controls.js`)** *(완료 · `updated.md` 참고)*: 전역 단축키·`MediaSession`·커스텀 윈도우 제어·뷰/드로어/드롭다운/음소거 토글 분리
+  - **Unit 1-B (`track-controller.js`)** *(완료 · `updated.md` 참고)*: 트랙 전환(`trackSelectionSeq`)·히스토리(`forwardHistory`)·프리페치·트랙별 디바운스 캐시 스냅샷(`saveTimers`) 분리 및 특성화 테스트 추가
+- [x] **[P2] 비동기 작업 관리자(`src/renderer/modules/lyrics-job-manager.js`, 약 553줄) 경계 정밀화 및 특성화 테스트 보강**:
+  - DOM 비의존 순수 로직(적응형 `beamSize`·`openingHint`·`persistedPlainLyrics` 판별·진행률/폴백 메시지 변환·`jobId`/트랙 유효성 검사)을 UMD 헬퍼로 추출하고 `test/lyrics-job-manager.test.js` 비동기 회귀 테스트 구축 (`updated.md` 참고)
+- [x] **[P2] Main 다운로드·런타임 헬퍼 공통화 및 설정 뷰(`src/renderer/modules/settings-view.js`, 약 923줄) 분리**:
+  - **Main** *(완료 · `updated.md` 참고)*: `download-helper.js`(`formatBytes`, `getDirectorySize`, `downloadFileWithRedirects`) 통합, `resolvePython`/`hasFasterWhisper`(`transcription-worker.js`↔`model-manager.js`) 및 `createCancelledError`(`gemini-service.js`·`lyrics-scraper.js`·`transcription-worker.js`) 중복 제거 + 단위 테스트
+  - **Renderer** *(완료 · `updated.md` 참고)*: `settings-view.js`의 Whisper 모델·CUDA 팩·ONNX 보컬 분리 모델 관리 UI(~460줄)를 `model-settings-panel.js`로 분리하고 진행률/배지 갱신 공통화 (`test/model-settings-panel.test.js`)
+- [x] **[P2] AI 정합·로컬 소스 파이프라인 내부 구조화 (`lyrics-aligner.js`, `lyrics-sources.js`, `lyrics-scraper.js`)**:
+  - `lyrics-aligner.js`(약 332줄) `alignAndInterpolateLyrics()` 내부 순수 후처리(역행 무효화·연속 중복 분할·선형 보간·길이 가드) 함수 분해 및 중복 탐색/미사용 변수 정리 (`updated.md` 참고)
+  - `lyrics-sources.js`(약 284줄) 내장/사이드카 공통 텍스트 파서 추출·헤더 주석 최신화, `lyrics-scraper.js`(약 391줄) 거절 로그 이중 유사도 계산 정리 (`updated.md` 참고)
+- [ ] **[P2] 대기열·라이브러리 뷰 모듈 분리 (`src/renderer/modules/playlist-manager.js`, 약 526줄)**:
+  - `v1.2.0` `library`/`queue` 데이터 모델 분리 작업과 연계해 우측 대기열 드로어(`Up next`), 라이브러리 테이블 뷰, 곡 상세 정보 모달(`#trackInfoModal`)을 개별 모듈로 분리
+- [x] **[P3] 메인 프로세스 IPC 라우터(`src/main/core/ipc-router.js`, 약 513줄) 도메인별 분할**:
+  - `src/main/ipc/` 아래 `track/media`(`track-ipc.js`), `lyrics-cache/export/embed`(`lyrics-ipc.js`), `transcription/align`(`transcription-ipc.js`), `models/cuda/vocal`(`models-ipc.js`), `window/floating/settings`(`window-settings-ipc.js`) 도메인으로 분리하고 채널 상수(`channels.js`) 일원화 및 계약/도메인 회귀 테스트(`test/ipc-router.test.js`) 추가 (`updated.md` 참고)
+- [x] **[P3] Python 전사 스크립트(`transcribe.py`) 최상위 함수 구조화**:
+  - PyInstaller `--onefile` 호환을 위해 단일 파일 구조를 유지하면서 `main()` 내부 중첩 클로저(언어 감지·세그먼트 수집·보컬 분리·CUDA 확인·모델 생성/해제 등)를 최상위 함수로 승격하고 중복 임포트 정리 (`updated.md` 참고; 상주 워커 도입 시 모듈 분리 재검토)
+- [ ] **[P3] Gemini 서비스(`gemini-service.js`, 약 533줄)·대형 스타일시트(`settings.css` 약 845줄, `layout.css` 약 774줄) 구조화**:
+  - `gemini-service.js`는 오디오 경량 인코딩 착수 시점에 업로드 준비 계층 분리, `settings.css`·`layout.css`는 UI 안정기에 별도 분리

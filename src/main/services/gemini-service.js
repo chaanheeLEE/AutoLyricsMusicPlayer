@@ -4,18 +4,13 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const crypto = require("node:crypto");
 const { transcribeSystemInstruction, alignSystemInstruction } = require("./gemini-prompts");
+const { createCancelledError } = require("../helpers/download-helper");
 
 const GEMINI_FALLBACK_MODELS = [
   "gemini-3.5-flash-lite",
   "gemini-3.1-flash-lite",
   "gemini-3.8-flash",
 ];
-
-function createCancelledError() {
-  const err = new Error("cancelled");
-  err.cancelled = true;
-  return err;
-}
 
 function buildModelFallbackChain(primaryModel) {
   const first = (typeof primaryModel === "string" && primaryModel.trim())
@@ -194,6 +189,7 @@ async function callGeminiApiWithRetry(apiKey, contents, systemInstruction, respo
     contents,
     config: {
       systemInstruction,
+      temperature: 0,
       responseMimeType: "application/json",
       responseSchema
     },
@@ -334,6 +330,34 @@ function parseTranscriptionResponse(rawText) {
   return segments;
 }
 
+const STT_LANGUAGE_LABELS = {
+  ko: "한국어(ko)",
+  en: "영어(en)",
+  ja: "일본어(ja)",
+  zh: "중국어(zh)",
+};
+
+/**
+ * Gemini 클라우드 STT 프롬프트를 생성합니다.
+ * 언어가 미지정(null/""/"auto")인 경우 언어 힌트를 생략해 자동 감지를 유지합니다.
+ */
+function buildTranscriptionPrompt(duration = null, language = null) {
+  let prompt = `오디오 데이터를 분석하여 각 소절별 자막/가사 세그먼트 배열을 타임스탬프(시작 및 종료 시간, 초 단위)와 함께 추출하라.
+각 세그먼트는 실제 노래 가사 한 줄 단위에 조응해야 하며, 정확한 보컬 싱크 타이밍을 유지해야 한다.`;
+
+  const langCode = typeof language === "string" ? language.trim().toLowerCase() : "";
+  if (langCode && langCode !== "auto") {
+    const label = STT_LANGUAGE_LABELS[langCode] || langCode;
+    prompt += `\n\n* [언어 힌트] 이 곡의 주 가사 언어는 **${label}**이다. 해당 언어를 기본으로 전사하되, 중간에 섞인 영어 등 외래어는 번역하지 말고 들리는 원어 그대로 전사하라.`;
+  }
+
+  if (duration && !isNaN(duration) && duration > 0) {
+    prompt += `\n\n* [중요] 이 음악의 실제 총 길이는 정확히 **${Number(duration).toFixed(2)}초**이다. 따라서 모든 자막 세그먼트의 시작 시간(start)과 종료 시간(end)은 절대로 이 ${Number(duration).toFixed(2)}초를 초과해서는 안 된다. 마지막 세그먼트의 종료 시간 역시 이 값 이내에서 안전하게 닫혀야 한다.`;
+  }
+
+  return prompt;
+}
+
 /**
  * Gemini File API와 GenerateContent를 활용하여 로컬 오디오 파일을 텍스트(STT)로 변환합니다.
  * 타임스탬프 정보를 정확하게 JSON 형식으로 반환받습니다.
@@ -408,14 +432,7 @@ async function transcribeAudioWithGemini(apiKey, filePath, duration = null, gemi
     }
 
     const systemInstruction = transcribeSystemInstruction;
-
-    let durationGuide = "";
-    if (duration && !isNaN(duration) && duration > 0) {
-      durationGuide = `\n\n* [중요] 이 음악의 실제 총 길이는 정확히 **${Number(duration).toFixed(2)}초**이다. 따라서 모든 자막 세그먼트의 시작 시간(start)과 종료 시간(end)은 절대로 이 ${Number(duration).toFixed(2)}초를 초과해서는 안 된다. 마지막 세그먼트의 종료 시간 역시 이 값 이내에서 안전하게 닫혀야 한다.`;
-    }
-
-    const prompt = `오디오 데이터를 분석하여 각 소절별 자막/가사 세그먼트 배열을 타임스탬프(시작 및 종료 시간, 초 단위)와 함께 추출하라.
-각 세그먼트는 실제 노래 가사 한 줄 단위에 조응해야 하며, 정확한 보컬 싱크 타이밍을 유지해야 한다.${durationGuide}`;
+    const prompt = buildTranscriptionPrompt(duration, options?.language || null);
 
     const responseSchema = {
       type: "ARRAY",
@@ -452,6 +469,7 @@ async function transcribeAudioWithGemini(apiKey, filePath, duration = null, gemi
       }],
       config: {
         systemInstruction,
+        temperature: 0.1,
         responseMimeType: "application/json",
         responseSchema
       },
@@ -503,6 +521,7 @@ async function transcribeAudioWithGemini(apiKey, filePath, duration = null, gemi
 module.exports = {
   GEMINI_FALLBACK_MODELS,
   buildModelFallbackChain,
+  buildTranscriptionPrompt,
   callGeminiApiWithRetry,
   alignLyricsWithGemini,
   transcribeAudioWithGemini

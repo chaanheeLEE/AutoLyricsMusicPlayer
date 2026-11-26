@@ -13,8 +13,12 @@ const fsSync = require("node:fs");
 const os = require("node:os");
 const { app } = require("electron");
 const { execFile } = require("node:child_process");
-const https = require("node:https");
-const http = require("node:http");
+const {
+  formatBytes,
+  getDirectorySize,
+  downloadFileWithRedirects,
+  isCancelledError
+} = require("../helpers/download-helper");
 
 // 공식 릴리즈 최신(latest) Assets 또는 환경변수 오버라이드 URL
 const GITHUB_REPO = "chaanheeLEE/AutoLyricsMusicPlayer";
@@ -27,33 +31,6 @@ let isDownloading = false;
 function getNvidiaDir() {
   const userData = app.getPath("userData");
   return path.join(userData, "bin", "nvidia");
-}
-
-function formatBytes(bytes) {
-  if (!bytes || bytes <= 0) return "0 MB";
-  if (bytes < 1024 * 1024 * 1024) {
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  }
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-
-async function getDirectorySize(dirPath) {
-  let total = 0;
-  try {
-    const entries = await fs.readdir(dirPath, { withFileTypes: true });
-    for (const entry of entries) {
-      const fullPath = path.join(dirPath, entry.name);
-      if (entry.isDirectory()) {
-        total += await getDirectorySize(fullPath);
-      } else if (entry.isFile()) {
-        const stats = await fs.stat(fullPath);
-        total += stats.size;
-      }
-    }
-  } catch {
-    return 0;
-  }
-  return total;
 }
 
 /**
@@ -164,78 +141,6 @@ async function getCudaStatus() {
 }
 
 /**
- * 리다이렉트를 지원하는 HTTP/HTTPS 스트림 다운로더
- */
-function downloadFile(url, destPath, onProgress, signal) {
-  return new Promise((resolve, reject) => {
-    const makeRequest = (currentUrl, redirectCount = 0) => {
-      if (redirectCount > 5) {
-        return reject(new Error("너무 많은 리다이렉트가 발생했습니다."));
-      }
-
-      const client = currentUrl.startsWith("https") ? https : http;
-      const req = client.get(currentUrl, (res) => {
-        if ([301, 302, 303, 307, 308].includes(res.statusCode)) {
-          const nextUrl = res.headers.location;
-          if (!nextUrl) return reject(new Error("리다이렉트 주소를 찾을 수 없습니다."));
-          res.resume();
-          return makeRequest(nextUrl, redirectCount + 1);
-        }
-
-        if (res.statusCode !== 200) {
-          res.resume();
-          return reject(new Error(`다운로드 서버 응답 오류: HTTP ${res.statusCode}`));
-        }
-
-        const totalBytes = parseInt(res.headers["content-length"] || "0", 10);
-        let downloadedBytes = 0;
-
-        const fileStream = fsSync.createWriteStream(destPath);
-
-        res.on("data", (chunk) => {
-          downloadedBytes += chunk.length;
-          const percent = totalBytes > 0 ? downloadedBytes / totalBytes : null;
-          onProgress({
-            stage: "downloading",
-            percent,
-            downloadedBytes,
-            totalBytes,
-            message: `GPU 가속 팩 다운로드 중: ${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)}`
-          });
-        });
-
-        res.pipe(fileStream);
-
-        fileStream.on("finish", () => {
-          fileStream.close();
-          resolve();
-        });
-
-        fileStream.on("error", (err) => {
-          try { fsSync.unlinkSync(destPath); } catch {}
-          reject(err);
-        });
-      });
-
-      req.on("error", (err) => {
-        try { fsSync.unlinkSync(destPath); } catch {}
-        reject(err);
-      });
-
-      if (signal) {
-        signal.addEventListener("abort", () => {
-          req.destroy();
-          try { fsSync.unlinkSync(destPath); } catch {}
-          reject(new Error("cancelled"));
-        });
-      }
-    };
-
-    makeRequest(url);
-  });
-}
-
-/**
  * GPU 가속 팩 다운로드 및 압축 해제 실행
  */
 async function downloadCudaPack(onProgress) {
@@ -258,7 +163,12 @@ async function downloadCudaPack(onProgress) {
       message: "GPU 가속 팩 다운로드 연결 중..."
     });
 
-    await downloadFile(CUDA_PACK_URL, tempZip, onProgress, activeAbortController.signal);
+    await downloadFileWithRedirects(CUDA_PACK_URL, tempZip, {
+      onProgress,
+      formatProgressMessage: ({ downloadedBytes, totalBytes }) =>
+        `GPU 가속 팩 다운로드 중: ${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)}`,
+      signal: activeAbortController.signal
+    });
 
     onProgress({
       stage: "extracting",
@@ -292,7 +202,7 @@ async function downloadCudaPack(onProgress) {
     return { ok: true, status };
   } catch (err) {
     try { await fs.unlink(tempZip); } catch {}
-    if (err.message === "cancelled") {
+    if (isCancelledError(err)) {
       onProgress({ stage: "cancelled", message: "다운로드가 취소되었습니다." });
       return { ok: false, error: "cancelled" };
     }

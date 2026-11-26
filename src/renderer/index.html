@@ -306,10 +306,12 @@
             <option value="az">제목순 (A-Z)</option>
             <option value="reset">원래 순서</option>
           </select>
-          <button id="playlistSearchButton" class="sort-action-btn" type="button" title="대기열 내 검색" aria-label="대기열 내 검색">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          </button>
-          <button id="playlistClearButton" class="sort-action-btn danger-action-btn" type="button" title="대기열 비우기">Clear</button>
+          <div class="queue-tools-actions">
+            <button id="playlistSearchButton" class="sort-action-btn" type="button" title="대기열 내 검색" aria-label="대기열 내 검색">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </button>
+            <button id="playlistClearButton" class="sort-action-btn danger-action-btn" type="button" title="대기열 비우기">Clear</button>
+          </div>
         </div>
 
         <input id="playlistSearchInput" class="playlist-search-input" type="text" placeholder="대기열 곡 검색…" style="display: none;" aria-label="대기열 곡 검색" />
@@ -453,6 +455,32 @@
                   <option value="lyra" selected>Lyra Lavender (라벤더 다크)</option>
                   <option value="emerald">Emerald Dark (에메랄드 다크)</option>
                 </select>
+              </div>
+            </div>
+
+            <div class="settings-item">
+              <div class="settings-info">
+                <label for="settingLyricsFont">메인 가사 글씨체</label>
+                <p>메인 감상 화면의 싱크 가사에 적용할 글꼴을 선택합니다.</p>
+              </div>
+              <div class="settings-control">
+                <select id="settingLyricsFont" name="lyricsFontPreset">
+                  <option value="default" selected>기본 고딕 (맑은 고딕)</option>
+                  <option value="serif">감성 명조 (Noto Serif KR / 바탕)</option>
+                  <option value="rounded">부드러운 라운드 (나눔스퀘어라운드)</option>
+                  <option value="mono">고정폭 (D2Coding / Consolas)</option>
+                  <option value="custom">직접 입력 (시스템 폰트명)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="settings-item" id="customLyricsFontGroup" style="display: none;">
+              <div class="settings-info">
+                <label for="settingLyricsFontCustom">시스템 폰트 이름</label>
+                <p>내 PC에 설치된 폰트 이름을 입력하세요. 쉼표(,)로 여러 개를 지정할 수 있습니다.</p>
+              </div>
+              <div class="settings-control">
+                <input type="text" id="settingLyricsFontCustom" name="lyricsFontCustom" placeholder="예: Pretendard, 나눔고딕" maxlength="120" />
               </div>
             </div>
           </div>
@@ -659,6 +687,32 @@
         <div id="tabFloatingContent" class="tab-content">
           <div class="settings-card">
             <div class="settings-card-header">가사 텍스트 및 정렬</div>
+
+            <div class="settings-item">
+              <div class="settings-info">
+                <label for="settingFloatingFont">플로팅 가사 글씨체</label>
+                <p>플로팅 가사창에만 별도로 적용할 글꼴을 선택합니다.</p>
+              </div>
+              <div class="settings-control">
+                <select id="settingFloatingFont" name="floatingFontPreset">
+                  <option value="default" selected>기본 고딕 (맑은 고딕)</option>
+                  <option value="serif">감성 명조 (Noto Serif KR / 바탕)</option>
+                  <option value="rounded">부드러운 라운드 (나눔스퀘어라운드)</option>
+                  <option value="mono">고정폭 (D2Coding / Consolas)</option>
+                  <option value="custom">직접 입력 (시스템 폰트명)</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="settings-item" id="customFloatingFontGroup" style="display: none;">
+              <div class="settings-info">
+                <label for="settingFloatingFontCustom">시스템 폰트 이름</label>
+                <p>내 PC에 설치된 폰트 이름을 입력하세요. 쉼표(,)로 여러 개를 지정할 수 있습니다.</p>
+              </div>
+              <div class="settings-control">
+                <input type="text" id="settingFloatingFontCustom" name="floatingFontCustom" placeholder="예: Pretendard, 나눔고딕" maxlength="120" />
+              </div>
+            </div>
 
             <div class="settings-item">
               <div class="settings-info">
@@ -963,10 +1017,13 @@
     <script src="./modules/player-controller.js"></script>
     <script src="./modules/playlist-manager.js"></script>
     <script src="./modules/lyrics-viewer.js"></script>
+    <script src="./modules/model-settings-panel.js"></script>
     <script src="./modules/settings-view.js"></script>
     <script src="./modules/lyrics-job-manager.js"></script>
     <script src="./modules/embed-manager.js"></script>
     <script src="./modules/onboarding-manager.js"></script>
+    <script src="./modules/shell-controls.js"></script>
+    <script src="./modules/track-controller.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>

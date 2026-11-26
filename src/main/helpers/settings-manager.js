@@ -13,6 +13,10 @@ const DEFAULT_SETTINGS = {
   geminiModel: "gemini-3.5-flash-lite",
   autoAnalyzeMode: "off",
   firstRunCompleted: false,
+  lyricsFontPreset: "default",
+  lyricsFontCustom: "",
+  floatingFontPreset: "default",
+  floatingFontCustom: "",
   floatingFontSize: 18,
   floatingOpacity: 0.85,
   floatingBgColor: "#0b0d11",
@@ -68,6 +72,16 @@ async function loadSettings() {
   }
 }
 
+function normalizeFontPreset(value) {
+  return ["default", "serif", "rounded", "mono", "custom"].includes(value)
+    ? value
+    : DEFAULT_SETTINGS.lyricsFontPreset;
+}
+
+function normalizeCustomFont(value) {
+  return typeof value === "string" ? value.trim().slice(0, 120) : "";
+}
+
 async function saveSettings(settings) {
   const fontSizeVal = Number(settings.floatingFontSize);
   const opacityVal = Number(settings.floatingOpacity);
@@ -83,6 +97,10 @@ async function saveSettings(settings) {
     geminiModel: settings.geminiModel || DEFAULT_SETTINGS.geminiModel,
     autoAnalyzeMode: settings.autoAnalyzeMode || "off",
     firstRunCompleted: settings.firstRunCompleted !== undefined ? Boolean(settings.firstRunCompleted) : DEFAULT_SETTINGS.firstRunCompleted,
+    lyricsFontPreset: normalizeFontPreset(settings.lyricsFontPreset),
+    lyricsFontCustom: normalizeCustomFont(settings.lyricsFontCustom),
+    floatingFontPreset: normalizeFontPreset(settings.floatingFontPreset),
+    floatingFontCustom: normalizeCustomFont(settings.floatingFontCustom),
     floatingFontSize: isNaN(fontSizeVal) ? DEFAULT_SETTINGS.floatingFontSize : fontSizeVal,
     floatingOpacity: isNaN(opacityVal) ? DEFAULT_SETTINGS.floatingOpacity : opacityVal,
     floatingBgColor: settings.floatingBgColor || DEFAULT_SETTINGS.floatingBgColor,

@@ -80,25 +80,32 @@
 
 /* 정렬 및 검색 액션 바 */
 .queue-tools-row {
-  padding: 6px 16px 10px;
+  padding: 4px 18px 10px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+}
+
+.queue-tools-actions {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .sort-action-btn {
   background: transparent;
   border: 1px solid var(--border-subtle);
   color: var(--text-secondary);
-  padding: 3px 8px;
-  min-height: 24px;
+  padding: 0 9px;
+  min-height: 26px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-size: 0.72rem;
   font-weight: 600;
-  border-radius: 4px;
+  border-radius: 5px;
   cursor: pointer;
   transition: all 140ms ease;
 }
@@ -113,10 +120,11 @@
   background: var(--surface-panel);
   border: 1px solid var(--border-subtle);
   color: var(--text-primary);
-  padding: 3px 22px 3px 8px;
+  min-height: 26px;
+  padding: 0 24px 0 9px;
   font-size: 0.72rem;
   font-weight: 600;
-  border-radius: 4px;
+  border-radius: 5px;
   cursor: pointer;
   outline: none;
   transition: all 140ms ease;
@@ -124,7 +132,7 @@
   -webkit-appearance: none;
   background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2212%22%20height%3D%2212%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%239292a6%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m6%209%206%206%206-6%22%2F%3E%3C%2Fsvg%3E");
   background-repeat: no-repeat;
-  background-position: right 6px center;
+  background-position: right 7px center;
 }
 
 .sort-select-box:hover {
@@ -138,8 +146,8 @@
 }
 
 .playlist-search-input {
-  width: calc(100% - 32px);
-  margin: 0 16px 8px;
+  width: calc(100% - 36px);
+  margin: 0 18px 8px;
   padding: 6px 10px;
   background: var(--surface-panel);
   border: 1px solid var(--border-subtle);

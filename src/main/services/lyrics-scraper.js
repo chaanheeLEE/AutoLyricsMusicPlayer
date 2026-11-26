@@ -1,25 +1,19 @@
 const https = require("node:https");
-
-function createCancelledError() {
-  const err = new Error("cancelled");
-  err.cancelled = true;
-  return err;
-}
+const { createCancelledError } = require("../helpers/download-helper");
 
 /**
- * LRCLIB API 호출을 통해 가사 검색을 수행하고 검색 결과 배열을 반환합니다.
+ * LRCLIB JSON 엔드포인트를 AbortSignal 및 타임아웃과 함께 호출합니다.
  */
-function fetchLrclibLyrics(query, { signal, timeoutMs = 12000 } = {}) {
+function fetchLrclibJson(url, { signal, timeoutMs = 12000, allowNotFound = false } = {}) {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
       reject(createCancelledError());
       return;
     }
 
-    const url = `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`;
     const options = {
       headers: {
-        "User-Agent": "AutoLyricsPlayer/1.0.2 (Contact: mail@example.com)"
+        "User-Agent": "AutoLyricsPlayer/1.1.0 (Contact: mail@example.com)"
       }
     };
 
@@ -55,9 +49,15 @@ function fetchLrclibLyrics(query, { signal, timeoutMs = 12000 } = {}) {
     }
 
     req = https.get(url, options, (res) => {
+      if (allowNotFound && res.statusCode === 404) {
+        res.resume();
+        finish(null, null);
+        return;
+      }
+
       if (res.statusCode !== 200) {
         res.resume();
-        finish(new Error(`LRCLIB search failed (HTTP ${res.statusCode})`));
+        finish(new Error(`LRCLIB request failed (HTTP ${res.statusCode})`));
         return;
       }
 
@@ -89,6 +89,31 @@ function fetchLrclibLyrics(query, { signal, timeoutMs = 12000 } = {}) {
       }
     });
   });
+}
+
+/**
+ * LRCLIB `/api/get` 정확 조회를 수행합니다. (미존재 404 시 null 반환)
+ */
+function fetchLrclibExact({ artistName, trackName, albumName, duration }, options = {}) {
+  const params = new URLSearchParams();
+  params.set("artist_name", artistName);
+  params.set("track_name", trackName);
+  if (albumName) {
+    params.set("album_name", albumName);
+  }
+  if (Number.isFinite(duration) && duration > 0) {
+    params.set("duration", String(Math.round(duration)));
+  }
+  const url = `https://lrclib.net/api/get?${params.toString()}`;
+  return fetchLrclibJson(url, { timeoutMs: 10000, ...options, allowNotFound: true });
+}
+
+/**
+ * LRCLIB API 호출을 통해 가사 검색을 수행하고 검색 결과 배열을 반환합니다.
+ */
+function fetchLrclibLyrics(query, options = {}) {
+  const url = `https://lrclib.net/api/search?q=${encodeURIComponent(query)}`;
+  return fetchLrclibJson(url, { timeoutMs: 12000, ...options, allowNotFound: false });
 }
 
 /**
@@ -181,10 +206,83 @@ function calculateBigramSimilarity(textA, textB) {
 }
 
 /**
- * 가사 스크래퍼 통합 실행 함수 (LRCLIB을 연계하여 유사도 검증 수행, 수동 쿼리 및 취소 시그널 지원)
+ * LRCLIB 후보 항목에서 정제된 평문 가사 텍스트를 추출합니다. (5줄 미만이면 null)
+ */
+function extractPlainLyricsFromCandidate(item) {
+  if (!item) return null;
+  const rawText = item.plainLyrics && item.plainLyrics.trim().length > 0
+    ? item.plainLyrics
+    : (item.syncedLyrics || "").replace(/\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]/g, "");
+
+  if (!rawText || rawText.trim().length === 0) return null;
+
+  const normalizedLines = rawText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+
+  if (normalizedLines.length < 5) return null;
+  return normalizedLines.join("\n");
+}
+
+function getDurationAdjustment(trackDuration, candidateDuration) {
+  const tDur = Number(trackDuration);
+  const cDur = Number(candidateDuration);
+  if (!Number.isFinite(tDur) || tDur <= 0 || !Number.isFinite(cDur) || cDur <= 0) {
+    return { adjustment: 0, durationDiff: null };
+  }
+  const diff = Math.abs(tDur - cDur);
+  let adjustment = 0;
+  if (diff <= 3) adjustment = 0.12;
+  else if (diff <= 8) adjustment = 0.05;
+  else if (diff <= 20) adjustment = 0;
+  else if (diff <= 45) adjustment = -0.12;
+  else adjustment = -0.25;
+  return { adjustment, durationDiff: Number(diff.toFixed(1)) };
+}
+
+function evaluateLyricsCandidate(item, { whisperText = "", hasWhisper = false, trackDuration = null } = {}) {
+  const lyrics = extractPlainLyricsFromCandidate(item);
+  if (!lyrics) {
+    return { candidate: null, rejectedSimilarity: null };
+  }
+
+  const similarity = hasWhisper ? calculateBigramSimilarity(whisperText, lyrics) : 1;
+  if (hasWhisper && similarity < 0.15) {
+    return { candidate: null, rejectedSimilarity: similarity };
+  }
+
+  const { adjustment, durationDiff } = getDurationAdjustment(trackDuration, item?.duration);
+  return {
+    candidate: {
+      lyrics,
+      similarity,
+      score: similarity + adjustment,
+      durationDiff,
+      artistName: item.artistName || "",
+      trackName: item.trackName || ""
+    },
+    rejectedSimilarity: null
+  };
+}
+
+/**
+ * 후보 가사의 텍스트 Bigram 유사도와 트랙 길이(duration) 일치도를 결합해 채점합니다.
+ */
+function scoreLyricsCandidate(item, options = {}) {
+  return evaluateLyricsCandidate(item, options).candidate;
+}
+
+/**
+ * 가사 스크래퍼 통합 실행 함수 (LRCLIB /api/get 우선 조회 + /api/search duration·유사도 복합 채점)
  */
 async function scrapeLyrics(track, whisperLyrics = [], customQuery = null, options = {}) {
-  const { signal } = options || {};
+  const {
+    signal,
+    fetchExactFn = fetchLrclibExact,
+    fetchSearchFn = fetchLrclibLyrics
+  } = options || {};
+
   if (signal?.aborted) {
     throw createCancelledError();
   }
@@ -196,9 +294,44 @@ async function scrapeLyrics(track, whisperLyrics = [], customQuery = null, optio
 
   const whisperText = (whisperLyrics || []).map(l => l.text).join(" ");
   const hasWhisper = whisperText.trim().length > 0;
+  const trackDuration = Number(track?.duration) > 0 ? Number(track.duration) : null;
+
+  const cleanTitle = getCleanSearchQuery(track);
+  const rawArtist = typeof track?.artist === "string" ? track.artist.trim() : "";
+  const artist = rawArtist && rawArtist !== "-" ? rawArtist : "";
+  const album = typeof track?.album === "string" ? track.album.trim() : "";
 
   let lastError = null;
 
+  // 1. 수동 쿼리가 없고 아티스트·제목 메타가 충분하면 /api/get 정확 조회 우선 시도
+  if (!customQuery?.trim() && artist && cleanTitle) {
+    try {
+      const exactItem = await fetchExactFn(
+        {
+          artistName: artist,
+          trackName: cleanTitle,
+          albumName: album,
+          duration: trackDuration
+        },
+        { signal }
+      );
+      if (exactItem) {
+        const candidate = scoreLyricsCandidate(exactItem, { whisperText, hasWhisper, trackDuration });
+        if (candidate) {
+          console.log(`[Scraper] Selected exact lyrics from LRCLIB /api/get (${candidate.artistName} - ${candidate.trackName}, Similarity: ${(candidate.similarity * 100).toFixed(1)}%)`);
+          return candidate.lyrics;
+        }
+      }
+    } catch (err) {
+      if (err?.cancelled || signal?.aborted) {
+        throw createCancelledError();
+      }
+      lastError = err;
+      console.warn(`[Scraper] LRCLIB /api/get failed: ${err.message}`);
+    }
+  }
+
+  // 2. /api/search 다중 쿼리 폴백 + 유사도·트랙 길이 복합 점수 비교
   for (const query of queries) {
     if (signal?.aborted) {
       throw createCancelledError();
@@ -207,7 +340,7 @@ async function scrapeLyrics(track, whisperLyrics = [], customQuery = null, optio
     console.log(`[Scraper] Searching LRCLIB for query: "${query}"`);
     let results;
     try {
-      results = await fetchLrclibLyrics(query, { signal });
+      results = await fetchSearchFn(query, { signal });
     } catch (err) {
       if (err?.cancelled || signal?.aborted) {
         throw createCancelledError();
@@ -224,39 +357,22 @@ async function scrapeLyrics(track, whisperLyrics = [], customQuery = null, optio
     let bestCandidate = null;
 
     for (const item of results) {
-      const rawText = item.plainLyrics && item.plainLyrics.trim().length > 0
-        ? item.plainLyrics
-        : (item.syncedLyrics || "").replace(/\[\d{1,2}:\d{2}(?:[.:]\d{1,3})?\]/g, "");
-
-      if (!rawText || rawText.trim().length === 0) continue;
-
-      const normalizedLines = rawText
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter((line) => line.length > 0);
-
-      if (normalizedLines.length < 5) continue;
-
-      const normalizedLyrics = normalizedLines.join("\n");
-      const similarity = hasWhisper ? calculateBigramSimilarity(whisperText, normalizedLyrics) : 1;
-
-      if (hasWhisper && similarity < 0.15) {
-        console.log(`[Scraper] Rejected mismatched lyrics from LRCLIB (${item.artistName} - ${item.trackName}) (Similarity: ${(similarity * 100).toFixed(1)}%)`);
+      const { candidate, rejectedSimilarity } = evaluateLyricsCandidate(item, { whisperText, hasWhisper, trackDuration });
+      if (!candidate) {
+        if (rejectedSimilarity !== null) {
+          console.log(`[Scraper] Rejected mismatched lyrics from LRCLIB (${item.artistName} - ${item.trackName}) (Similarity: ${(rejectedSimilarity * 100).toFixed(1)}%)`);
+        }
         continue;
       }
 
-      if (!bestCandidate || similarity > bestCandidate.similarity) {
-        bestCandidate = {
-          lyrics: normalizedLyrics,
-          similarity,
-          artistName: item.artistName,
-          trackName: item.trackName
-        };
+      if (!bestCandidate || candidate.score > bestCandidate.score) {
+        bestCandidate = candidate;
       }
     }
 
     if (bestCandidate) {
-      console.log(`[Scraper] Selected lyrics from LRCLIB (${bestCandidate.artistName} - ${bestCandidate.trackName}, Similarity: ${(bestCandidate.similarity * 100).toFixed(1)}%)`);
+      const durInfo = bestCandidate.durationDiff !== null ? `, Δdur=${bestCandidate.durationDiff}s` : "";
+      console.log(`[Scraper] Selected lyrics from LRCLIB (${bestCandidate.artistName} - ${bestCandidate.trackName}, Similarity: ${(bestCandidate.similarity * 100).toFixed(1)}%${durInfo})`);
       return bestCandidate.lyrics;
     }
   }
@@ -271,5 +387,8 @@ module.exports = {
   scrapeLyrics,
   getCleanSearchQuery,
   buildSearchQueries,
-  calculateBigramSimilarity
+  calculateBigramSimilarity,
+  fetchLrclibExact,
+  extractPlainLyricsFromCandidate,
+  scoreLyricsCandidate
 };

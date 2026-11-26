@@ -48,6 +48,7 @@
    Listening Mode (감상 모드) — 오픈 캔버스 대형 타이포그래피
    ========================================================================== */
 .lyrics-list:not(.edit-mode) {
+  font-family: var(--lyrics-font-family);
   padding: 40px 16px 48px 0;
   gap: 14px;
   mask-image: linear-gradient(to bottom, transparent 0%, black 10%, black 88%, transparent 100%);
@@ -68,6 +69,7 @@
 }
 
 .lyrics-list:not(.edit-mode) .lyric-seek strong {
+  font-family: var(--lyrics-font-family);
   font-size: 1.25rem;
   font-weight: 500;
   color: var(--text-secondary);

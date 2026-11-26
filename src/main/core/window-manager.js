@@ -1,6 +1,7 @@
 const { BrowserWindow, Menu } = require("electron");
 const path = require("node:path");
 const settingsManager = require("../helpers/settings-manager");
+const { IPC_CHANNELS } = require("../ipc/channels");
 
 let mainWindow = null;
 let floatingWindow = null;
@@ -23,12 +24,16 @@ function setFloatingWindow(win) {
 
 function applyVisualsToFloating(settings) {
   if (floatingWindow && !floatingWindow.isDestroyed()) {
-    floatingWindow.webContents.send("floating:apply-visuals", {
+    floatingWindow.webContents.send(IPC_CHANNELS.FLOATING_APPLY_VISUALS, {
       fontSize: settings.floatingFontSize,
       opacity: settings.floatingOpacity,
       bgColor: settings.floatingBgColor,
       fontColor: settings.floatingFontColor,
       align: settings.floatingAlign,
+      lyricsFontPreset: settings.lyricsFontPreset || "default",
+      lyricsFontCustom: settings.lyricsFontCustom || "",
+      fontPreset: settings.floatingFontPreset || "default",
+      fontCustom: settings.floatingFontCustom || "",
     });
   }
 }
@@ -80,13 +85,13 @@ function createMainWindow() {
 
   mainWindow.on("maximize", () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send("window:maximized-changed", true);
+      mainWindow.webContents.send(IPC_CHANNELS.WINDOW_MAXIMIZED_CHANGED, true);
     }
   });
 
   mainWindow.on("unmaximize", () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send("window:maximized-changed", false);
+      mainWindow.webContents.send(IPC_CHANNELS.WINDOW_MAXIMIZED_CHANGED, false);
     }
   });
 
@@ -151,7 +156,7 @@ async function createFloatingWindow() {
     clearTimeout(boundsTimer);
     floatingWindow = null;
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send("floating:closed");
+      mainWindow.webContents.send(IPC_CHANNELS.FLOATING_CLOSED);
     }
   });
 

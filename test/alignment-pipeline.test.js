@@ -1,15 +1,29 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs/promises");
+const os = require("node:os");
+const path = require("node:path");
 const {
   buildSearchQueries,
   calculateBigramSimilarity,
+  scoreLyricsCandidate,
+  scrapeLyrics,
 } = require("../src/main/services/lyrics-scraper");
 const {
+  loadLyricsFromSources,
+  loadPlainTextFile,
+  parseRawLyricsText,
+} = require("../src/main/services/lyrics-sources");
+const {
   alignAndInterpolateLyrics,
+  invalidateTimeReversals,
+  buildOfficialTimeMap,
+  clampLyricDurations,
 } = require("../src/main/helpers/lyrics-aligner");
 const {
   GEMINI_FALLBACK_MODELS,
   buildModelFallbackChain,
+  buildTranscriptionPrompt,
   callGeminiApiWithRetry,
 } = require("../src/main/services/gemini-service");
 
@@ -270,4 +284,345 @@ test("alignAndInterpolateLyrics classifies 503 high demand errors as gemini_over
   assert.equal(res.warning, "fallback_to_whisper");
   assert.equal(res.failureStage, "gemini");
   assert.equal(res.errorCode, "gemini_overloaded");
+});
+
+test("buildTranscriptionPrompt omits language hint for auto/null and includes it for explicit languages", () => {
+  const autoDefault = buildTranscriptionPrompt(180, null);
+  const autoExplicit = buildTranscriptionPrompt(180, "auto");
+  assert.doesNotMatch(autoDefault, /언어 힌트/);
+  assert.doesNotMatch(autoExplicit, /언어 힌트/);
+  assert.match(autoDefault, /180\.00초/);
+
+  const jaPrompt = buildTranscriptionPrompt(210, "ja");
+  assert.match(jaPrompt, /언어 힌트/);
+  assert.match(jaPrompt, /일본어\(ja\)/);
+  assert.match(jaPrompt, /210\.00초/);
+});
+
+test("callGeminiApiWithRetry configures temperature 0 for deterministic alignment", async () => {
+  let seenConfig = null;
+  await callGeminiApiWithRetry(
+    "dummy-key",
+    "contents",
+    "sys",
+    { type: "ARRAY" },
+    "gemini-3.5-flash-lite",
+    1,
+    1,
+    {
+      generateContentFn: async ({ config }) => {
+        seenConfig = config;
+        return { text: JSON.stringify([{ official_index: 0, whisper_id: "line_001" }]) };
+      }
+    }
+  );
+  assert.equal(seenConfig.temperature, 0);
+});
+
+test("alignAndInterpolateLyrics guards non-contiguous duplicate whisper_id and anchors leading nulls before first match", async () => {
+  const whisperLyrics = [
+    { id: "line_001", start: 10.0, end: 13.0, text: "First matched chorus" },
+    { id: "line_002", start: 20.0, end: 23.0, text: "Closing verse line" }
+  ];
+
+  const res = await alignAndInterpolateLyrics(
+    {
+      track: { title: "Intro & Chorus Test", duration: 30 },
+      whisperLyrics,
+      settings: { geminiApiKey: "dummy-key" },
+      embeddedLyricsLines: [
+        "Opening line after long intro",
+        "First matched chorus",
+        "Bridge line gap",
+        "Repeated chorus mistakenly reusing line_001",
+        "Closing verse line"
+      ]
+    },
+    {
+      deps: {
+        alignLyricsWithGemini: async () => [
+          { official_index: 0, whisper_id: null },
+          { official_index: 1, whisper_id: "line_001" },
+          { official_index: 2, whisper_id: null },
+          { official_index: 3, whisper_id: "line_001" }, // non-contiguous duplicate -> should NOT steal split from index 1
+          { official_index: 4, whisper_id: "line_002" }
+        ]
+      }
+    }
+  );
+
+  assert.equal(res.ok, true);
+  assert.equal(res.source, "gemini");
+  assert.equal(res.matchedCount, 2);
+  // Leading null line is anchored just before 10.0s rather than 0.0s
+  assert.ok(res.lyrics[0].start >= 7.0 && res.lyrics[0].end === 10.0);
+  // Index 1 retains full [10.0, 13.0] window
+  assert.equal(res.lyrics[1].start, 10.0);
+  assert.equal(res.lyrics[1].end, 13.0);
+  // Indices 2 & 3 interpolate monotonically inside 13.0..20.0
+  assert.equal(res.lyrics[2].start, 13.0);
+  assert.ok(res.lyrics[3].start > 13.0 && res.lyrics[3].end === 20.0);
+  assert.equal(res.lyrics[4].start, 20.0);
+  assert.equal(res.officialLyricsLines.length, 5);
+});
+
+test("scrapeLyrics prefers LRCLIB /api/get when exact match exists and falls back to /api/search on miss", async () => {
+  const exactLyrics = ["Line 1 exact", "Line 2 exact", "Line 3 exact", "Line 4 exact", "Line 5 exact"].join("\n");
+  let searchCalled = false;
+
+  const exactRes = await scrapeLyrics(
+    { title: "Night Sky", artist: "Luna", album: "Horizon", duration: 210 },
+    [{ id: "line_001", start: 1, end: 3, text: "Line 1 exact Line 2 exact Line 3 exact Line 4 exact Line 5 exact" }],
+    null,
+    {
+      fetchExactFn: async (params) => {
+        assert.equal(params.artistName, "Luna");
+        assert.equal(params.trackName, "Night Sky");
+        assert.equal(params.duration, 210);
+        return { artistName: "Luna", trackName: "Night Sky", plainLyrics: exactLyrics, duration: 210 };
+      },
+      fetchSearchFn: async () => {
+        searchCalled = true;
+        return [];
+      }
+    }
+  );
+  assert.equal(exactRes, exactLyrics);
+  assert.equal(searchCalled, false);
+
+  const fallbackRes = await scrapeLyrics(
+    { title: "Night Sky", artist: "Luna", duration: 210 },
+    [],
+    null,
+    {
+      fetchExactFn: async () => null,
+      fetchSearchFn: async () => {
+        searchCalled = true;
+        return [
+          { artistName: "Luna", trackName: "Night Sky (TV Size)", duration: 90, plainLyrics: ["TV 1", "TV 2", "TV 3", "TV 4", "TV 5"].join("\n") },
+          { artistName: "Luna", trackName: "Night Sky", duration: 211, plainLyrics: exactLyrics }
+        ];
+      }
+    }
+  );
+  assert.equal(searchCalled, true);
+  assert.equal(fallbackRes, exactLyrics);
+});
+
+test("loadLyricsFromSources detects UTF-8 BOM .txt plain sidecar lyrics", async () => {
+  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "alp-txt-test-"));
+  try {
+    const audioPath = path.join(tmpDir, "Sample Song.mp3");
+    const txtPath = path.join(tmpDir, "Sample Song.txt");
+    await fs.writeFile(audioPath, "dummy-audio");
+    await fs.writeFile(txtPath, "\uFEFF첫 번째 줄\n두 번째 줄\n\n세 번째 줄\n네 번째 줄", "utf8");
+
+    const loaded = await loadPlainTextFile(audioPath);
+    assert.ok(loaded);
+    assert.equal(loaded.source, "txt_plain");
+    assert.deepEqual(loaded.lyrics.map((l) => l.text), [
+      "첫 번째 줄",
+      "두 번째 줄",
+      "세 번째 줄",
+      "네 번째 줄"
+    ]);
+
+    const viaMulti = await loadLyricsFromSources(audioPath);
+    assert.equal(viaMulti.source, "txt_plain");
+    assert.equal(viaMulti.lyrics.length, 4);
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
+});
+
+test("alignAndInterpolateLyrics exposes officialLyricsLines even when Gemini falls back to Whisper", async () => {
+  const scrapedPlain = ["Alpha one", "Beta two", "Gamma three", "Delta four", "Epsilon five"].join("\n");
+  const res = await alignAndInterpolateLyrics(
+    {
+      track: { title: "Fallback Test", duration: 100 },
+      whisperLyrics: [{ id: "line_001", start: 1.0, end: 4.0, text: "Alpha one Beta two" }],
+      settings: { geminiApiKey: "dummy-key" }
+    },
+    {
+      deps: {
+        scrapeLyrics: async () => scrapedPlain,
+        alignLyricsWithGemini: async () => {
+          throw new Error("503 UNAVAILABLE");
+        }
+      }
+    }
+  );
+
+  assert.equal(res.ok, true);
+  assert.equal(res.warning, "fallback_to_whisper");
+  assert.deepEqual(res.officialLyricsLines, ["Alpha one", "Beta two", "Gamma three", "Delta four", "Epsilon five"]);
+});
+
+test("alignAndInterpolateLyrics preserves explicit plainLyricsSource and keeps embedded fallback when omitted", async () => {
+  const baseInput = {
+    track: { title: "Source Tag Test", duration: 100 },
+    whisperLyrics: [{ id: "line_001", start: 1.0, end: 4.0, text: "First line" }],
+    settings: { geminiApiKey: "dummy-key" },
+    embeddedLyricsLines: ["First line"]
+  };
+  const fakeDeps = {
+    deps: {
+      alignLyricsWithGemini: async () => [{ official_index: 0, whisper_id: "line_001" }]
+    }
+  };
+
+  const defaultRes = await alignAndInterpolateLyrics(baseInput, fakeDeps);
+  assert.equal(defaultRes.ok, true);
+  assert.equal(defaultRes.lyricsSource, "embedded");
+
+  const txtRes = await alignAndInterpolateLyrics(
+    { ...baseInput, plainLyricsSource: "txt_plain" },
+    fakeDeps
+  );
+  assert.equal(txtRes.ok, true);
+  assert.equal(txtRes.lyricsSource, "txt_plain");
+
+  const cachedWebRes = await alignAndInterpolateLyrics(
+    { ...baseInput, plainLyricsSource: "lrclib_cached" },
+    fakeDeps
+  );
+  assert.equal(cachedWebRes.ok, true);
+  assert.equal(cachedWebRes.lyricsSource, "lrclib_cached");
+});
+
+test("lyrics-aligner post-processing helpers invalidate inversions, build contiguous time maps, and clamp durations", () => {
+  const whisperMap = new Map([
+    ["w1", { id: "w1", start: 2.0, end: 6.0 }],
+    ["w2", { id: "w2", start: 10.0, end: 12.0 }]
+  ]);
+  const alignment = [
+    { official_index: 0, whisper_id: "w1" },
+    { official_index: 1, whisper_id: "w1" },
+    { official_index: 2, whisper_id: "w2" },
+    { official_index: 3, whisper_id: "w1" }, // reversal
+    { official_index: 4, whisper_id: "missing" }
+  ];
+
+  invalidateTimeReversals(alignment, whisperMap);
+  assert.equal(alignment[3].whisper_id, null);
+  assert.equal(alignment[4].whisper_id, null);
+
+  const timeMap = buildOfficialTimeMap(alignment, whisperMap, ["Short", "Longer line", "Third", "Fourth", "Fifth"]);
+  assert.equal(timeMap.size, 3);
+  assert.equal(timeMap.get(0).start, 2.0);
+  assert.equal(timeMap.get(1).end, 6.0);
+  assert.equal(timeMap.get(2).start, 10.0);
+
+  const clamped = [
+    { id: "x", start: 19.9, end: 25.0, text: "End clamped" },
+    { id: "y", start: 5.0, end: 5.05, text: "Too short" }
+  ];
+  clampLyricDurations(clamped, 20.0);
+  assert.equal(clamped[0].id, "align_001");
+  assert.equal(clamped[0].end, 20.0);
+  assert.equal(clamped[0].start, 19.2);
+  assert.equal(clamped[1].id, "align_002");
+  assert.equal(clamped[1].end, 5.8);
+});
+
+test("parseRawLyricsText handles BOM LRC, >=3 plain lines, and rejects too-short text", () => {
+  const lrc = parseRawLyricsText("\uFEFF[00:01.00]First\n[00:04.00]Second", { lrcSource: "embedded_lrc" });
+  assert.equal(lrc.source, "embedded_lrc");
+  assert.equal(lrc.lyrics.length, 2);
+
+  const plain = parseRawLyricsText("One\n\nTwo\nThree", { plainSource: "txt_plain", plainIdPrefix: "txt" });
+  assert.equal(plain.source, "txt_plain");
+  assert.equal(plain.lyrics[0].id, "txt_001");
+  assert.equal(plain.lyrics.length, 3);
+
+  assert.equal(parseRawLyricsText("Only one\nTwo"), null);
+});
+
+test("scoreLyricsCandidate rejects low-similarity candidates and scores matching duration positively", () => {
+  const lines = ["Hello world tonight", "Dancing under lights", "Feel the rhythm now", "Sing along with me", "Never fade away"].join("\n");
+  const rejected = scoreLyricsCandidate(
+    { artistName: "A", trackName: "B", plainLyrics: lines, duration: 180 },
+    { whisperText: "completely different korean lyrics 안녕하세요", hasWhisper: true, trackDuration: 180 }
+  );
+  assert.equal(rejected, null);
+
+  const accepted = scoreLyricsCandidate(
+    { artistName: "A", trackName: "B", plainLyrics: lines, duration: 181 },
+    { whisperText: "Hello world tonight Dancing under lights", hasWhisper: true, trackDuration: 180 }
+  );
+  assert.ok(accepted);
+  assert.equal(accepted.durationDiff, 1);
+  assert.ok(accepted.score > accepted.similarity);
+});
+
+test("invalidateTimeReversals keeps main chronological sequence and removes future-chorus jump outliers", async () => {
+  const officialLines = Array.from({ length: 39 }, (_, idx) => `Official line ${idx}`);
+  const whisperLyrics = [
+    { id: "line_023", start: 78.0, end: 82.0, text: "line 16" },
+    { id: "line_025", start: 85.3, end: 90.0, text: "line 18" },
+    { id: "line_027", start: 92.08, end: 98.0, text: "line 19" },
+    { id: "line_029", start: 102.96, end: 112.0, text: "line 20-21" },
+    { id: "line_031", start: 120.8, end: 128.0, text: "line 24-25" },
+    { id: "line_033", start: 136.56, end: 141.0, text: "chorus jump 1" },
+    { id: "line_035", start: 145.08, end: 155.0, text: "line 29-30" },
+    { id: "line_038", start: 177.16, end: 185.0, text: "line 31-32" },
+    { id: "line_040", start: 191.0, end: 195.0, text: "line 34-35" },
+    { id: "line_041", start: 196.18, end: 202.0, text: "line 37" }
+  ];
+
+  // Reproduces real log: future-chorus jumps at 17 (136.56s), 22-23 (177.16s), 27-28 (196.18s)
+  const alignmentFromGemini = officialLines.map((_, idx) => ({ official_index: idx, whisper_id: null }));
+  const assign = (idx, wId) => { alignmentFromGemini[idx].whisper_id = wId; };
+  assign(16, "line_023");
+  assign(17, "line_033"); // jump -> should be invalidated
+  assign(18, "line_025"); // 85.3s -> must survive
+  assign(19, "line_027"); // 92.08s -> must survive
+  assign(20, "line_029"); // 102.96s -> must survive
+  assign(21, "line_029");
+  assign(22, "line_038"); // premature jump -> should be invalidated
+  assign(23, "line_038");
+  assign(24, "line_031"); // 120.8s -> must survive
+  assign(25, "line_031");
+  assign(27, "line_041"); // premature jump -> should be invalidated
+  assign(28, "line_041");
+  assign(29, "line_035"); // 145.08s -> must survive
+  assign(30, "line_035");
+  assign(31, "line_038"); // real owner at 177.16s -> must survive
+  assign(32, "line_038");
+  assign(34, "line_040"); // 191.0s -> must survive
+  assign(35, "line_040");
+  assign(37, "line_041"); // real owner at 196.18s -> must survive
+
+  const res = await alignAndInterpolateLyrics(
+    {
+      track: { title: "Chorus Jump Recovery", duration: 220 },
+      whisperLyrics,
+      settings: { geminiApiKey: "dummy-key" },
+      embeddedLyricsLines: officialLines
+    },
+    {
+      deps: {
+        alignLyricsWithGemini: async () => alignmentFromGemini.map((x) => ({ ...x }))
+      }
+    }
+  );
+
+  assert.equal(res.ok, true);
+  assert.equal(res.lyrics.length, officialLines.length);
+  // Real matches 18..21, 24..25, 29..32, 37 stay anchored to their real timestamps (not wiped)
+  assert.equal(res.lyrics[18].start, 85.3);
+  assert.equal(res.lyrics[19].start, 92.08);
+  assert.equal(res.lyrics[20].start, 102.96);
+  assert.equal(res.lyrics[24].start, 120.8);
+  assert.equal(res.lyrics[29].start, 145.08);
+  assert.equal(res.lyrics[31].start, 177.16);
+  assert.equal(res.lyrics[37].start, 196.18);
+  // Outlier 17, 22-23, 27-28 are interpolated monotonically within their surrounding anchors
+  assert.ok(res.lyrics[17].start >= 82.0 && res.lyrics[17].end <= 85.3);
+  assert.ok(res.lyrics[22].start >= 112.0 && res.lyrics[23].end <= 120.8);
+  assert.ok(res.lyrics[27].start >= 128.0 && res.lyrics[28].end <= 145.08);
+
+  for (let i = 1; i < res.lyrics.length; i++) {
+    assert.ok(res.lyrics[i].start >= res.lyrics[i - 1].start, `non-monotonic at ${i}`);
+  }
 });
