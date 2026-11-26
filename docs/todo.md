@@ -16,8 +16,17 @@
   - `artist`·`title`·`duration` 기반 LRCLIB `/api/get` 정확 조회 우선 및 `/api/search` 후보 선택 시 `duration` 차이·유사도 복합 점수로 TV Size·리믹스 오매칭 감소 (`updated.md` 참고)
   - 확보한 공식 평문 가사를 트랙 캐시(`embeddedPlainLyrics`)에 재사용 가능하게 보관해 재시도·재정합 시 반복 조회 최소화 (`updated.md` 참고)
   - 음원 파일과 동일 폴더의 `<파일명>.txt` 평문 가사 파일 자동 인식(`lyrics-sources.js`, `txt_plain`) 지원 (`updated.md` 참고)
-- [ ] **[P2] AI 정합 속도·정확도 최적화 (`lyrics-scraper.js`, `lyrics-aligner.js`, `gemini-service.js`)**:
-  - `autoAnalyzeMode === "align"` 시 Whisper 전사와 LRCLIB 가사 조회 병렬화, 정합 요청 ID 경량화(정수 인덱스) 및 단어 타임스탬프 공백 기반 병합 세그먼트 스냅 검토
+- [ ] **[P1] 가사 타임스탬프 정확도 고도화 및 정량 벤치마크 테스트 구축 (`transcribe.py`, `lyrics-aligner.js`, `gemini-service.js`, `index.html`)**:
+  - **정량 평가(수치화) 벤치마크 구축**: 정답 LRC(골든 셋 5~10곡: 한/영/일, 빠른 템포·발라드·반복 후렴 포함) 대비 자동 측정 스크립트 작성 및 핵심 지표 산출 — `Start/End MAE`(평균 절대 오차, 초), `P90 / Max Error`, 허용 오차 내 적중률(`±0.3s`, `±0.5s`, `±1.0s` 비율), `Anchor Match Rate`(실제 STT 앵커 매칭률 vs 보간 비율), `Split duplicate` / `Time reversal` 발생 건수, 곡당 처리 시간(`Latency`)을 변경 전·후 A/B 비교 기록
+  - **1단계 — 모델 라인업 정비 및 단어 타임스탬프(`words`) 활용**:
+    - `transcribe.py`: `word_timestamps=True`의 단어별 `[start, end]` 데이터를 세그먼트에 보존하고, 줄 분할 쉼 임계값(`gap >= 1.2s` → `0.45~0.6s` 등)을 벤치마크로 튜닝
+    - `lyrics-aligner.js`: 연속 중복(`Split duplicate`)·보간 구간에서 단순 글자 수 비례 분할(`distributeLinesByLength`) 대신 내부 `words` 경계·침묵 간격 기반 스냅 적용
+    - 모델 조합 비교: 로컬 Whisper `large-v3-turbo`(+ MDX-Net 보컬 분리 ON/OFF) 및 Gemini 정합 모델(`gemini-2.5-flash` / `gemini-2.5-pro` / `gemini-2.5-flash-lite`) 조합별 `Start/End MAE` 측정
+  - **2단계 — 강제 정렬(Forced Alignment) 전용 모델 도입 검토**:
+    - `stable-ts`(`stable-whisper`)의 `align()` / `refine()`(파형 에너지 기반 시작·끝 늘어짐 보정) 프로토타입 우선 평가
+    - `WhisperX`(Wav2Vec2 CTC 음소 정렬) 및 Meta `MMS-FA`(`torchaudio`)의 정확도·설치 용량·속도 트레이드오프를 동일 벤치마크로 비교 후 평문 가사 보유 곡에 대한 정밀 정렬 옵션 채택
+- [ ] **[P2] AI 정합 속도 최적화 (`lyrics-scraper.js`, `lyrics-aligner.js`, `gemini-service.js`)**:
+  - `autoAnalyzeMode === "align"` 시 Whisper 전사와 LRCLIB 가사 조회 병렬화 및 정합 요청 ID 경량화(정수 인덱스) 검토
   - (선택 옵션) LRCLIB `syncedLyrics` + 트랙 길이 일치(`±3초`) 시 Whisper 중앙값 오프셋 보정 고속 정합 검토
 - [ ] **[P2] 외부 다중 가사 소스 폴백 체인 확장 (`lyrics-scraper.js`)**: LRCLIB 검색 실패 시 보조 공개 가사 API(`lyrics.ovh` 등) 순차 조회 후 Whisper 텍스트 유사도 검증을 통과한 평문 가사 자동 확보
 - [ ] **[P2] Gemini 클라우드 STT 오디오 전송 경량화 (`gemini-service.js`, `transcription-worker.js`)**:
@@ -25,7 +34,6 @@
 - [ ] **[P2] 로컬 Whisper 워커 상주화 및 배치 추론 검토 (`transcribe.py`, `transcription-worker.js`)**:
   - 곡마다 반복되는 `transcribe.exe` 압축 해제·모델 VRAM 로딩 콜드 스타트를 제거하는 유휴 타임아웃 기반 상주 워커 데몬 검토
   - GPU 환경에서 `faster-whisper` `BatchedInferencePipeline` 적용 가능성(보컬 분리 스템 기준 정확도 비교) 검증
-- [ ] **[P2] 가사 텍스트 기반 강제 정렬(Forced Alignment) 검토**: 음원 내장 평문 가사 또는 외부 가사 검색과 연동해 오타 없이 타임스탬프만 정밀 정렬하는 옵션 검토
 - [x] **로컬 Whisper·보컬 분리 분석 성능 및 진행률 스트리밍 개선 (`transcribe.py`, `vocal_separator.py`, `lyrics-job-manager.js`)**: `detect_language()` 경량 언어 감지 전환, ONNX 보컬 분리→Whisper 모델 VRAM 로딩 순서 분리, CPU 멀티스레드(`min(cpu, 8)`)·상황별 `beamSize`(2/3) 조정 및 세그먼트 실시간 진행률 출력 (`updated.md` 참고)
 - [x] **Gemini 가사 전사·정합 프롬프트 고도화 (`src/main/services/gemini-prompts.js`)**:
   - 전사(`transcribeSystemInstruction`): 전주/간주 비가사 마커(`[간주]`, `♪`) 배제, 코러스·화음 중복 분리 억제 및 호흡 단위 소절 분할 정제 (`updated.md` 참고)

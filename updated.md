@@ -4,6 +4,16 @@
 
 ---
 
+## 2026-11-26 — AI 정합 시간 역행 연쇄 누락(LIS 이상치 제거) 및 엄격한 1:1 프롬프트 복원
+- **시간 역행 연쇄 무효화 및 미래 후렴 ID 선점 버그 해결 (`src/main/helpers/lyrics-aligner.js`)**:
+  - 기존 순차 탐욕 검사(`invalidateTimeReversals`)가 미래 절/후렴으로 잘못 점프한 단일 매칭을 기준점으로 고정해 뒤따르는 정상 구간의 싱크를 연쇄 삭제하던 문제를, **최장 단조 비감소 부분 수열(LIS) + 인접 점프 제곱합 최소화** 기반 이상치 제거로 교체했습니다.
+  - DP 점수(`dpScore`)에서 고유 `whisper_id` 전환(`+1`)이 인접 중복 공유(`+0.01`)보다 우선되도록 가중치를 부여하고, 비연속 동일 `whisper_id`는 같은 체인에 공존할 수 없도록 제한했으며 `buildOfficialTimeMap()`도 상대 위치 기반 클러스터 선택을 지원해 실제 후렴 줄이 올바른 `whisper_id`를 보존하도록 보강했습니다.
+- **Gemini 정합 프롬프트 1:1 매핑 원칙 복원 및 점프 억제 강화 (`src/main/services/gemini-prompts.js`)**:
+  - 인접 병합 소절의 동일 `whisper_id` 중복 공유 예외를 제거해 엄격한 1:1 고유 매핑을 복원하고, 현재 시간대 주변에 부합하는 STT가 없거나 전후 라인과 시간 순서가 꼬이는 경우 다른 절·후렴구 ID로 건너뛰지 말고 즉시 `null`을 반환해 보간에 위임하도록 규칙을 명확화했습니다.
+  - 실제 로그 재현 회귀 테스트를 `test/alignment-pipeline.test.js`에 추가하고, 타임스탬프 정확도 고도화 및 정량 벤치마크 테스트 구축 과제를 `docs/todo.md` `[P1]` 항목으로 등록했습니다.
+
+---
+
 ## 2026-11-26 — AI 정합·로컬 가사 파이프라인 내부 구조화 (`v1.1.1` Stage 4)
 - **`lyrics-aligner.js`·`lyrics-sources.js`·`lyrics-scraper.js` 순수 단계 분리 및 중복 계산 제거 (`test/alignment-pipeline.test.js`)**:
   - `lyrics-aligner.js`: `alignAndInterpolateLyrics()` 내부 후처리를 `invalidateTimeReversals`, `buildOfficialTimeMap`, `interpolateMissingLines`, `clampLyricDurations` 순수 함수로 분해하고 중복 `alignment.find()`·미사용 변수를 정리했습니다.

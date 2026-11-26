@@ -554,3 +554,75 @@ test("scoreLyricsCandidate rejects low-similarity candidates and scores matching
   assert.equal(accepted.durationDiff, 1);
   assert.ok(accepted.score > accepted.similarity);
 });
+
+test("invalidateTimeReversals keeps main chronological sequence and removes future-chorus jump outliers", async () => {
+  const officialLines = Array.from({ length: 39 }, (_, idx) => `Official line ${idx}`);
+  const whisperLyrics = [
+    { id: "line_023", start: 78.0, end: 82.0, text: "line 16" },
+    { id: "line_025", start: 85.3, end: 90.0, text: "line 18" },
+    { id: "line_027", start: 92.08, end: 98.0, text: "line 19" },
+    { id: "line_029", start: 102.96, end: 112.0, text: "line 20-21" },
+    { id: "line_031", start: 120.8, end: 128.0, text: "line 24-25" },
+    { id: "line_033", start: 136.56, end: 141.0, text: "chorus jump 1" },
+    { id: "line_035", start: 145.08, end: 155.0, text: "line 29-30" },
+    { id: "line_038", start: 177.16, end: 185.0, text: "line 31-32" },
+    { id: "line_040", start: 191.0, end: 195.0, text: "line 34-35" },
+    { id: "line_041", start: 196.18, end: 202.0, text: "line 37" }
+  ];
+
+  // Reproduces real log: future-chorus jumps at 17 (136.56s), 22-23 (177.16s), 27-28 (196.18s)
+  const alignmentFromGemini = officialLines.map((_, idx) => ({ official_index: idx, whisper_id: null }));
+  const assign = (idx, wId) => { alignmentFromGemini[idx].whisper_id = wId; };
+  assign(16, "line_023");
+  assign(17, "line_033"); // jump -> should be invalidated
+  assign(18, "line_025"); // 85.3s -> must survive
+  assign(19, "line_027"); // 92.08s -> must survive
+  assign(20, "line_029"); // 102.96s -> must survive
+  assign(21, "line_029");
+  assign(22, "line_038"); // premature jump -> should be invalidated
+  assign(23, "line_038");
+  assign(24, "line_031"); // 120.8s -> must survive
+  assign(25, "line_031");
+  assign(27, "line_041"); // premature jump -> should be invalidated
+  assign(28, "line_041");
+  assign(29, "line_035"); // 145.08s -> must survive
+  assign(30, "line_035");
+  assign(31, "line_038"); // real owner at 177.16s -> must survive
+  assign(32, "line_038");
+  assign(34, "line_040"); // 191.0s -> must survive
+  assign(35, "line_040");
+  assign(37, "line_041"); // real owner at 196.18s -> must survive
+
+  const res = await alignAndInterpolateLyrics(
+    {
+      track: { title: "Chorus Jump Recovery", duration: 220 },
+      whisperLyrics,
+      settings: { geminiApiKey: "dummy-key" },
+      embeddedLyricsLines: officialLines
+    },
+    {
+      deps: {
+        alignLyricsWithGemini: async () => alignmentFromGemini.map((x) => ({ ...x }))
+      }
+    }
+  );
+
+  assert.equal(res.ok, true);
+  assert.equal(res.lyrics.length, officialLines.length);
+  // Real matches 18..21, 24..25, 29..32, 37 stay anchored to their real timestamps (not wiped)
+  assert.equal(res.lyrics[18].start, 85.3);
+  assert.equal(res.lyrics[19].start, 92.08);
+  assert.equal(res.lyrics[20].start, 102.96);
+  assert.equal(res.lyrics[24].start, 120.8);
+  assert.equal(res.lyrics[29].start, 145.08);
+  assert.equal(res.lyrics[31].start, 177.16);
+  assert.equal(res.lyrics[37].start, 196.18);
+  // Outlier 17, 22-23, 27-28 are interpolated monotonically within their surrounding anchors
+  assert.ok(res.lyrics[17].start >= 82.0 && res.lyrics[17].end <= 85.3);
+  assert.ok(res.lyrics[22].start >= 112.0 && res.lyrics[23].end <= 120.8);
+  assert.ok(res.lyrics[27].start >= 128.0 && res.lyrics[28].end <= 145.08);
+
+  for (let i = 1; i < res.lyrics.length; i++) {
+    assert.ok(res.lyrics[i].start >= res.lyrics[i - 1].start, `non-monotonic at ${i}`);
+  }
+});
